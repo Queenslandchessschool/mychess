@@ -3,31 +3,54 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
+import StudentForm from "@/components/students/StudentForm";
+import StudentTable from "@/components/students/StudentTable";
+
 export default function StudentsPage() {
-  const [students, setStudents] = useState<any[]>([]);
+const [students, setStudents] = useState<any[]>([]);
+const [searchTerm, setSearchTerm] = useState("");
+const [statusFilter, setStatusFilter] = useState("All");
+const [editingStudent, setEditingStudent] = useState<any | null>(null);
+
+const [form, setForm] = useState({
+  student_code: "",
+
+  first_name: "",
+  last_name: "",
+
+  gender: "",
+  date_of_birth: "",
+
+  school: "",
+
+  current_level: "",
+  student_stage: "Regular",
+
+  status: "Active",
+
+  is_school_program: false,
+
+  school_year: "",
+  school_class: "",
+
+  notes: "",
+});
 
   useEffect(() => {
-  loadStudents();
-}, []);
+    loadStudents();
+  }, []);
 
-async function loadStudents() {
-  const { data, error } = await supabase
-    .from("students")
-    .select("*")
-    .order("created_at", { ascending: false });
+  async function loadStudents() {
+    const { data, error } = await supabase
+      .from("students")
+      .select("*")
+      .order("created_at", { ascending: false });
 
-  if (!error && data) {
-    setStudents(data);
-  }
+    if (!error && data) {
+  console.log(data);
+  setStudents(data);
 }
-
-  const [form, setForm] = useState({
-    student_code: "",
-    first_name: "",
-    last_name: "",
-    school: "",
-    current_level: "",
-  });
+  }
 
 async function addStudent() {
   if (!form.first_name || !form.last_name) {
@@ -38,10 +61,27 @@ async function addStudent() {
   const { error } = await supabase.from("students").insert([
     {
       student_code: form.student_code,
+
       first_name: form.first_name,
       last_name: form.last_name,
+
+      gender: form.gender,
+      date_of_birth: form.date_of_birth || null,
+
       school: form.school,
+
       current_level: form.current_level,
+
+      student_stage: form.student_stage,
+
+      status: form.status,
+
+      is_school_program: form.is_school_program,
+
+      school_year: form.school_year,
+      school_class: form.school_class,
+
+      notes: form.notes,
     },
   ]);
 
@@ -50,116 +90,238 @@ async function addStudent() {
     return;
   }
 
-setForm({
-  student_code: "",
-  first_name: "",
-  last_name: "",
-  school: "",
-  current_level: "",
-});
+  setForm({
+    student_code: "",
 
-await loadStudents();
+    first_name: "",
+    last_name: "",
+
+    gender: "",
+    date_of_birth: "",
+
+    school: "",
+
+    current_level: "",
+    student_stage: "Regular",
+
+    status: "Active",
+
+    is_school_program: false,
+
+    school_year: "",
+    school_class: "",
+
+    notes: "",
+  });
+
+  await loadStudents();
 }
+async function updateStudent() {
+  console.log(editingStudent);
+  if (!editingStudent) return;
 
-  return (
-    <div className="p-8 max-w-6xl mx-auto">
+  const { data, error } = await supabase
+    .from("students")
+    .update({
+      student_code: form.student_code,
 
-      <h1 className="text-3xl font-bold mb-8">
-        Student Management
-      </h1>
+      first_name: form.first_name,
+      last_name: form.last_name,
 
-      <div className="grid grid-cols-5 gap-3 mb-6">
+      gender: form.gender,
+      date_of_birth: form.date_of_birth || null,
 
-        <input
-          className="border rounded p-2"
-          placeholder="Student Code"
-          value={form.student_code}
-          onChange={(e) =>
-            setForm({ ...form, student_code: e.target.value })
-          }
-        />
+      school: form.school,
 
-        <input
-          className="border rounded p-2"
-          placeholder="First Name"
-          value={form.first_name}
-          onChange={(e) =>
-            setForm({ ...form, first_name: e.target.value })
-          }
-        />
+      current_level: form.current_level,
 
-        <input
-          className="border rounded p-2"
-          placeholder="Last Name"
-          value={form.last_name}
-          onChange={(e) =>
-            setForm({ ...form, last_name: e.target.value })
-          }
-        />
+      student_stage: form.student_stage,
+      status: form.status,
 
-        <input
-          className="border rounded p-2"
-          placeholder="School"
-          value={form.school}
-          onChange={(e) =>
-            setForm({ ...form, school: e.target.value })
-          }
-        />
+      is_school_program: form.is_school_program,
 
-        <input
-          className="border rounded p-2"
-          placeholder="Level"
-          value={form.current_level}
-          onChange={(e) =>
-            setForm({ ...form, current_level: e.target.value })
-          }
-        />
+      school_year: form.school_year,
+      school_class: form.school_class,
+
+      notes: form.notes,
+    })
+    .eq("id", editingStudent.id);
+console.log("Updated data:", data);
+console.log("Update error:", JSON.stringify(error, null, 2));
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  setEditingStudent(null);
+
+  setForm({
+    student_code: "",
+
+    first_name: "",
+    last_name: "",
+
+    gender: "",
+    date_of_birth: "",
+
+    school: "",
+
+    current_level: "",
+    student_stage: "Regular",
+
+    status: "Active",
+
+    is_school_program: false,
+
+    school_year: "",
+    school_class: "",
+
+    notes: "",
+  });
+
+  await loadStudents();
+}
+async function toggleStudentStatus(student: any) {
+  const newStatus =
+    student.status === "Active" ? "Inactive" : "Active";
+
+  const { error } = await supabase
+    .from("students")
+    .update({
+      status: newStatus,
+    })
+    .eq("id", student.id);
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  await loadStudents();
+}
+const filteredStudents = students.filter((student) => {
+  const keyword = searchTerm.toLowerCase();
+
+  const matchesSearch =
+    student.student_code?.toLowerCase().includes(keyword) ||
+    student.first_name?.toLowerCase().includes(keyword) ||
+    student.last_name?.toLowerCase().includes(keyword);
+
+  const matchesStatus =
+    statusFilter === "All" ||
+    student.status === statusFilter;
+
+  return matchesSearch && matchesStatus;
+});
+return (
+  <div className="max-w-7xl mx-auto p-8">
+
+    <h1 className="text-3xl font-bold mb-8">
+      Student Management
+    </h1>
+
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+      <div>
+
+       <StudentForm
+  form={form}
+  setForm={setForm}
+  onSave={editingStudent ? updateStudent : addStudent}
+  editingStudent={editingStudent}
+  onCancel={() => {
+    setEditingStudent(null);
+
+    setForm({
+      student_code: "",
+
+      first_name: "",
+      last_name: "",
+
+      gender: "",
+      date_of_birth: "",
+
+      school: "",
+
+      current_level: "",
+      student_stage: "Regular",
+
+      status: "Active",
+
+      is_school_program: false,
+
+      school_year: "",
+      school_class: "",
+
+      notes: "",
+    });
+  }}
+/>
 
       </div>
 
-      <button
-        onClick={addStudent}
-        className="bg-blue-600 text-white px-6 py-2 rounded"
-      >
-        Add Student
-      </button>
+  <div className="lg:col-span-2">
 
-      <table className="w-full mt-8 border">
+<div className="flex gap-3 mb-4">
 
-        <thead className="bg-slate-100">
+  <input
+    type="text"
+    placeholder="Search student..."
+    value={searchTerm}
+    onChange={(e) => setSearchTerm(e.target.value)}
+    className="flex-1 border rounded-lg p-2"
+  />
 
-          <tr>
+  <select
+  value={statusFilter}
+  onChange={(e) => setStatusFilter(e.target.value)}
+  className="border rounded-lg p-2"
+>
+  <option value="All">All Status</option>
+  <option value="Active">Active</option>
+  <option value="Inactive">Inactive</option>
+</select>
 
-            <th className="border p-2">Code</th>
-            <th className="border p-2">First Name</th>
-            <th className="border p-2">Last Name</th>
-            <th className="border p-2">School</th>
-            <th className="border p-2">Level</th>
+</div>
 
-          </tr>
+  <StudentTable
+  students={filteredStudents}
+  onEdit={(student) => {
+    setEditingStudent(student);
 
-        </thead>
+    setForm({
+      student_code: student.student_code ?? "",
 
-        <tbody>
+      first_name: student.first_name ?? "",
+      last_name: student.last_name ?? "",
 
-          {students.map((s, i) => (
+      gender: student.gender ?? "",
+      date_of_birth: student.date_of_birth ?? "",
 
-            <tr key={i}>
+      school: student.school ?? "",
 
-              <td className="border p-2">{s.student_code}</td>
-              <td className="border p-2">{s.first_name}</td>
-              <td className="border p-2">{s.last_name}</td>
-              <td className="border p-2">{s.school}</td>
-              <td className="border p-2">{s.current_level}</td>
+      current_level: student.current_level ?? "",
 
-            </tr>
+      student_stage: student.student_stage ?? "Regular",
 
-          ))}
+      status: student.status ?? "Active",
 
-        </tbody>
+      is_school_program: student.is_school_program ?? false,
 
-      </table>
+      school_year: student.school_year ?? "",
+      school_class: student.school_class ?? "",
+
+      notes: student.notes ?? "",
+    });
+  }}
+  onToggleStatus={toggleStudentStatus}
+/>
+
+      </div>
 
     </div>
-  );
-}
+
+  </div>
+);
+} 
