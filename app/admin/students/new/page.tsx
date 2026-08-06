@@ -10,7 +10,17 @@ export default function NewStudentPage() {
     try {
       await activateEnrollment(data);
 
-      alert("Student activated successfully.");
+      alert(
+  `Thank you for your interest in our chess program!
+
+Your registration has been submitted successfully.
+
+A confirmation email including your class details, tuition fees and payment instructions will be sent to you shortly.
+
+Your place will be secured once payment has been received.
+
+We look forward to welcoming your family to Queensland Chess School.`
+);
     } catch (err) {
       console.error(err);
 

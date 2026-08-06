@@ -4,6 +4,10 @@ import { supabase } from "@/lib/supabase";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { RegistrationData } from "@/lib/registration";
+import {
+  isValidEmail,
+  isValidMobile,
+} from "@/lib/validators";
 
 interface Props {
   onSubmit: (data: RegistrationData) => Promise<void>;
@@ -587,6 +591,25 @@ return (
   {isSchoolProgram && (
     <>
       <label className="flex items-center gap-2 mb-2">
+  <input
+    type="checkbox"
+    checked={
+      !formData.enrollment.special_request.classroom_pickup &&
+      !formData.enrollment.special_request.ymca_dropoff &&
+      !formData.enrollment.special_request.walk_home
+    }
+    onChange={(e) => {
+      if (e.target.checked) {
+        updateSpecialRequest("classroom_pickup", false);
+        updateSpecialRequest("ymca_dropoff", false);
+        updateSpecialRequest("walk_home", false);
+      }
+    }}
+  />
+  None of them
+</label>
+
+      <label className="flex items-center gap-2 mb-2">
         <input
           type="checkbox"
           checked={
@@ -599,7 +622,7 @@ return (
             )
           }
         />
-        Classroom Pick-up
+        Classroom Pick-up (Prep or Year 1 ONLY)
       </label>
 
       <label className="flex items-center gap-2 mb-2">
@@ -817,6 +840,18 @@ return (
     return;
   }
 
+  if (!isValidEmail(formData.parent.email)) {
+  alert("Please enter a valid email address.");
+  return;
+}
+
+if (!isValidMobile(formData.parent.mobile)) {
+  alert(
+    "Please enter a valid Australian mobile number."
+  );
+  return;
+}
+
 }
 
 if (step === 3) {
@@ -864,7 +899,7 @@ setStep(step + 1);
     type="submit"
     className="px-6 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
   >
-    Finish Registration
+    Submit Registration
   </button>
 
 )}
