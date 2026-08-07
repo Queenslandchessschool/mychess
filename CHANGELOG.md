@@ -106,3 +106,38 @@ Status: ✅ PASS
 - Database integrity
 
 Status: ✅ PASS
+
+# Changelog
+
+---
+
+## v0.6.1 (2026-08-08)
+
+### 🔐 Authentication
+- Implemented Supabase Authentication.
+- Added Login page with email/password authentication.
+- Added secure session management.
+- Added Middleware route protection for Admin, Coach and Parent portals.
+- Completed Admin login flow.
+
+### 🛡️ Database Security (RLS)
+- Migrated `students` table from development policies to authenticated access.
+- Migrated `parents` table from development policies to authenticated access.
+- Migrated `student_enrolments` table from development policies to authenticated access.
+- Verified Row Level Security (RLS) configuration for all core business tables.
+
+### 🗄️ Database Maintenance
+- Investigated duplicated Parent records.
+- Identified duplicate import issue (7 duplicated records per student).
+- Safely removed duplicated Parent records (840 → 120).
+- Verified Student–Parent relationships remain correct.
+- Verified Family ID integrity after cleanup.
+
+### ✅ Milestone
+Authentication foundation and core database security completed.
+
+System is now ready for the next development phase:
+- Admin Layout
+- Student Management
+- Parent Management
+- Attendance Module
