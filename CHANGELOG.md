@@ -57,3 +57,52 @@ Next Step
 
 Supabase Security Hardening
 (RLS + Policies)
+
+
+
+
+# v0.6.0 - Authentication Foundation
+**Date:** 2026-08-08
+
+## Added
+- Admin login page
+- Supabase SSR authentication
+- Session middleware
+- Protected routes
+- Admin dashboard entry
+
+## Changed
+- Upgraded Supabase browser client
+- Authentication architecture
+
+## Verified
+- Login with email/password
+- Invalid password displays error
+- Successful login redirects to Admin Dashboard
+- Protected routes require authentication
+
+Status: ✅ PASS
+
+---
+
+# v0.5.0 - Database Foundation
+**Date:** 2026-08-07
+
+## Added
+- Student database
+- Parent database
+- Student enrolment database
+- Student import tool
+- Parent import tool
+- Enrolment import tool
+- Student code generation
+- Initial CRM data imported (120 students)
+
+## Verified
+- Student import
+- Parent import
+- Enrolment import
+- Student code uniqueness
+- Database integrity
+
+Status: ✅ PASS
