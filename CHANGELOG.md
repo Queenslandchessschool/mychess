@@ -141,3 +141,28 @@ System is now ready for the next development phase:
 - Student Management
 - Parent Management
 - Attendance Module
+
+## Students + Parents — Frozen Baseline
+
+### Students
+- Student Management module finalised.
+- Student table layout and responsive behaviour verified.
+- Student table supports Ascending / Descending sorting.
+- Student form and field structure finalised.
+- Student/Class relationship verified.
+- School Program checkbox removed from Student form.
+- Student Information heading simplified.
+
+### Parents
+- Parent Management module finalised.
+- Parent table layout and responsive behaviour verified.
+- Parent form and field structure finalised.
+- Parent/Student/Class relationships verified.
+- Parent table currently does NOT include the Student module's Ascending / Descending sorting.
+- This difference is recorded as a known limitation and does not block the current frozen baseline.
+
+### Canonical UI/UX Rule
+- The Student module is the canonical template for all future modules.
+- Any new page or module must follow the established Student design and interaction patterns.
+- Do not independently redesign existing UI patterns for new modules.
+- Adapt data and module-specific functionality only where required.
