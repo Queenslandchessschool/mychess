@@ -56,7 +56,10 @@ export default function LessonGenerator({
       scheduleParts.push(classItem.day);
     }
 
-    if (classItem.start_time && classItem.end_time) {
+    if (
+      classItem.start_time &&
+      classItem.end_time
+    ) {
       scheduleParts.push(
         `${classItem.start_time}–${classItem.end_time}`
       );
@@ -69,25 +72,114 @@ export default function LessonGenerator({
     return parts.join(" — ") || classItem.id;
   }
 
-  return (
-    <div className="border rounded-lg bg-white shadow-sm">
+  const inputClass = `
+    w-full
+    rounded-lg
+    border
+    border-[#D9E0E8]
+    bg-[#FFF6E6]
+    px-3
+    py-2.5
+    text-sm
+    text-[#10213A]
+    outline-none
+    transition-colors
+    duration-200
+    hover:border-[#B9C3D0]
+    focus:border-[#D4AF37]
+    focus:ring-1
+    focus:ring-[#D4AF37]/30
+  `;
 
-      <div className="p-4 border-b">
-        <h2 className="text-2xl font-bold">
-          Lesson Generator
+  return (
+    <div
+      className="
+        relative
+        overflow-hidden
+        rounded-[18px]
+        border
+        border-[#D4AF37]/70
+        bg-[#102B4D]
+      "
+    >
+
+      {/* Gold Gradient Top Highlight */}
+
+      <div
+        aria-hidden="true"
+        className="
+          pointer-events-none
+          h-[2px]
+          w-full
+          bg-gradient-to-r
+          from-[#D4AF37]
+          via-[#E7CF72]
+          to-[#D4AF37]/20
+        "
+      />
+
+      {/* Header */}
+
+      <div
+        className="
+          border-b
+          border-[#D4AF37]/20
+          px-5
+          py-5
+        "
+      >
+        <p
+          className="
+            text-xs
+            font-medium
+            uppercase
+            tracking-[0.16em]
+            text-[#D4AF37]
+          "
+        >
+          LESSON GENERATOR
+        </p>
+
+        <h2
+          className="
+            mt-2
+            text-2xl
+            font-bold
+            text-[#F4F7FB]
+          "
+        >
+          Generate Lessons
         </h2>
 
-        <p className="text-sm text-gray-500 mt-1">
-          Generate or reconcile lessons from Class Schedule and
-          School Operational Events.
+        <p
+          className="
+            mt-1
+            text-sm
+            text-[#C8D2DF]
+          "
+        >
+          Generate or reconcile lessons from Class Schedule
+          and School Operational Events.
         </p>
       </div>
 
-      <div className="p-4 space-y-4">
+
+      {/* Form */}
+
+      <div className="space-y-4 p-5">
 
         {/* Generation Scope */}
+
         <div>
-          <label className="block text-sm font-medium mb-1">
+          <label
+            className="
+              mb-1.5
+              block
+              text-xs
+              font-medium
+              text-[#64748B]
+            "
+          >
             Generation Scope
           </label>
 
@@ -107,25 +199,44 @@ export default function LessonGenerator({
                 setTerm(null);
               }
             }}
-            className="w-full border rounded-lg p-2"
+            className={inputClass}
           >
-            <option value="Class">
+            <option
+              value="Class"
+              className="bg-white text-[#10213A]"
+            >
               Individual Class
             </option>
 
-            <option value="Term">
+            <option
+              value="Term"
+              className="bg-white text-[#10213A]"
+            >
               Academic Term
             </option>
 
-            <option value="Academic Year">
+            <option
+              value="Academic Year"
+              className="bg-white text-[#10213A]"
+            >
               Academic Year
             </option>
           </select>
         </div>
 
+
         {/* Academic Year */}
+
         <div>
-          <label className="block text-sm font-medium mb-1">
+          <label
+            className="
+              mb-1.5
+              block
+              text-xs
+              font-medium
+              text-[#64748B]
+            "
+          >
             Academic Year
           </label>
 
@@ -133,16 +244,28 @@ export default function LessonGenerator({
             type="number"
             value={academicYear}
             onChange={(e) =>
-              setAcademicYear(Number(e.target.value))
+              setAcademicYear(
+                Number(e.target.value)
+              )
             }
-            className="w-full border rounded-lg p-2"
+            className={inputClass}
           />
         </div>
 
+
         {/* Term */}
+
         {scope !== "Academic Year" && (
           <div>
-            <label className="block text-sm font-medium mb-1">
+            <label
+              className="
+                mb-1.5
+                block
+                text-xs
+                font-medium
+                text-[#64748B]
+              "
+            >
               Term
             </label>
 
@@ -155,35 +278,60 @@ export default function LessonGenerator({
                     : null
                 )
               }
-              className="w-full border rounded-lg p-2"
+              className={inputClass}
             >
-              <option value="">
+              <option
+                value=""
+                className="bg-white text-[#64748B]"
+              >
                 Select Term
               </option>
 
-              <option value="1">
+              <option
+                value="1"
+                className="bg-white text-[#10213A]"
+              >
                 Term 1
               </option>
 
-              <option value="2">
+              <option
+                value="2"
+                className="bg-white text-[#10213A]"
+              >
                 Term 2
               </option>
 
-              <option value="3">
+              <option
+                value="3"
+                className="bg-white text-[#10213A]"
+              >
                 Term 3
               </option>
 
-              <option value="4">
+              <option
+                value="4"
+                className="bg-white text-[#10213A]"
+              >
                 Term 4
               </option>
             </select>
           </div>
         )}
 
+
         {/* Individual Class */}
+
         {scope === "Class" && (
           <div>
-            <label className="block text-sm font-medium mb-1">
+            <label
+              className="
+                mb-1.5
+                block
+                text-xs
+                font-medium
+                text-[#64748B]
+              "
+            >
               Class
             </label>
 
@@ -194,9 +342,12 @@ export default function LessonGenerator({
                   e.target.value || null
                 )
               }
-              className="w-full border rounded-lg p-2"
+              className={inputClass}
             >
-              <option value="">
+              <option
+                value=""
+                className="bg-white text-[#64748B]"
+              >
                 Select Class
               </option>
 
@@ -204,27 +355,46 @@ export default function LessonGenerator({
                 <option
                   key={classItem.id}
                   value={classItem.id}
+                  className="bg-white text-[#10213A]"
                 >
                   {getClassLabel(classItem)}
                 </option>
               ))}
-
             </select>
           </div>
         )}
 
+
         {/* Generate */}
-        <div>
+
+        <div className="pt-1">
+
           <button
             type="button"
             onClick={onGenerate}
             disabled={generating}
-            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded"
+            className="
+              w-full
+              rounded-lg
+              bg-[#2161F5]
+              px-4
+              py-2.5
+              text-sm
+              font-medium
+              text-white
+              transition-colors
+              duration-200
+              hover:bg-[#1955DE]
+              active:bg-[#164BC7]
+              disabled:cursor-not-allowed
+              disabled:bg-[#64748B]
+            "
           >
             {generating
               ? "Generating..."
               : "Generate / Reconcile Lessons"}
           </button>
+
         </div>
 
       </div>

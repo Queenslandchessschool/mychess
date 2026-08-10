@@ -450,80 +450,129 @@ if (duplicate) {
         </div>
 
         <div className="lg:col-span-2">
-          <div className="flex gap-3 mb-4">
-            <input
-              type="text"
-              placeholder="Search class..."
-              value={searchTerm}
-              onChange={(e) =>
-                setSearchTerm(
-                  e.target.value
-                )
-              }
-              className="flex-1 border rounded-lg p-2"
-            />
+          <div className="lg:col-span-2">
+  {/* Search & Filter */}
+  <div className="mb-6 rounded-[18px] border border-[#D4AF37]/30 bg-[#102B4D] p-4">
+    <div className="flex flex-col gap-3 sm:flex-row">
 
-            <select
-              value={statusFilter}
-              onChange={(e) =>
-                setStatusFilter(
-                  e.target.value
-                )
-              }
-              className="border rounded-lg p-2"
-            >
-              <option value="All">
-                All Status
-              </option>
+      <input
+        type="text"
+        placeholder="Search by class..."
+        value={searchTerm}
+        onChange={(e) =>
+          setSearchTerm(e.target.value)
+        }
+        className="
+          min-w-0
+          flex-1
+          rounded-lg
+          border
+          border-white/70
+          bg-white
+          px-3
+          py-2.5
+          text-sm
+          text-[#10213A]
+          placeholder:text-[#64748B]
+          outline-none
+          transition-colors
+          duration-200
+          hover:border-[#D4AF37]
+          focus:border-[#D4AF37]
+          focus:ring-1
+          focus:ring-[#D4AF37]/30
+        "
+      />
 
-             <option value="Planned">
-                Planned
-             </option>
+      <select
+        value={statusFilter}
+        onChange={(e) =>
+          setStatusFilter(e.target.value)
+        }
+        className="
+          w-full
+          rounded-lg
+          border
+          border-white/70
+          bg-white
+          px-3
+          py-2.5
+          text-sm
+          text-[#10213A]
+          outline-none
+          transition-colors
+          duration-200
+          hover:border-[#D4AF37]
+          focus:border-[#D4AF37]
+          focus:ring-1
+          focus:ring-[#D4AF37]/30
+          sm:w-40
+        "
+      >
+        <option
+          value="All"
+          className="bg-white text-[#10213A]"
+        >
+          All Status
+        </option>
 
-              <option value="Active">
-                Active
-              </option>
+        <option
+          value="Planned"
+          className="bg-white text-[#10213A]"
+        >
+          Planned
+        </option>
 
-              <option value="Completed">
-                Completed
-              </option>
+        <option
+          value="Active"
+          className="bg-white text-[#10213A]"
+        >
+          Active
+        </option>
 
-              <option value="Cancelled">
-                Cancelled
-              </option>
-            </select>
-          </div>
+        <option
+          value="Completed"
+          className="bg-white text-[#10213A]"
+        >
+          Completed
+        </option>
 
-          <ClassScheduleTable
-            schedules={filteredSchedules}
-            onEdit={(item: ClassScheduleTableRow) => {
-              const record = schedules.find(
-                (s) => s.id === item.id
-              );
+        <option
+          value="Cancelled"
+          className="bg-white text-[#10213A]"
+        >
+          Cancelled
+        </option>
+      </select>
 
-              if (!record) return;
+    </div>
+  </div>
 
-              setEditingSchedule(record);
+  <ClassScheduleTable
+    schedules={filteredSchedules}
+    onEdit={(item: ClassScheduleTableRow) => {
+      const record = schedules.find(
+        (s) => s.id === item.id
+      );
 
-              setForm({
+      if (!record) return;
 
-    class_id: record.class_id,
+      setEditingSchedule(record);
 
-    academic_year: record.academic_year,
+      setForm({
+        class_id: record.class_id,
+        academic_year: record.academic_year,
+        term: record.term,
+        first_lesson: record.first_lesson,
+        final_lesson: record.final_lesson,
+        status: record.status,
+        notes: record.notes ?? "",
+      });
+    }}
+    onDelete={deleteSchedule}
+  />
+</div>
 
-    term: record.term,
-
-    first_lesson: record.first_lesson,
-
-    final_lesson: record.final_lesson,
-
-    status: record.status,
-
-    notes: record.notes ?? "",
-});
-            }}
-            onDelete={deleteSchedule}
-          />
         </div>
       </div>
     </div>

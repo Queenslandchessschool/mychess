@@ -168,6 +168,52 @@ if (
   alert("Lesson cancelled successfully.");
 }
 
+async function restoreLesson() {
+
+  if (!selectedLesson) {
+    return;
+  }
+
+  if (selectedLesson.status !== "Cancelled") {
+    alert("Only cancelled lessons can be restored.");
+    return;
+  }
+
+  if (selectedLesson.operational_event_id) {
+    alert(
+      "This lesson is controlled by a School Operational Event and cannot be manually restored."
+    );
+    return;
+  }
+
+  if (!selectedLesson.cancellation_reason) {
+    alert(
+      "This lesson was not manually cancelled and cannot be restored here."
+    );
+    return;
+  }
+
+  const { error } = await supabase
+    .from("lessons")
+    .update({
+      status: "Planned",
+      chargeable: true,
+      cancellation_reason: null,
+      operational_event_id: null,
+    })
+    .eq("id", selectedLesson.id);
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  setSelectedLesson(null);
+  await loadLessons();
+
+  alert("Lesson restored successfully.");
+}
+
   // ======================================================
   // Generate Lessons
   // ======================================================
@@ -814,20 +860,25 @@ const filteredLessons = lessons.filter((lesson) => {
   // ======================================================
 
   return (
-    <main className="p-6">
+    <main className="w-full px-4 py-5 sm:px-6 lg:px-8">
 
       <div className="mb-6">
         <h1 className="text-3xl font-bold">
           Lesson Management
         </h1>
 
-        <p className="text-gray-500 mt-1">
+        <p className="mt-1 text-gray-500">
           Generate and manage operational lessons.
         </p>
       </div>
 
-
-      <div className="max-w-xl">
+      {/*
+        Responsive page shell:
+        - Full width on desktop
+        - Comfortable padding on tablet/mobile
+        - No fixed max-width that forces the page into a narrow column
+      */}
+      <div className="w-full max-w-none">
 
         <LessonGenerator
           scope={scope}
@@ -850,323 +901,405 @@ const filteredLessons = lessons.filter((lesson) => {
         />
 
         <div
-  style={{
-    marginTop: "24px",
-    border: "1px solid #222",
-    borderRadius: "8px",
-    padding: "20px",
-  }}
->
-  <h2 style={{ marginTop: 0 }}>
-    Lesson List
-  </h2>
+          className="mt-6 w-full rounded-lg border p-4 sm:p-5"
+          style={{
+            borderColor: "#b79a3b",
+            background:
+              "linear-gradient(180deg, rgba(183,154,59,0.18) 0px, rgba(183,154,59,0.04) 3px, rgba(9,35,66,0.72) 18px)",
+          }}
+        >
+          <div className="mb-5">
+            <h2 className="text-xl font-semibold">
+              Lesson List
+            </h2>
 
-  <p>
-  Showing Lessons:{" "}
-  <strong>{filteredLessons.length}</strong>
-  {" "}of{" "}
-  <strong>{lessons.length}</strong>
-</p>
-<div style={{ marginTop: "16px", marginBottom: "16px" }}>
-  <label>
-    Academic Year
-  </label>
+            <p className="mt-1 text-sm text-gray-300">
+              Showing Lessons:{" "}
+              <strong>{filteredLessons.length}</strong>
+              {" "}of{" "}
+              <strong>{lessons.length}</strong>
+            </p>
+          </div>
 
-  <select
-    value={filterYear ?? ""}
-    onChange={(e) => {
-  setFilterYear(
-    e.target.value ? Number(e.target.value) : null
-  );
-  setSelectedLesson(null);
-}}
-    style={{
-      display: "block",
-      marginTop: "6px",
-      padding: "8px",
-      minWidth: "180px",
-    }}
-  >
-    <option value="">All Years</option>
-    <option value="2026">2026</option>
-  </select>
-</div><div style={{ marginBottom: "16px" }}>
-  <label>
-    Term
-  </label>
+          {/* Filters */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="min-w-0">
+              <label className="block text-sm font-medium text-gray-300">
+                Academic Year
+              </label>
 
-  <select
-    value={filterTerm ?? ""}
-    onChange={(e) => {
-  setFilterTerm(
-    e.target.value ? Number(e.target.value) : null
-  );
-  setSelectedLesson(null);
-}}
-    style={{
-      display: "block",
-      marginTop: "6px",
-      padding: "8px",
-      minWidth: "180px",
-    }}
-  >
-    <option value="">All Terms</option>
-    <option value="1">Term 1</option>
-    <option value="2">Term 2</option>
-    <option value="3">Term 3</option>
-    <option value="4">Term 4</option>
-  </select>
-</div>
-<div style={{ marginBottom: "16px" }}>
-  <label>
-    Class
-  </label>
+              <select
+                value={filterYear ?? ""}
+                onChange={(e) => {
+                  setFilterYear(
+                    e.target.value ? Number(e.target.value) : null
+                  );
+                  setSelectedLesson(null);
+                }}
+                className="mt-1 block w-full rounded-md border border-[#b79a3b] px-3 py-2 text-sm text-[#0b2a4a] focus:outline-none focus:ring-2 focus:ring-[#b79a3b]/40"
+                style={{
+                  backgroundColor: "#fff7e8",
+                  color: "#0b2a4a",
+                }}
+              >
+                <option value="">All Years</option>
+                <option value="2026">2026</option>
+              </select>
+            </div>
 
-  <select
-    value={filterClassId}
-   onChange={(e) => {
-  setFilterClassId(e.target.value);
-  setSelectedLesson(null);
-}}
-    style={{
-      display: "block",
-      marginTop: "6px",
-      padding: "8px",
-      minWidth: "260px",
-    }}
-  >
-    <option value="">
-      All Classes
-    </option>
+            <div className="min-w-0">
+              <label className="block text-sm font-medium text-gray-300">
+                Term
+              </label>
 
-    {classes.map((item) => (
-      <option
-        key={item.id}
-        value={item.id}
-      >
-        {item.level ?? "Class"}
-        {item.day ? ` | ${item.day}` : ""}
-        {item.start_time ? ` | ${item.start_time}` : ""}
-      </option>
-    ))}
-  </select>
-</div>
-<div style={{ marginBottom: "16px" }}>
-  <label>
-    Status
-  </label>
+              <select
+                value={filterTerm ?? ""}
+                onChange={(e) => {
+                  setFilterTerm(
+                    e.target.value ? Number(e.target.value) : null
+                  );
+                  setSelectedLesson(null);
+                }}
+                className="mt-1 block w-full rounded-md border border-[#b79a3b] px-3 py-2 text-sm text-[#0b2a4a] focus:outline-none focus:ring-2 focus:ring-[#b79a3b]/40"
+                style={{
+                  backgroundColor: "#fff7e8",
+                  color: "#0b2a4a",
+                }}
+              >
+                <option value="">All Terms</option>
+                <option value="1">Term 1</option>
+                <option value="2">Term 2</option>
+                <option value="3">Term 3</option>
+                <option value="4">Term 4</option>
+              </select>
+            </div>
 
-  <select
-    value={filterStatus}
-    onChange={(e) => {
-  setFilterStatus(e.target.value);
-  setSelectedLesson(null);
-}}
-    style={{
-      display: "block",
-      marginTop: "6px",
-      padding: "8px",
-      minWidth: "180px",
-    }}
-  >
-    <option value="">All Statuses</option>
-    <option value="Planned">Planned</option>
-    <option value="Cancelled">Cancelled</option>
-    <option value="Completed">Completed</option>
-  </select>
-</div>
-<button
-  type="button"
-  onClick={() => {
-    setFilterYear(null);
-    setFilterTerm(null);
-    setFilterClassId("");
-    setFilterStatus("");
-    setSelectedLesson(null);
-  }}
-  style={{
-    marginBottom: "16px",
-    padding: "8px 14px",
-  }}
->
-  Clear Filters
-</button>
-<table
-  style={{
-    width: "100%",
-    borderCollapse: "collapse",
-    marginTop: "16px",
-  }}
->
-  <thead
-  style={{
-    backgroundColor: "#f3f4f6",
-    borderBottom: "1px solid #222",
-  }}
->
-    <tr>
-      <th style={{ padding: "10px 8px", textAlign: "left" }}>
-  Date
-</th>
+            <div className="min-w-0">
+              <label className="block text-sm font-medium text-gray-300">
+                Class
+              </label>
 
-<th style={{ padding: "10px 8px", textAlign: "left" }}>
-  Class
-</th>
+              <select
+                value={filterClassId}
+                onChange={(e) => {
+                  setFilterClassId(e.target.value);
+                  setSelectedLesson(null);
+                }}
+                className="mt-1 block w-full rounded-md border border-[#b79a3b] px-3 py-2 text-sm text-[#0b2a4a] focus:outline-none focus:ring-2 focus:ring-[#b79a3b]/40"
+                style={{
+                  backgroundColor: "#fff7e8",
+                  color: "#0b2a4a",
+                }}
+              >
+                <option value="">All Classes</option>
 
-<th style={{ padding: "10px 8px", textAlign: "left" }}>
-  Status
-</th>
+                {classes.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.level ?? "Class"}
+                    {item.day ? ` | ${item.day}` : ""}
+                    {item.start_time ? ` | ${item.start_time}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-<th style={{ padding: "10px 8px", textAlign: "left" }}>
-  Chargeable
-</th>
+            <div className="min-w-0">
+              <label className="block text-sm font-medium text-gray-300">
+                Status
+              </label>
 
-<th style={{ padding: "10px 8px", textAlign: "left" }}>
-  Actions
-</th>
-    </tr>
-  </thead>
-  <tbody>
-  {filteredLessons.map((lesson) => {
+              <select
+                value={filterStatus}
+                onChange={(e) => {
+                  setFilterStatus(e.target.value);
+                  setSelectedLesson(null);
+                }}
+                className="mt-1 block w-full rounded-md border border-[#b79a3b] px-3 py-2 text-sm text-[#0b2a4a] focus:outline-none focus:ring-2 focus:ring-[#b79a3b]/40"
+                style={{
+                  backgroundColor: "#fff7e8",
+                  color: "#0b2a4a",
+                }}
+              >
+                <option value="">All Statuses</option>
+                <option value="Planned">Planned</option>
+                <option value="Cancelled">Cancelled</option>
+                <option value="Completed">Completed</option>
+              </select>
+            </div>
+          </div>
 
-    const lessonClass = classes.find(
-      (item) => item.id === lesson.class_id
-    );
+          <button
+            type="button"
+            onClick={() => {
+              setFilterYear(null);
+              setFilterTerm(null);
+              setFilterClassId("");
+              setFilterStatus("");
+              setSelectedLesson(null);
+            }}
+            className="mt-4 rounded-md border px-4 py-2 text-sm font-medium transition hover:bg-[#b79a3b]/10"
+            style={{
+              borderColor: "#b79a3b",
+              color: "#fff7e8",
+            }}
+          >
+            Clear Filters
+          </button>
 
-    return (
-      <tr
-  key={lesson.id}
-  style={{
-    borderBottom: "1px solid #ddd",
-  }}
->
-        <td style={{ padding: "10px 8px" }}>{lesson.lesson_date}</td>
+          {/* ================================================== */}
+          {/* Lesson List Table                                  */}
+          {/* Desktop / tablet: sticky header + 7-row viewport   */}
+          {/* ================================================== */}
 
-        <td style={{ padding: "10px 8px" }}>
-          {lessonClass
-            ? `${lessonClass.level ?? ""}${lessonClass.day ? ` | ${lessonClass.day}` : ""}${lessonClass.start_time ? ` | ${lessonClass.start_time}` : ""}`
-            : "Unknown Class"}
-        </td>
+          <div className="mt-5 overflow-hidden rounded-md border border-[#b79a3b]/60">
+            <div className="max-h-[460px] overflow-y-auto overflow-x-hidden">
+              <table className="w-full min-w-[760px] border-collapse">
+                <thead>
+                  <tr className="sticky top-0 z-20 bg-[#15375d] text-[#fff7e8] shadow-[0_2px_6px_rgba(0,0,0,0.25)]">
+                    <th className="h-[52px] px-3 py-3 text-left text-sm font-semibold">
+                      Date
+                    </th>
+                    <th className="h-[52px] px-3 py-3 text-left text-sm font-semibold">
+                      Class
+                    </th>
+                    <th className="h-[52px] px-3 py-3 text-left text-sm font-semibold">
+                      Status
+                    </th>
+                    <th className="h-[52px] px-3 py-3 text-left text-sm font-semibold">
+                      Chargeable
+                    </th>
+                    <th className="h-[52px] px-3 py-3 text-left text-sm font-semibold">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
 
-        <td style={{ padding: "10px 8px" }}>{lesson.status}</td>
+                <tbody>
+                  {filteredLessons.map((lesson) => {
+                    const lessonClass = classes.find(
+                      (item) => item.id === lesson.class_id
+                    );
 
-        <td style={{ padding: "10px 8px" }}>
-          {lesson.chargeable
-            ? "Chargeable"
-            : "Non-chargeable"}
-        </td>
+                    return (
+                      <tr
+                        key={lesson.id}
+                        className="h-[56px] border-b border-[#b79a3b]/25 text-[#0b2a4a] transition-colors odd:bg-[#fff7e8] even:bg-[#fff0cf] hover:bg-[#f3df9f]"
+                      >
+                        <td className="px-3 py-3 align-middle text-sm font-medium">
+                          {lesson.lesson_date}
+                        </td>
 
-        <td style={{ padding: "10px 8px" }}>
-  <button
-  type="button"
-  onClick={() => {
-    setSelectedLesson(lesson);
+                        <td className="px-3 py-3 align-middle text-sm font-medium">
+                          {lessonClass
+                            ? `${lessonClass.level ?? ""}${
+                                lessonClass.day ? ` | ${lessonClass.day}` : ""
+                              }${
+                                lessonClass.start_time
+                                  ? ` | ${lessonClass.start_time}`
+                                  : ""
+                              }`
+                            : "Unknown Class"}
+                        </td>
 
-  }}
->
-  Manage
-</button>
-</td>
+                        <td className="px-3 py-3 align-middle text-sm font-medium">
+                          {lesson.status}
+                        </td>
 
-      </tr>
-    );
-  })}
-</tbody>
-</table>
-{selectedLesson && (
-  <div
-    style={{
-      marginTop: "20px",
-      border: "1px solid #222",
-      borderRadius: "8px",
-      padding: "20px",
-    }}
-  >
-    <h2 style={{ marginTop: 0 }}>
-      Manage Lesson
-    </h2>
+                        <td className="px-3 py-3 align-middle text-sm font-medium">
+                          {lesson.chargeable
+                            ? "Chargeable"
+                            : "Non-chargeable"}
+                        </td>
 
-    <p>
-      Selected Lesson: <strong>{selectedLesson.lesson_date}</strong>
-    </p>
-    <p>
-  Status: <strong>{selectedLesson.status}</strong>
-</p>
-<p>
-  Chargeable:{" "}
-  <strong>
-    {selectedLesson.chargeable ? "Yes" : "No"}
-  </strong>
-</p>
-<p>
-  Notes:{" "}
-  <strong>
-    {selectedLesson.notes || "-"}
-  </strong>
-</p>
-{selectedLesson.status === "Cancelled" &&
-  selectedLesson.cancellation_reason && (
-    <p>
-      Cancellation Reason:{" "}
-      <strong>
-        {selectedLesson.cancellation_reason}
-      </strong>
-    </p>
-)}
-{selectedLesson.status !== "Cancelled" && (
-  <>
-<div style={{ marginBottom: "16px" }}>
-  <label>
-    Cancellation Reason
-  </label>
+                        <td className="px-3 py-3 align-middle text-sm">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedLesson(lesson);
+                            }}
+                            className="rounded-md border px-3 py-1.5 text-sm font-medium text-[#fff7e8] transition hover:bg-[#b79a3b]/20"
+                            style={{
+                              borderColor: "#b79a3b",
+                              backgroundColor: "#0b2a4a",
+                            }}
+                          >
+                            Manage
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-  <select
-    value={cancellationReason}
-    onChange={(e) =>
-      setCancellationReason(e.target.value)
-    }
-    style={{
-      display: "block",
-      marginTop: "6px",
-      padding: "8px",
-      minWidth: "240px",
-    }}
-  >
-    <option value="">
-      Select Reason
-    </option>
+          {/* Mobile lesson cards */}
+          <div className="mt-5 space-y-3 md:hidden">
+            {filteredLessons.map((lesson) => {
+              const lessonClass = classes.find(
+                (item) => item.id === lesson.class_id
+              );
 
-    <option value="Teacher Unavailable">
-      Teacher Unavailable
-    </option>
+              return (
+                <div
+                  key={lesson.id}
+                  className="rounded-lg border p-4 transition-colors hover:bg-[#16375d]"
+                  style={{
+                    borderColor: "rgba(183, 154, 59, 0.65)",
+                    background: "rgba(5, 25, 48, 0.82)",
+                  }}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-base font-semibold">
+                        {lesson.lesson_date}
+                      </div>
+                      <div className="mt-1 break-words text-sm text-gray-300">
+                        {lessonClass
+                          ? `${lessonClass.level ?? ""}${lessonClass.day ? ` | ${lessonClass.day}` : ""}${lessonClass.start_time ? ` | ${lessonClass.start_time}` : ""}`
+                          : "Unknown Class"}
+                      </div>
+                    </div>
 
-    <option value="Venue Closure">
-      Venue Closure
-    </option>
+                    <span className="shrink-0 text-sm font-medium">
+                      {lesson.status}
+                    </span>
+                  </div>
 
-    <option value="School Cancellation">
-      School Cancellation
-    </option>
+                  <div className="mt-3 flex flex-col gap-2 text-sm text-gray-300 sm:flex-row sm:items-center sm:justify-between">
+                    <span>
+                      {lesson.chargeable
+                        ? "Chargeable"
+                        : "Non-chargeable"}
+                    </span>
 
-    <option value="Other">
-      Other
-    </option>
-  </select>
-</div>
-<button
-  type="button"
-  onClick={cancelLesson}
->
-  Cancel Lesson
-</button>
-  </>
-)}
-  </div>
-)}
-</div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedLesson(lesson);
+                      }}
+                      className="w-full rounded-md border px-3 py-2 text-sm font-medium sm:w-auto"
+                      style={{ borderColor: "#b79a3b" }}
+                    >
+                      Manage
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
 
+          {filteredLessons.length === 0 && (
+            <div className="mt-5 rounded-lg border border-dashed border-gray-600 p-6 text-center text-sm text-gray-400">
+              No lessons match the selected filters.
+            </div>
+          )}
+
+          {selectedLesson && (
+            <div
+              className="mt-5 rounded-lg border p-4 sm:p-5"
+              style={{
+                borderColor: "#b79a3b",
+                background: "rgba(5, 25, 48, 0.72)",
+              }}
+            >
+              <h2 className="text-xl font-semibold">
+                Manage Lesson
+              </h2>
+
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <p className="break-words">
+                  Selected Lesson:{" "}
+                  <strong>{selectedLesson.lesson_date}</strong>
+                </p>
+
+                <p>
+                  Status: <strong>{selectedLesson.status}</strong>
+                </p>
+
+                <p>
+                  Chargeable:{" "}
+                  <strong>
+                    {selectedLesson.chargeable ? "Yes" : "No"}
+                  </strong>
+                </p>
+
+                <p className="break-words">
+                  Notes:{" "}
+                  <strong>{selectedLesson.notes || "-"}</strong>
+                </p>
+
+                {selectedLesson.status === "Cancelled" &&
+                  selectedLesson.cancellation_reason && (
+                    <p className="break-words sm:col-span-2">
+                      Cancellation Reason:{" "}
+                      <strong>
+                        {selectedLesson.cancellation_reason}
+                      </strong>
+                    </p>
+                  )}
+              </div>
+
+              {selectedLesson.status !== "Cancelled" && (
+                <>
+                  <div className="mt-5">
+                    <label className="block text-sm font-medium text-gray-300">
+                      Cancellation Reason
+                    </label>
+
+                    <select
+                      value={cancellationReason}
+                      onChange={(e) =>
+                        setCancellationReason(e.target.value)
+                      }
+                      className="mt-1 block w-full max-w-md rounded-md border border-[#b79a3b] px-3 py-2 text-sm text-[#0b2a4a] focus:outline-none focus:ring-2 focus:ring-[#b79a3b]/40"
+                      style={{
+                        backgroundColor: "#fff7e8",
+                        color: "#0b2a4a",
+                      }}
+                    >
+                      <option value="">Select Reason</option>
+                      <option value="Teacher Unavailable">
+                        Teacher Unavailable
+                      </option>
+                      <option value="Venue Closure">
+                        Venue Closure
+                      </option>
+                      <option value="School Cancellation">
+                        School Cancellation
+                      </option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={cancelLesson}
+                    className="mt-4 w-full rounded-md border px-4 py-2 font-medium sm:w-auto"
+                    style={{ borderColor: "#b79a3b" }}
+                  >
+                    Cancel Lesson
+                  </button>
+                </>
+              )}
+
+              {selectedLesson.status === "Cancelled" &&
+                selectedLesson.cancellation_reason &&
+                !selectedLesson.operational_event_id && (
+                  <button
+                    type="button"
+                    onClick={restoreLesson}
+                    className="mt-4 w-full rounded-md border px-4 py-2 font-medium sm:w-auto"
+                    style={{ borderColor: "#b79a3b" }}
+                  >
+                    Restore Lesson
+                  </button>
+                )}
+            </div>
+          )}
+        </div>
       </div>
-
     </main>
   );
 }

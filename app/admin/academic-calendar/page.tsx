@@ -7,6 +7,7 @@ import AcademicCalendarForm from "@/components/academicCalendar/AcademicCalendar
 import AcademicCalendarTable from "@/components/academicCalendar/AcademicCalendarTable";
 import OperationalEventForm from "@/components/academicCalendar/OperationalEventForm";
 import OperationalEventTable from "@/components/academicCalendar/OperationalEventTable";
+import ClassScheduleSummary from "@/components/academicCalendar/ClassScheduleSummary";
 
 import {
   AcademicCalendarRecord,
@@ -17,47 +18,30 @@ import {
 
 const emptyForm: AcademicCalendarFormData = {
   academic_year: new Date().getFullYear(),
-
   term: 1,
-
   start_date: "",
-
   end_date: "",
-
   notes: "",
 };
 
 const emptyEventForm: OperationalEventFormData = {
   event_date: "",
-
   event_name: "",
-
   notes: "",
 };
 
 type ScheduleSummary = {
   id: string;
-
   className: string;
-
   campus: string;
-
   coach: string;
-
   firstLesson: string;
-
   secondLastLesson: string;
-
   finalLesson: string;
-
   lessonCount: number;
-
   currentWeek: number;
-
   remainingLessons: number;
-
   reenrolmentOpens: string;
-
   overrideStatus: string;
 };
 
@@ -72,34 +56,37 @@ export default function AcademicCalendarPage() {
   const [editingCalendar, setEditingCalendar] =
     useState<AcademicCalendarRecord | null>(null);
 
-  const [searchTerm, setSearchTerm] =
-    useState("");
+  const [searchTerm, setSearchTerm] = useState("");
 
   const [form, setForm] =
     useState<AcademicCalendarFormData>(emptyForm);
-  
+
   const [events, setEvents] =
-  useState<OperationalEventRecord[]>([]);
+    useState<OperationalEventRecord[]>([]);
 
   const [editingEvent, setEditingEvent] =
-  useState<OperationalEventRecord | null>(null);
+    useState<OperationalEventRecord | null>(null);
 
   const [eventForm, setEventForm] =
-  useState<OperationalEventFormData>(emptyEventForm);
+    useState<OperationalEventFormData>(emptyEventForm);
 
   useEffect(() => {
-  loadCalendars();
-  loadEvents();
-  loadScheduleSummary();
-}, []);
+    loadCalendars();
+    loadEvents();
+    loadScheduleSummary();
+  }, []);
 
   function formatDate(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
+    const year = date.getFullYear();
+    const month = String(
+      date.getMonth() + 1
+    ).padStart(2, "0");
+    const day = String(
+      date.getDate()
+    ).padStart(2, "0");
 
-  return `${year}-${month}-${day}`;
-}
+    return `${year}-${month}-${day}`;
+  }
 
   function calculateSecondLastLesson(
     finalLesson: string
@@ -112,19 +99,20 @@ export default function AcademicCalendarPage() {
 
     return formatDate(date);
   }
-function calculateReenrolmentOpens(
-  finalLesson: string
-) {
-  if (!finalLesson) return "";
 
-  const date = new Date(finalLesson);
+  function calculateReenrolmentOpens(
+    finalLesson: string
+  ) {
+    if (!finalLesson) return "";
 
-  date.setDate(date.getDate() + 1);
+    const date = new Date(finalLesson);
 
-  date.setHours(8, 0, 0, 0);
+    date.setDate(date.getDate() + 1);
+    date.setHours(8, 0, 0, 0);
 
-  return formatDate(date) + " 08:00";
-}
+    return formatDate(date) + " 08:00";
+  }
+
   function calculateLessonCount(
     firstLesson: string,
     finalLesson: string
@@ -132,7 +120,6 @@ function calculateReenrolmentOpens(
     if (!firstLesson || !finalLesson) return 0;
 
     const first = new Date(firstLesson);
-
     const last = new Date(finalLesson);
 
     const diff =
@@ -151,7 +138,6 @@ function calculateReenrolmentOpens(
     const today = new Date();
 
     const first = new Date(firstLesson);
-
     const last = new Date(finalLesson);
 
     if (today < first) return 0;
@@ -208,19 +194,21 @@ function calculateReenrolmentOpens(
     );
   }
 
-async function loadEvents() {
-  const { data, error } = await supabase
-    .from("academic_calendar_events")
-    .select("*")
-    .order("event_date");
+  async function loadEvents() {
+    const { data, error } = await supabase
+      .from("academic_calendar_events")
+      .select("*")
+      .order("event_date");
 
-  if (error || !data) {
-    console.error(error);
-    return;
+    if (error || !data) {
+      console.error(error);
+      return;
+    }
+
+    setEvents(
+      data as OperationalEventRecord[]
+    );
   }
-
-  setEvents(data as OperationalEventRecord[]);
-}
 
   async function loadScheduleSummary() {
     const { data, error } = await supabase
@@ -241,90 +229,92 @@ async function loadEvents() {
           )
         )
       `);
-          if (error || !data) {
+
+    if (error || !data) {
       console.error(error);
       return;
     }
 
-    const rows: ScheduleSummary[] = data.map((item: any) => {
-      const campus =
-        item.class?.campus?.campus_code ?? "";
+    const rows: ScheduleSummary[] =
+      data.map((item: any) => {
+        const campus =
+          item.class?.campus?.campus_code ?? "";
 
-      const day =
-        item.class?.day?.substring(0, 3) ?? "";
+        const day =
+          item.class?.day?.substring(0, 3) ?? "";
 
-      const level =
-        item.class?.level ?? "";
+        const level =
+          item.class?.level ?? "";
 
-      const suffix =
-        item.class?.class_suffix?.trim() ?? "";
+        const suffix =
+          item.class?.class_suffix?.trim() ?? "";
 
-      const className = suffix
-        ? `${campus} | ${day} | ${level} | ${suffix}`
-        : `${campus} | ${day} | ${level}`;
+        const className = suffix
+          ? `${campus} | ${day} | ${level} | ${suffix}`
+          : `${campus} | ${day} | ${level}`;
 
-      return {
-        id: item.id,
+        return {
+          id: item.id,
 
-        className,
+          className,
 
-        campus,
+          campus,
 
-        coach:
-          item.class?.coach?.display_name ??
-          "",
+          coach:
+            item.class?.coach?.display_name ??
+            "",
 
-        firstLesson:
-          item.first_lesson,
-
-        finalLesson:
-          item.final_lesson,
-
-        secondLastLesson:
-          calculateSecondLastLesson(
-            item.final_lesson
-          ),
-
-        lessonCount:
-          calculateLessonCount(
+          firstLesson:
             item.first_lesson,
-            item.final_lesson
-          ),
 
-        currentWeek:
-          calculateCurrentWeek(
-            item.first_lesson,
-            item.final_lesson
-          ),
+          finalLesson:
+            item.final_lesson,
 
-        remainingLessons:
-  calculateRemainingLessons(
-    item.first_lesson,
-    item.final_lesson
-  ),
+          secondLastLesson:
+            calculateSecondLastLesson(
+              item.final_lesson
+            ),
 
-reenrolmentOpens:
-  calculateReenrolmentOpens(
-    item.final_lesson
-  ),
+          lessonCount:
+            calculateLessonCount(
+              item.first_lesson,
+              item.final_lesson
+            ),
 
-overrideStatus: "Default",
-      };
-    });
+          currentWeek:
+            calculateCurrentWeek(
+              item.first_lesson,
+              item.final_lesson
+            ),
+
+          remainingLessons:
+            calculateRemainingLessons(
+              item.first_lesson,
+              item.final_lesson
+            ),
+
+          reenrolmentOpens:
+            calculateReenrolmentOpens(
+              item.final_lesson
+            ),
+
+          overrideStatus: "Default",
+        };
+      });
 
     setScheduleSummary(rows);
   }
 
   async function addCalendar() {
     if (!form.start_date) {
-  alert("Please select Start Date.");
-  return;
-}
+      alert("Please select Start Date.");
+      return;
+    }
 
-if (!form.end_date) {
-  alert("Please select End Date.");
-  return;
-}
+    if (!form.end_date) {
+      alert("Please select End Date.");
+      return;
+    }
 
     const duplicate = calendars.find(
       (item) =>
@@ -343,30 +333,28 @@ if (!form.end_date) {
     const { error } = await supabase
       .from("academic_calendar")
       .insert([
-  {
-    academic_year: form.academic_year,
+        {
+          academic_year:
+            form.academic_year,
 
-    term: form.term,
+          term:
+            form.term,
 
-    start_date: form.start_date,
+          start_date:
+            form.start_date,
 
-    end_date: form.end_date,
+          end_date:
+            form.end_date,
 
-    notes: form.notes,
-  },
-]);
+          notes:
+            form.notes,
+        },
+      ]);
 
     if (error) {
       alert(error.message);
       return;
     }
-    
-
-setEditingEvent(null);
-
-setEventForm(emptyEventForm);
-
-await loadEvents();
 
     setForm(emptyForm);
 
@@ -379,16 +367,21 @@ await loadEvents();
     const { error } = await supabase
       .from("academic_calendar")
       .update({
-  academic_year: form.academic_year,
+        academic_year:
+          form.academic_year,
 
-  term: form.term,
+        term:
+          form.term,
 
-  start_date: form.start_date,
+        start_date:
+          form.start_date,
 
-  end_date: form.end_date,
+        end_date:
+          form.end_date,
 
-  notes: form.notes,
-})
+        notes:
+          form.notes,
+      })
       .eq("id", editingCalendar.id);
 
     if (error) {
@@ -403,84 +396,92 @@ await loadEvents();
     await loadCalendars();
   }
 
-async function addEvent() {
+  async function addEvent() {
+    if (!eventForm.event_date) {
+      alert("Please select Event Date.");
+      return;
+    }
 
-  if (!eventForm.event_date) {
-    alert("Please select Event Date.");
-    return;
+    if (!eventForm.event_name.trim()) {
+      alert("Please enter Event Name.");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("academic_calendar_events")
+      .insert([
+        {
+          event_date:
+            eventForm.event_date,
+
+          event_name:
+            eventForm.event_name,
+
+          notes:
+            eventForm.notes,
+        },
+      ]);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setEventForm(emptyEventForm);
+
+    await loadEvents();
   }
 
-  if (!eventForm.event_name.trim()) {
-    alert("Please enter Event Name.");
-    return;
+  async function updateEvent() {
+    if (!editingEvent) return;
+
+    const { error } = await supabase
+      .from("academic_calendar_events")
+      .update({
+        event_date:
+          eventForm.event_date,
+
+        event_name:
+          eventForm.event_name,
+
+        notes:
+          eventForm.notes,
+      })
+      .eq("id", editingEvent.id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setEditingEvent(null);
+
+    setEventForm(emptyEventForm);
+
+    await loadEvents();
   }
 
-  const { error } = await supabase
-    .from("academic_calendar_events")
-    .insert([
-  {
-    event_date: eventForm.event_date,
+  async function deleteEvent(id: string) {
+    if (
+      !confirm(
+        "Delete this operational event?"
+      )
+    ) {
+      return;
+    }
 
-    event_name: eventForm.event_name,
+    const { error } = await supabase
+      .from("academic_calendar_events")
+      .delete()
+      .eq("id", id);
 
-    notes: eventForm.notes,
-  },
-]);
+    if (error) {
+      alert(error.message);
+      return;
+    }
 
-  if (error) {
-    alert(error.message);
-    return;
+    await loadEvents();
   }
-
-  setEventForm(emptyEventForm);
-
-  await loadEvents();
-}
-
-async function updateEvent() {
-
-  if (!editingEvent) return;
-
-  const { error } = await supabase
-    .from("academic_calendar_events")
-    .update({
-      event_date: eventForm.event_date,
-
-      event_name: eventForm.event_name,
-
-      notes: eventForm.notes,
-    })
-    .eq("id", editingEvent.id);
-
-if (error) {
-  alert(error.message);
-  return;
-}
-
-setEditingEvent(null);
-
-setEventForm(emptyEventForm);
-
-await loadEvents();
-
-}
-
-async function deleteEvent(id: string) {
-
-  if (!confirm("Delete this operational event?")) {
-    return;
-  }
-
-  const { error } = await supabase
-    .from("academic_calendar_events")
-    .delete()
-    .eq("id", id);
-if (error) {
-  alert(error.message);
-  return;
-}
-await loadEvents();
-}
 
   const filteredCalendars =
     calendars.filter((item) => {
@@ -493,64 +494,94 @@ await loadEvents();
         item.academic_year
           .toString()
           .includes(keyword) ||
+
         (`term ${item.term}`)
           .toLowerCase()
           .includes(keyword) ||
+
         (item.notes ?? "")
           .toLowerCase()
           .includes(keyword)
       );
     });
-      return (
+
+  return (
     <div className="max-w-7xl mx-auto p-8">
+
+      {/* PAGE HEADER */}
 
       <h1 className="text-3xl font-bold mb-8">
         State School Calendar
       </h1>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-      <div className="space-y-8">
+      {/* =====================================================
+          TOP TWO-ROW GRID
 
-  <AcademicCalendarForm
-    form={form}
-    setForm={setForm}
-    onSave={
-      editingCalendar
-        ? updateCalendar
-        : addCalendar
-    }
-    editingCalendar={
-      !!editingCalendar
-    }
-    onCancel={() => {
-      setEditingCalendar(null);
+          ROW 1
+          Left  = Calendar Form
+          Right = Search + Calendar Table
 
-      setForm(emptyForm);
-    }}
-  />
+          ROW 2
+          Left  = Operational Event Form
+          Right = Operational Event Table
+      ===================================================== */}
 
-  <OperationalEventForm
-    form={eventForm}
-    setForm={setEventForm}
-    onSave={
-      editingEvent
-        ? updateEvent
-        : addEvent
-    }
-    editingEvent={
-      !!editingEvent
-    }
-    onCancel={() => {
-      setEditingEvent(null);
+      <div
+        className="
+          grid
+          grid-cols-1
+          lg:grid-cols-3
+          gap-8
+          items-start
+        "
+      >
 
-      setEventForm(emptyEventForm);
-    }}
-  />
+        {/* =================================================
+            ROW 1 — LEFT
+        ================================================= */}
 
-</div>
+        <div
+          className="
+            lg:col-start-1
+            lg:col-span-1
+            lg:row-start-1
+            min-w-0
+          "
+        >
+          <AcademicCalendarForm
+            form={form}
+            setForm={setForm}
+            onSave={
+              editingCalendar
+                ? updateCalendar
+                : addCalendar
+            }
+            editingCalendar={
+              !!editingCalendar
+            }
+            onCancel={() => {
+              setEditingCalendar(null);
+              setForm(emptyForm);
+            }}
+          />
+        </div>
 
-        <div className="lg:col-span-2">
+
+        {/* =================================================
+            ROW 1 — RIGHT
+        ================================================= */}
+
+        <div
+          className="
+            lg:col-start-2
+            lg:col-span-2
+            lg:row-start-1
+            min-w-0
+          "
+        >
+
+          {/* SEARCH */}
 
           <div className="flex gap-3 mb-4">
 
@@ -563,192 +594,150 @@ await loadEvents();
                   e.target.value
                 )
               }
-              className="flex-1 border rounded-lg p-2"
+              className="
+                min-w-0
+                flex-1
+                rounded-lg
+                border
+                border-[#D9E0E8]
+                bg-[#FFF6E6]
+                px-3
+                py-2.5
+                text-sm
+                text-[#10213A]
+                placeholder:text-[#94A3B8]
+                outline-none
+                transition-colors
+                duration-200
+                hover:border-[#B9C3D0]
+                focus:border-[#D4AF37]
+                focus:ring-1
+                focus:ring-[#D4AF37]/30
+              "
             />
 
           </div>
 
-          <div className="space-y-8">
 
-  <AcademicCalendarTable
-    calendars={filteredCalendars}
-    onEdit={(calendar) => {
+          {/* CALENDAR TABLE */}
 
-      setEditingCalendar(calendar);
+          <AcademicCalendarTable
+            calendars={filteredCalendars}
+            onEdit={(calendar) => {
 
-      setForm({
-        academic_year: calendar.academic_year,
-        term: calendar.term,
-        start_date: calendar.start_date,
-        end_date: calendar.end_date,
-        notes: calendar.notes ?? "",
-      });
+              setEditingCalendar(
+                calendar
+              );
 
-    }}
-  />
+              setForm({
+                academic_year:
+                  calendar.academic_year,
 
-  <OperationalEventTable
-  events={events}
-  onEdit={(event) => {
+                term:
+                  calendar.term,
 
-    setEditingEvent(event);
+                start_date:
+                  calendar.start_date,
 
-    setEventForm({
-      event_date: event.event_date,
-      event_name: event.event_name,
-      notes: event.notes ?? "",
-    });
+                end_date:
+                  calendar.end_date,
 
-  }}
-  onDelete={deleteEvent}
-/>
+                notes:
+                  calendar.notes ?? "",
+              });
 
-</div>
+            }}
+          />
 
         </div>
 
+
+        {/* =================================================
+            ROW 2 — LEFT
+        ================================================= */}
+
+        <div
+          className="
+            lg:col-start-1
+            lg:col-span-1
+            lg:row-start-2
+            min-w-0
+          "
+        >
+
+          <OperationalEventForm
+            form={eventForm}
+            setForm={setEventForm}
+            onSave={
+              editingEvent
+                ? updateEvent
+                : addEvent
+            }
+            editingEvent={
+              !!editingEvent
+            }
+            onCancel={() => {
+              setEditingEvent(null);
+              setEventForm(
+                emptyEventForm
+              );
+            }}
+          />
+
         </div>
 
-          <div className="mt-8 border rounded-lg bg-white shadow-sm">
 
-            <div className="p-4 border-b">
+        {/* =================================================
+            ROW 2 — RIGHT
+        ================================================= */}
 
-              <h2 className="text-2xl font-bold">
-                Class Schedule Summary
-              </h2>
+        <div
+          className="
+            lg:col-start-2
+            lg:col-span-2
+            lg:row-start-2
+            min-w-0
+          "
+        >
 
-              <p className="text-sm text-gray-500 mt-1">
-                Read-only information from Class Schedule.
-              </p>
+          <OperationalEventTable
+            events={events}
 
-            </div>
+            onEdit={(event) => {
 
-            <div className="overflow-x-auto">
+              setEditingEvent(event);
 
-              <table className="w-full">
+              setEventForm({
+                event_date:
+                  event.event_date,
 
-                <thead className="bg-gray-100">
+                event_name:
+                  event.event_name,
 
-                  <tr>
+                notes:
+                  event.notes ?? "",
+              });
 
-                    <th className="text-left p-3">
-                      Class
-                    </th>
+            }}
 
-                    <th className="text-left p-3">
-                      Coach
-                    </th>
+            onDelete={deleteEvent}
+          />
 
-                    <th className="text-left p-3">
-                      First Lesson
-                    </th>
+        </div>
 
-                    <th className="text-left p-3">
-                      Second Last Lesson
-                    </th>
-
-                    <th className="text-left p-3">
-                      Final Lesson
-                    </th>
-
-                    <th className="text-center p-3">
-  Planned Lessons
-</th>
-
-                    <th className="text-center p-3">
-                      Week
-                    </th>
-
-                    <th className="text-center p-3">
-                      Remaining
-                    </th>
-                    <th className="text-left p-3">
-  Re-enrolment Opens
-</th>
-
-<th className="text-center p-3">
-  Override
-</th>
-
-                  </tr>
-
-                </thead>
-
-                <tbody>
-
-                  {scheduleSummary.length === 0 ? (
-
-                    <tr>
-
-                      <td
-                        colSpan={10}
-                        className="text-center text-gray-500 p-8"
-                      >
-                        No class schedule found.
-                      </td>
-
-                    </tr>
-
-                  ) : (
-
-                    scheduleSummary.map((row) => (                      <tr
-                        key={row.id}
-                        className="border-t hover:bg-gray-50"
-                      >
-
-                        <td className="p-3 whitespace-nowrap">
-                          {row.className}
-                        </td>
-
-                        <td className="p-3">
-                          {row.coach}
-                        </td>
-
-                        <td className="p-3">
-                          {row.firstLesson}
-                        </td>
-
-                        <td className="p-3">
-                          {row.secondLastLesson}
-                        </td>
-
-                        <td className="p-3">
-                          {row.finalLesson}
-                        </td>
-
-                        <td className="p-3 text-center">
-                          {row.lessonCount}
-                        </td>
-
-                        <td className="p-3 text-center">
-                          {row.currentWeek}
-                        </td>
-
-                        <td className="p-3 text-center">
-                          {row.remainingLessons}
-                        </td>
-
-                        <td className="p-3 whitespace-nowrap">
-  {row.reenrolmentOpens}
-</td>
-
-<td className="p-3 text-center">
-  {row.overrideStatus}
-</td>
-
-                      </tr>
-                    ))
-
-                  )}
-
-                </tbody>
-
-              </table>
-
-            </div>
-
-          </div>
       </div>
 
+
+      {/* =====================================================
+          FULL WIDTH CLASS SCHEDULE SUMMARY
+          Sticky Header
+          Mobile Friendly
+          Vertical Scroll Only
+      ===================================================== */}
+
+      <ClassScheduleSummary
+        scheduleSummary={scheduleSummary}
+      />
+    </div>
   );
 }

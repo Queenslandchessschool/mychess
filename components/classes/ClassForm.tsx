@@ -20,6 +20,44 @@ interface ClassFormProps {
   onCancel?: () => void;
 }
 
+/* =========================================================
+   Frozen SRS VI — Form Field Style
+   Match the soft off-white used by the table.
+   ========================================================= */
+
+const inputClass = `
+  w-full
+  rounded-lg
+  border border-[#D9E0E8]
+  bg-[#FAF9F5]
+  px-3 py-2.5
+  text-sm
+  text-[#10213A]
+  placeholder:text-[#C8D2DF]
+  outline-none
+  transition-colors duration-200
+  hover:border-[#B9C3D0]
+  focus:border-[#D4AF37]
+  focus:ring-1
+  focus:ring-[#D4AF37]/30
+`;
+
+const selectClass = `
+  w-full
+  rounded-lg
+  border border-[#D9E0E8]
+  bg-[#FAF9F5]
+  px-3 py-2.5
+  text-sm
+  text-[#10213A]
+  outline-none
+  transition-colors duration-200
+  hover:border-[#B9C3D0]
+  focus:border-[#D4AF37]
+  focus:ring-1
+  focus:ring-[#D4AF37]/30
+`;
+
 export default function ClassForm({
   form,
   setForm,
@@ -30,193 +68,471 @@ export default function ClassForm({
   onCancel,
 }: ClassFormProps) {
   return (
-    <div className="bg-white rounded-lg border p-6 shadow-sm">
-      <h2 className="text-2xl font-bold mb-6">
-        Class Information
-      </h2>
+    <section
+  className="
+    relative
+    w-full
+    min-w-0
+    overflow-hidden
+    rounded-[18px]
+    border
+    border-[#D4AF37]/45
+    bg-[#102B4D]
+  "
+>
+  {/* Gold top highlight — Frozen VI */}
+  <div
+    aria-hidden="true"
+    className="
+      pointer-events-none
+      absolute
+      inset-x-0
+      top-0
+      z-20
+      h-px
+      bg-gradient-to-r
+      from-[#D4AF37]
+      via-[#D4AF37]/70
+      to-transparent
+    "
+  />
+      {/* =====================================================
+          Student Table Card Frame Standard
+          Gold top highlight — same as StudentTable
+          ===================================================== */}
 
-      <div className="space-y-4">
+      <div
+        aria-hidden="true"
+        className="
+          pointer-events-none
+          absolute
+          left-0
+          right-0
+          top-0
+          h-[2px]
+          bg-gradient-to-r
+          from-[#D4AF37]
+          via-[#D4AF37]/55
+          to-transparent
+        "
+      />
 
-        <select
-          className="w-full border rounded-lg p-2"
-          value={form.campus_id}
-          onChange={(e) =>
-            setForm({
-              ...form,
-              campus_id: e.target.value,
-            })
-          }
-        >
-          <option value="">Campus</option>
+      <div className="p-6">
+        <p className="text-xs font-medium uppercase tracking-[0.16em] text-[#D4AF37]">
+          CLASS INFORMATION
+        </p>
 
-          {campuses.map((campus) => (
-            <option
-              key={campus.id}
-              value={campus.id}
+        <div className="mt-6 space-y-4">
+
+          {/* =================================================
+              Campus
+              ================================================= */}
+
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-[#64748B]">
+              Campus <span className="text-[#D4AF37]">*</span>
+            </label>
+
+            <select
+              className={selectClass}
+              value={form.campus_id}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  campus_id: e.target.value,
+                })
+              }
             >
-              {campus.short_name}
-            </option>
-          ))}
-        </select>
+              <option
+                value=""
+                className="bg-[#FAF9F5] text-[#64748B]"
+              >
+                Select campus
+              </option>
 
-        <select
-          className="w-full border rounded-lg p-2"
-          value={form.coach_id}
-          onChange={(e) =>
-            setForm({
-              ...form,
-              coach_id: e.target.value,
-            })
-          }
-        >
-          <option value="">Coach</option>
+              {campuses.map((campus) => (
+                <option
+                  key={campus.id}
+                  value={campus.id}
+                  className="bg-[#FAF9F5] text-[#10213A]"
+                >
+                  {campus.short_name}
+                </option>
+              ))}
+            </select>
+          </div>
 
-          {coaches.map((coach) => (
-            <option
-              key={coach.id}
-              value={coach.id}
+          {/* =================================================
+              Coach
+              ================================================= */}
+
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-[#64748B]">
+              Coach <span className="text-[#D4AF37]">*</span>
+            </label>
+
+            <select
+              className={selectClass}
+              value={form.coach_id}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  coach_id: e.target.value,
+                })
+              }
             >
-              {coach.display_name}
-            </option>
-          ))}
-        </select>
+              <option
+                value=""
+                className="bg-[#FAF9F5] text-[#64748B]"
+              >
+                Select coach
+              </option>
 
-        <select
-          className="w-full border rounded-lg p-2"
-          value={form.day}
-          onChange={(e) =>
-            setForm({
-              ...form,
-              day: e.target.value as ClassFormData["day"],
-            })
-          }
-        >
-          <option>Monday</option>
-          <option>Tuesday</option>
-          <option>Wednesday</option>
-          <option>Thursday</option>
-          <option>Friday</option>
-          <option>Saturday</option>
-          <option>Sunday</option>
-        </select>
+              {coaches.map((coach) => (
+                <option
+                  key={coach.id}
+                  value={coach.id}
+                  className="bg-[#FAF9F5] text-[#10213A]"
+                >
+                  {coach.display_name}
+                </option>
+              ))}
+            </select>
+          </div>
 
-        <input
-          type="time"
-          className="w-full border rounded-lg p-2"
-          value={form.start_time}
-          onChange={(e) =>
-            setForm({
-              ...form,
-              start_time: e.target.value,
-            })
-          }
-        />
+          {/* =================================================
+              Day
+              ================================================= */}
 
-        <input
-          type="time"
-          className="w-full border rounded-lg p-2"
-          value={form.end_time}
-          onChange={(e) =>
-            setForm({
-              ...form,
-              end_time: e.target.value,
-            })
-          }
-        />
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-[#64748B]">
+              Day <span className="text-[#D4AF37]">*</span>
+            </label>
 
-        <select
-          className="w-full border rounded-lg p-2"
-          value={form.level}
-          onChange={(e) =>
-            setForm({
-              ...form,
-              level: e.target.value as ClassFormData["level"],
-            })
-          }
-        >
-          <option>Beginner</option>
-          <option>Novice</option>
-          <option>Intermediate</option>
-          <option>Advanced</option>
-          <option>Novice to Intermediate</option>
-          <option>Intermediate to Advanced</option>
-        </select>
+            <select
+              className={selectClass}
+              value={form.day}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  day: e.target.value as ClassFormData["day"],
+                })
+              }
+            >
+              <option
+                value="Monday"
+                className="bg-[#FAF9F5] text-[#10213A]"
+              >
+                Monday
+              </option>
 
-        <input
-          className="w-full border rounded-lg p-2"
-          placeholder="Class Suffix (Optional)"
-          value={form.class_suffix}
-          onChange={(e) =>
-            setForm({
-              ...form,
-              class_suffix: e.target.value,
-            })
-          }
-        />
+              <option
+                value="Tuesday"
+                className="bg-[#FAF9F5] text-[#10213A]"
+              >
+                Tuesday
+              </option>
 
-        <input
-          type="number"
-          className="w-full border rounded-lg p-2"
-          placeholder="Capacity"
-          value={form.capacity}
-          onChange={(e) =>
-            setForm({
-              ...form,
-              capacity: Number(e.target.value),
-            })
-          }
-        />
+              <option
+                value="Wednesday"
+                className="bg-[#FAF9F5] text-[#10213A]"
+              >
+                Wednesday
+              </option>
 
-        <select
-          className="w-full border rounded-lg p-2"
-          value={form.status}
-          onChange={(e) =>
-            setForm({
-              ...form,
-              status: e.target.value as ClassFormData["status"],
-            })
-          }
-        >
-          <option>Active</option>
-          <option>Inactive</option>
-        </select>
+              <option
+                value="Thursday"
+                className="bg-[#FAF9F5] text-[#10213A]"
+              >
+                Thursday
+              </option>
 
-        <textarea
-          rows={4}
-          className="w-full border rounded-lg p-2"
-          placeholder="Notes"
-          value={form.notes}
-          onChange={(e) =>
-            setForm({
-              ...form,
-              notes: e.target.value,
-            })
-          }
-        />
+              <option
+                value="Friday"
+                className="bg-[#FAF9F5] text-[#10213A]"
+              >
+                Friday
+              </option>
 
-        <div className="flex gap-2">
+              <option
+                value="Saturday"
+                className="bg-[#FAF9F5] text-[#10213A]"
+              >
+                Saturday
+              </option>
 
-          <button
-            onClick={onSave}
-            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2"
-          >
-            {editingClass
-              ? "Update Class"
-              : "Save Class"}
-          </button>
+              <option
+                value="Sunday"
+                className="bg-[#FAF9F5] text-[#10213A]"
+              >
+                Sunday
+              </option>
+            </select>
+          </div>
 
-          {editingClass && (
+          {/* =================================================
+              Start Time
+              ================================================= */}
+
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-[#64748B]">
+              Start Time <span className="text-[#D4AF37]">*</span>
+            </label>
+
+            <input
+              type="time"
+              className={inputClass}
+              value={form.start_time}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  start_time: e.target.value,
+                })
+              }
+            />
+          </div>
+
+          {/* =================================================
+              End Time
+              ================================================= */}
+
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-[#64748B]">
+              End Time <span className="text-[#D4AF37]">*</span>
+            </label>
+
+            <input
+              type="time"
+              className={inputClass}
+              value={form.end_time}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  end_time: e.target.value,
+                })
+              }
+            />
+          </div>
+
+          {/* =================================================
+              Level
+              ================================================= */}
+
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-[#64748B]">
+              Level <span className="text-[#D4AF37]">*</span>
+            </label>
+
+            <select
+              className={selectClass}
+              value={form.level}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  level: e.target.value as ClassFormData["level"],
+                })
+              }
+            >
+              <option
+                value="Beginner"
+                className="bg-[#FAF9F5] text-[#10213A]"
+              >
+                Beginner
+              </option>
+
+              <option
+                value="Novice"
+                className="bg-[#FAF9F5] text-[#10213A]"
+              >
+                Novice
+              </option>
+
+              <option
+                value="Intermediate"
+                className="bg-[#FAF9F5] text-[#10213A]"
+              >
+                Intermediate
+              </option>
+
+              <option
+                value="Advanced"
+                className="bg-[#FAF9F5] text-[#10213A]"
+              >
+                Advanced
+              </option>
+
+              <option
+                value="Novice to Intermediate"
+                className="bg-[#FAF9F5] text-[#10213A]"
+              >
+                Novice to Intermediate
+              </option>
+
+              <option
+                value="Intermediate to Advanced"
+                className="bg-[#FAF9F5] text-[#10213A]"
+              >
+                Intermediate to Advanced
+              </option>
+            </select>
+          </div>
+
+          {/* =================================================
+              Class Suffix
+              ================================================= */}
+
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-[#64748B]">
+              Class Suffix
+              <span className="ml-1 text-[#94A3B8]">
+                (Optional)
+              </span>
+            </label>
+
+            <input
+              className={inputClass}
+              placeholder="e.g. A, B, Elite"
+              value={form.class_suffix}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  class_suffix: e.target.value,
+                })
+              }
+            />
+          </div>
+
+          {/* =================================================
+              Capacity
+              ================================================= */}
+
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-[#64748B]">
+              Capacity <span className="text-[#D4AF37]">*</span>
+            </label>
+
+            <input
+              type="number"
+              min="1"
+              className={inputClass}
+              placeholder="Capacity"
+              value={form.capacity}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  capacity: Number(e.target.value),
+                })
+              }
+            />
+          </div>
+
+          {/* =================================================
+              Status
+              ================================================= */}
+
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-[#64748B]">
+              Status
+            </label>
+
+            <select
+              className={selectClass}
+              value={form.status}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  status: e.target.value as ClassFormData["status"],
+                })
+              }
+            >
+              <option
+                value="Active"
+                className="bg-[#FAF9F5] text-[#10213A]"
+              >
+                Active
+              </option>
+
+              <option
+                value="Inactive"
+                className="bg-[#FAF9F5] text-[#10213A]"
+              >
+                Inactive
+              </option>
+            </select>
+          </div>
+
+          {/* =================================================
+              Notes
+              ================================================= */}
+
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-[#64748B]">
+              Notes
+            </label>
+
+            <textarea
+              rows={4}
+              className={inputClass}
+              placeholder="Notes"
+              value={form.notes}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  notes: e.target.value,
+                })
+              }
+            />
+          </div>
+
+          {/* =================================================
+              Actions
+              ================================================= */}
+
+          <div className="flex gap-2 pt-1">
             <button
-              onClick={onCancel}
-              className="px-5 bg-gray-300 hover:bg-gray-400 rounded-lg"
+              type="button"
+              onClick={onSave}
+              className="
+                flex-1
+                rounded-lg
+                bg-[#2161F5]
+                py-2.5
+                text-sm
+                font-medium
+                text-white
+                transition-colors
+                duration-200
+                hover:bg-[#1955DE]
+                active:bg-[#164BC7]
+              "
             >
-              Cancel
+              {editingClass ? "Update Class" : "Save Class"}
             </button>
-          )}
+
+            {editingClass && onCancel && (
+              <button
+                type="button"
+                onClick={onCancel}
+                className="
+                  rounded-lg
+                  border border-[#D9E0E8]
+                  px-4
+                  text-sm
+                  font-medium
+                  text-[#64748B]
+                  transition-colors
+                  duration-200
+                  hover:border-[#D4AF37]
+                  hover:text-[#8A6900]
+                "
+              >
+                Cancel
+              </button>
+            )}
+          </div>
 
         </div>
-
       </div>
-    </div>
+    </section>
   );
 }
