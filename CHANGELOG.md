@@ -340,3 +340,280 @@ Lesson Management shall provide the following action states:
 Restore Lesson is an explicit administrative override of a previous manual cancellation. It must not be implemented as automatic generator behaviour, because Lesson remains the Operational SSOT and historical operational facts must remain protected.
 8. Change Log Entry
 Added explicit Administrator Restore Lesson capability for future manually cancelled Lessons. Generator/Reconciliation remains prohibited from automatically reversing manual cancellations.
+
+# CHANGELOG
+
+## [2026-08-10] — Admin Modules & Responsive Layouts
+
+### Overview
+
+Completed the current Admin Management module build, including
+responsive layouts, table improvements, Lesson Management controls,
+and the Lesson Restore function.
+
+This release is treated as a development checkpoint / Frozen baseline
+for the completed Admin modules.
+
+---
+
+## 1. Class Management
+
+### Completed
+
+- Class Management page completed.
+- Class form and class list styling updated.
+- Navy card / Gold Card Frame visual language applied.
+- White / light-gold alternating table rows implemented.
+- Hover states added to table rows.
+- Status badges retained.
+- Edit / Delete actions retained.
+- Mobile-responsive layout added.
+- Class list table made usable on smaller screens without breaking
+  the overall Admin layout.
+
+---
+
+## 2. Class Schedule
+
+### Completed
+
+- Class Schedule form and table updated.
+- Class Schedule table redesigned with:
+  - Navy sticky table header
+  - Gold Card Frame
+  - Gold top highlight
+  - White / light-gold alternating rows
+  - Hover effect
+  - Vertical scrolling
+- Table layout adjusted for desktop width.
+- Mobile-responsive behaviour added.
+- Table content protected from severe column compression on mobile.
+
+---
+
+## 3. Academic Calendar
+
+### Completed
+
+- State School Calendar form updated.
+- Academic Calendar table updated.
+- Sticky table header implemented.
+- Fixed vertical scroll area implemented.
+- White / light-gold alternating rows implemented.
+- Hover effect implemented.
+- Navy table header retained.
+- Gold Card Frame and Gold Gradient Top Highlight retained.
+- Mobile-responsive layout added.
+
+### Class Schedule Summary
+
+- Extracted Class Schedule Summary from `calendar/page.tsx`
+  into a dedicated component:
+
+  `components/academicCalendar/ClassScheduleSummary.tsx`
+
+- Desktop summary retains the original 10-column structure:
+  - Class
+  - Coach
+  - First Lesson
+  - Second Last Lesson
+  - Final Lesson
+  - Planned Lessons
+  - Week
+  - Remaining
+  - Re-enrolment Opens
+  - Override
+
+- Sticky header implemented.
+- Vertical scrolling implemented.
+- Mobile layout converted to a card-based presentation.
+- Horizontal overflow avoided on mobile.
+- Existing summary data and calculation logic unchanged.
+
+---
+
+## 4. School Operational Events
+
+### Completed
+
+- School Operational Event form updated.
+- Operational Event table updated.
+- Navy header styling implemented.
+- Sticky table header implemented.
+- Vertical scrolling implemented.
+- White / light-gold alternating rows implemented.
+- Hover effect implemented.
+- Edit / Delete actions retained.
+- Mobile-friendly horizontal table handling retained where necessary.
+
+---
+
+## 5. Lesson Management
+
+### Lesson Generator
+
+- Lesson Generator visual layout completed.
+- Full-width desktop layout implemented.
+- Responsive mobile layout implemented.
+- Generation scopes retained:
+  - Individual Class
+  - Academic Term
+  - Academic Year
+- Academic Year / Term / Class selection logic retained.
+- Generate / Reconcile Lessons function retained.
+
+### Lesson List
+
+- Lesson List expanded to full-width layout.
+- Responsive filter layout implemented.
+- Filters retained:
+  - Academic Year
+  - Term
+  - Class
+  - Status
+- Clear Filters retained.
+- Lesson table redesigned with:
+  - Navy table header
+  - Sticky header
+  - Fixed scroll area
+  - Alternating white / light-gold rows
+  - Hover effect
+  - Manage action
+- Mobile-friendly presentation implemented.
+- Cancellation reason dropdown styling corrected for dark-theme Admin UI.
+
+---
+
+## 6. Lesson Restore Function
+
+### Added
+
+Added administrative **Restore Lesson** functionality.
+
+### Purpose
+
+Allows an administrator to restore a lesson that was previously
+cancelled by mistake.
+
+Example:
+
+A lesson is accidentally changed to:
+
+- Status: `Cancelled`
+- Chargeable: `Non-chargeable`
+
+The administrator can use **Restore Lesson** to return the lesson
+to its normal planned state.
+
+### Restore Behaviour
+
+Restore Lesson:
+
+- Changes the lesson status back to `Planned`.
+- Restores the lesson to its normal chargeable state.
+- Clears the cancellation reason.
+- Clears the operational cancellation override associated with
+  the manual cancellation where applicable.
+- Does not regenerate the lesson.
+- Does not create a duplicate lesson.
+- Preserves the existing lesson record / lesson date / class relationship.
+
+### Administrative Principle
+
+`Restore Lesson` is an administrative override function.
+
+It is intended for correcting an incorrect manual cancellation,
+not for bypassing the normal Lesson Generation / Reconciliation
+process.
+
+---
+
+## 7. Responsive Design Standard
+
+The following Admin modules now follow the responsive design requirement:
+
+- Class Management
+- Class Schedule
+- Academic Calendar
+- Lesson Management
+
+### Desktop
+
+- Full-width content where appropriate.
+- Navy card structure.
+- Gold Card Frame.
+- Gold Gradient Top Highlight.
+- Sticky table headers.
+- Controlled vertical scrolling.
+
+### Mobile
+
+- Forms resize to available screen width.
+- Tables avoid destructive column compression.
+- Long table content is handled without breaking the page layout.
+- Summary tables convert to mobile-friendly card layouts where
+  appropriate.
+- Controls remain usable on touch screens.
+
+---
+
+## 8. Visual Design Standard
+
+The current Admin visual language remains:
+
+- Navy background
+- Navy cards
+- Gold Card Frame
+- Gold Gradient Top Highlight
+- Navy table headers
+- White / light-gold alternating table rows
+- Gold hover treatment where appropriate
+- Blue primary actions
+- Red destructive actions
+- Status badges
+
+The Gold Gradient Top Highlight must not be removed from completed
+Admin cards unless explicitly requested.
+
+---
+
+## 9. Data & Business Logic
+
+No intentional changes were made to the underlying business logic
+for:
+
+- Class Schedule
+- Academic Calendar
+- Operational Events
+- Lesson Generation
+- Lesson Reconciliation
+- Re-enrolment
+- Lesson Override
+- Class relationships
+
+The responsive and visual refactoring is intended to preserve the
+existing SRS-defined behaviour.
+
+---
+
+## 10. Frozen Baseline
+
+This release establishes the current completed Admin modules as a
+development checkpoint.
+
+### Frozen modules
+
+- Class
+- Class Schedule
+- Academic Calendar
+- School Operational Events
+- Lesson
+
+### Important
+
+Future development should not modify the frozen business rules or
+visual language of these completed areas without an explicit change
+request.
+
+Any new requirement should be treated as an additive change or a
+new SRS amendment rather than an implicit redesign.
