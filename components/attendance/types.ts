@@ -8,6 +8,10 @@ export interface LessonCard {
 
   lesson_date: string;
 
+  academic_year?: number | string;
+
+  term?: number | string;
+
   campus: string;
 
   level: string;
@@ -22,6 +26,7 @@ export interface LessonCard {
 
   status: string;
 }
+
 
 // ======================================================
 // Attendance Student
@@ -45,13 +50,13 @@ export interface AttendanceStudent {
 
   makeup_credit: number;
 
-classroom_pickup: boolean;
+  classroom_pickup: boolean;
 
-ymca_dropoff: boolean;
+  ymca_dropoff: boolean;
 
-walk_home: boolean;
+  walk_home: boolean;
 
-has_medical: boolean;
+  has_medical: boolean;
 
   attendance_status:
     | "Present"
@@ -78,6 +83,7 @@ has_medical: boolean;
   ymcaDropoff?: boolean;
 }
 
+
 // ======================================================
 // Attendance Summary
 // Right summary panel
@@ -96,6 +102,7 @@ export interface AttendanceSummary {
 
   attendanceRate: number;
 }
+
 
 // ======================================================
 // Header Statistics
