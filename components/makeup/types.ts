@@ -10,6 +10,8 @@ export interface MakeupCredit {
 
   credits: number;
 
+  reason: string;
+
   status: string;
 
   created_at: string;

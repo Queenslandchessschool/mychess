@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 
 import { supabase } from "@/lib/supabase";
 
+import { runAttendanceReconciliation } from "@/lib/attendanceRunner";
+
 import AttendanceHeader from "@/components/attendance/AttendanceHeader";
 import AttendanceLessonCard from "@/components/attendance/AttendanceLessonCard";
 import AttendanceLessonFilters from "@/components/attendance/AttendanceLessonFilters";
@@ -92,63 +94,82 @@ export default function AttendancePage() {
   // ======================================================
 
   async function handleStatusChange(
-    studentId: string,
-    status: AttendanceStudent["attendance_status"]
-  ) {
-    if (!selectedLesson) return;
+  studentId: string,
+  status: AttendanceStudent["attendance_status"]
+) {
+  if (!selectedLesson) return;
 
-    setStudents((prev) =>
-      prev.map((student) =>
-        student.student_id === studentId
-          ? {
-              ...student,
-              attendance_status: status,
-            }
-          : student
-      )
-    );
+  // Optimistic UI update
+  setStudents((prev) =>
+    prev.map((student) =>
+      student.student_id === studentId
+        ? {
+            ...student,
+            attendance_status: status,
+          }
+        : student
+    )
+  );
 
-    const { error } = await supabase
-      .from("attendance")
-      .update({
-        attendance_status: status,
-        attendance_source: "Coach",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("lesson_id", selectedLesson.id)
-      .eq("student_id", studentId);
+  const { error } = await supabase
+    .from("attendance")
+    .update({
+      attendance_status: status,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("lesson_id", selectedLesson.id)
+    .eq("student_id", studentId);
 
-    if (error) {
-      console.error(error);
-    }
+  if (error) {
+    console.error("ATTENDANCE UPDATE ERROR:", error);
 
-    const { data: attendanceRecord } =
-      await supabase
-        .from("attendance")
-        .select("id")
-        .eq("lesson_id", selectedLesson.id)
-        .eq("student_id", studentId)
-        .single();
-
-    if (attendanceRecord) {
-      await supabase
-        .from("attendance_logs")
-        .insert({
-          attendance_id: attendanceRecord.id,
-          action: "Status Change",
-          new_status: status,
-          operator: "Coach",
-          remarks:
-            "Attendance updated from Attendance page",
-        });
-    }
-
+    // Reload only after a failed update so UI returns to DB state
     await loadStudents(selectedLesson.id);
 
-    setSelectedLesson({
-      ...selectedLesson,
-    });
+    return;
   }
+
+  const {
+    data: attendanceRecord,
+    error: attendanceRecordError,
+  } = await supabase
+    .from("attendance")
+    .select("id")
+    .eq("lesson_id", selectedLesson.id)
+    .eq("student_id", studentId)
+    .single();
+
+  if (attendanceRecordError) {
+    console.error(
+      "ATTENDANCE RECORD ERROR:",
+      attendanceRecordError
+    );
+    return;
+  }
+
+  if (attendanceRecord) {
+    const { error: logError } = await supabase
+      .from("attendance_logs")
+      .insert({
+        attendance_id: attendanceRecord.id,
+        action: "Status Change",
+        new_status: status,
+        operator: "Coach",
+        remarks:
+          "Attendance updated from Attendance page",
+      });
+
+    if (logError) {
+      console.error(
+        "ATTENDANCE LOG ERROR:",
+        logError
+      );
+    }
+  }
+
+  // Refresh summary/data only after successful update
+  await loadStudents(selectedLesson.id);
+}
 
   // ======================================================
   // Generate Attendance
@@ -207,7 +228,6 @@ export default function AttendancePage() {
         student_id: item.student_id,
         attendance_status: "Present",
         attendance_type: "Regular",
-        attendance_source: "System",
         created_at:
           new Date().toISOString(),
         updated_at:
@@ -224,245 +244,438 @@ export default function AttendancePage() {
     await loadStudents(lessonId);
   }
 
+// ======================================================
+// Student List Priority
+// ======================================================
+
+function getStudentListPriority(
+  student: AttendanceStudent
+): number {
+  // 1. Trial
+  if (
+    student.isTrial ||
+    student.attendance_type === "Trial"
+  ) {
+    return 1;
+  }
+
+  // 2. Leave
+  // Leave is represented by Excused attendance type
+  if (
+    student.attendance_type === "Excused"
+  ) {
+    return 2;
+  }
+
+  // 3. Holiday
+  if (
+    student.attendance_type === "Holiday"
+  ) {
+    return 3;
+  }
+
+  // 4. Medical
+  if (student.has_medical) {
+    return 4;
+  }
+
+  // 5. Special Request
+  if (
+    student.classroom_pickup ||
+    student.ymca_dropoff ||
+    student.walk_home ||
+    student.needsPickup ||
+    student.ymcaDropoff
+  ) {
+    return 5;
+  }
+
+  // 6. Normal
+  return 6;
+}
+
   // ======================================================
   // Load Students
   // ======================================================
 
-  async function loadStudents(
-    lessonId: string
-  ) {
-    try {
-      await syncLeaveRequests(lessonId);
+    async function loadStudents(lessonId: string) {
+  try {
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    console.log("ATTENDANCE SESSION:", session);
+      // ======================================================
+      // 1. Get lesson context
+      // ======================================================
 
       const {
+        data: lesson,
+        error: lessonError,
+      } = await supabase
+        .from("lessons")
+        .select(`
+          id,
+          academic_year,
+          term,
+          class_id
+        `)
+        .eq("id", lessonId)
+        .single();
+
+      if (lessonError) throw lessonError;
+
+      // ======================================================
+// 2. Reconcile Attendance roster
+//
+// IMPORTANT:
+// This only inserts missing Attendance records.
+// Existing Attendance status/type is never overwritten.
+// ======================================================
+
+await runAttendanceReconciliation(lessonId);
+
+
+// ======================================================
+// 3. Sync submitted leave requests
+// ======================================================
+
+await syncLeaveRequests(lessonId);
+
+      // ======================================================
+      // 4. Load attendance records + basic Student Master data
+      //
+      // IMPORTANT:
+      // Special-request fields are NOT read directly from
+      // students anymore.
+      // They are stored in the enrollment snapshot.
+      // ======================================================
+
+            const {
         data,
         error,
       } = await supabase
         .from("attendance")
-        .select(`
-          *,
-          students:student_id (
-            id,
-            student_code,
-            first_name,
-            last_name,
-            current_level,
-            makeup_credit,
-            classroom_pickup,
-            ymca_dropoff,
-            walk_home,
-            has_medical
-          )
-        `)
+.select(`
+  *,
+  students:student_id (
+    id,
+    student_code,
+    first_name,
+    preferred_name,
+    last_name,
+    current_level,
+    school_class
+  )
+`)
         .eq("lesson_id", lessonId)
         .order("created_at");
 
       if (error) throw error;
 
-      const attendanceStudents:
-        AttendanceStudent[] =
-        (data ?? []).map((row: any) => ({
-          id: row.id,
+      // ======================================================
+      // 4. Load enrollment snapshots for these students
+      // ======================================================
 
-          student_id:
-            row.student_id,
+      const studentIds = (data ?? [])
+        .map((row: any) => row.student_id)
+        .filter(Boolean);
 
-          student_code:
-            row.students.student_code,
+      let enrollmentMap = new Map<string, any>();
 
-          first_name:
-            row.students.first_name,
+if (studentIds.length > 0) {
+  const {
+    data: enrolments,
+    error: enrolmentError,
+  } = await supabase
+    .from("student_enrolments")
+    .select(`
+      student_id,
+      special_request_snapshot,
+      medical_snapshot,
+      is_trial
+    `)
+    .in("student_id", studentIds)
+    .eq("academic_year", lesson.academic_year)
+    .eq("term", lesson.term)
+    .eq("class_id", lesson.class_id)
+    .eq("status", "Active");
 
-          last_name:
-            row.students.last_name,
+  if (enrolmentError) throw enrolmentError;
 
-          student_name:
-            `${row.students.first_name} ${row.students.last_name}`,
+  for (const enrolment of enrolments ?? []) {
+    enrollmentMap.set(
+      enrolment.student_id,
+      enrolment
+    );
+  }
+}
 
-          current_level:
-            row.students.current_level,
+// ======================================================
+// Load parent contact information
+// ======================================================
 
-          attendance_status:
-            row.attendance_status,
+let parentMap = new Map<string, any>();
 
-          attendance_type:
-            row.attendance_type,
+if (studentIds.length > 0) {
+  const {
+    data: parents,
+    error: parentError,
+  } = await supabase
+    .from("parents")
+    .select(`
+      student_id,
+      parent1_name,
+      mobile
+    `)
+    .in("student_id", studentIds);
 
-          makeup_credit:
-            row.students.makeup_credit ?? 0,
+  if (parentError) throw parentError;
 
-          classroom_pickup:
-            row.students.classroom_pickup ?? false,
+  for (const parent of parents ?? []) {
+    parentMap.set(
+      parent.student_id,
+      parent
+    );
+  }
+}
 
-          ymca_dropoff:
-            row.students.ymca_dropoff ?? false,
+      // ======================================================
+      // 5. Build Attendance Student list
+      // ======================================================
 
-          walk_home:
-            row.students.walk_home ?? false,
+      const attendanceStudents: AttendanceStudent[] =
+        (data ?? []).map((row: any) => {
+          const enrollment =
+            enrollmentMap.get(row.student_id);
 
-          has_medical:
-            row.students.has_medical ?? false,
+          const parent = parentMap.get(row.student_id);
 
-          isTrial:
-            row.attendance_type ===
-            "Trial",
+          const snapshot =
+            enrollment?.special_request_snapshot ?? {};
 
-          needsPickup: false,
+          return {
+            id: row.id,
 
-          ymcaDropoff: false,
-        }));
+            student_id:
+              row.student_id,
 
-      attendanceStudents.sort(
-        (a: any, b: any) => {
-          const priority = (
-            student: any
-          ) => {
-            if (
-              student.attendance_type ===
-              "Trial"
-            )
-              return 1;
+            student_code:
+              row.students?.student_code ?? "",
 
-            if (
-              student.attendance_type ===
-              "Make-up"
-            )
-              return 2;
+            first_name:
+              row.students?.first_name ?? "",
 
-            if (
-              student.attendance_status ===
-              "Excused"
-            )
-              return 3;
+            last_name:
+              row.students?.last_name ?? "",
 
-            if (
-              student.attendance_status ===
-              "Holiday"
-            )
-              return 4;
+            student_name:
+  `${row.students?.first_name ?? ""}${
+    row.students?.preferred_name?.trim()
+      ? ` (${row.students.preferred_name.trim()})`
+      : ""
+  } ${row.students?.last_name ?? ""}`.trim(),
 
-            return 8;
+            parent_name: parent?.parent1_name ?? "",
+parent_mobile: parent?.mobile ?? "",
+
+            current_level:
+              row.students?.current_level ?? "",
+
+            school_class:
+              row.students?.school_class?.trim() ?? "",
+
+            attendance_status:
+              row.attendance_status,
+
+            attendance_type:
+              row.attendance_type,
+
+            // ==================================================
+            // Special Request
+            // These come from the enrollment snapshot.
+            // ==================================================
+
+            classroom_pickup:
+              snapshot.classroom_pickup ?? false,
+
+            ymca_dropoff:
+              snapshot.ymca_dropoff ?? false,
+
+            walk_home:
+              snapshot.walk_home ?? false,
+
+            has_medical:
+              Boolean(
+                enrollment?.medical_snapshot
+              ),
+
+            isTrial:
+              row.attendance_type === "Trial" ||
+              enrollment?.is_trial === true,
+
+            needsPickup:
+              snapshot.classroom_pickup ?? false,
+
+            ymcaDropoff:
+              snapshot.ymca_dropoff ?? false,
           };
+        });
 
-          const p =
-            priority(a) - priority(b);
+// ======================================================
+// 6. Sort students
+//
+// Frozen SRS priority:
+// 1. Trial
+// 2. Make-up
+// 3. Excused / Leave
+// 4. Holiday
+// 5. Classroom Pickup
+// 6. YMCA Drop-off
+// 7. Walk Home
+// 8. Normal
+//
+// Medical does NOT affect sorting.
+// Within each group: A–Z by displayed student name.
+// ======================================================
 
-          if (p !== 0) return p;
+attendanceStudents.sort((a, b) => {
+  const getPriority = (student: AttendanceStudent) => {
+    // --------------------------------------------------
+    // 1. Attendance / enrolment type
+    // --------------------------------------------------
 
-          return a.first_name.localeCompare(
-            b.first_name
-          );
-        }
-      );
+    if (student.attendance_type === "Trial") {
+      return 1;
+    }
 
-      setStudents(
-        attendanceStudents
-      );
+    if (student.attendance_type === "Make-up") {
+      return 2;
+    }
+
+    if (student.attendance_type === "Excused") {
+      return 3;
+    }
+
+    if (student.attendance_type === "Holiday") {
+      return 4;
+    }
+
+    // --------------------------------------------------
+    // 2. Special Request
+    // --------------------------------------------------
+
+    if (student.classroom_pickup) {
+      return 5;
+    }
+
+    if (student.ymca_dropoff) {
+      return 6;
+    }
+
+    if (student.walk_home) {
+      return 7;
+    }
+
+    // --------------------------------------------------
+    // 3. Normal
+    // --------------------------------------------------
+
+    return 8;
+  };
+
+  const priorityA = getPriority(a);
+  const priorityB = getPriority(b);
+
+  // First: priority group
+  if (priorityA !== priorityB) {
+    return priorityA - priorityB;
+  }
+
+  // Second: A–Z by displayed student name
+  return a.student_name.localeCompare(
+    b.student_name,
+    undefined,
+    {
+      sensitivity: "base",
+    }
+  );
+});
+
+      // ======================================================
+      // 7. Update students
+      // ======================================================
+
+      setStudents(attendanceStudents);
+
+      // ======================================================
+      // 8. Update attendance summary
+      // ======================================================
+
+      const totalStudents =
+        attendanceStudents.length;
 
       const present =
         attendanceStudents.filter(
           (s) =>
-            s.attendance_status ===
-            "Present"
+            s.attendance_status === "Present"
         ).length;
 
       const absent =
         attendanceStudents.filter(
           (s) =>
-            s.attendance_status ===
-            "Absent"
+            s.attendance_status === "Absent"
         ).length;
 
       const late =
         attendanceStudents.filter(
           (s) =>
-            s.attendance_status ===
-            "Late"
+            s.attendance_status === "Late"
         ).length;
 
-      const totalStudents =
-        attendanceStudents.length;
+      const leave =
+        attendanceStudents.filter(
+          (s) =>
+            s.attendance_type === "Excused"
+        ).length;
 
-      setSummary({
-        totalStudents,
-        present,
-        absent,
-        late,
-        leave: 0,
-        attendanceRate:
-          totalStudents === 0
-            ? 0
-            : Math.round(
-                (present /
-                  totalStudents) *
-                  100
-              ),
-      });
-
-      setHeaderStats((prev) => ({
-        ...prev,
-        totalStudents:
-          attendanceStudents.length,
-      }));
-
-      setSummary({
-        totalStudents:
-          attendanceStudents.length,
-
-        present:
-          attendanceStudents.filter(
-            (s) =>
-              s.attendance_status ===
-              "Present"
-          ).length,
-
-        absent:
-          attendanceStudents.filter(
-            (s) =>
-              s.attendance_status ===
-              "Absent"
-          ).length,
-
-        late:
-          attendanceStudents.filter(
-            (s) =>
-              s.attendance_status ===
-              "Late"
-          ).length,
-
-        leave:
-          attendanceStudents.filter(
-            (s) =>
-              s.attendance_type ===
-              "Excused"
-          ).length,
-
-        attendanceRate:
-          attendanceStudents.length ===
-          0
-            ? 0
-            : Math.round(
-                (attendanceStudents.filter(
+      const attendanceRate =
+        totalStudents === 0
+          ? 0
+          : Math.round(
+              (
+                attendanceStudents.filter(
                   (s) =>
                     s.attendance_status ===
                       "Present" ||
                     s.attendance_status ===
                       "Late"
                 ).length *
-                  100) /
-                  attendanceStudents.length
-              ),
+                100
+              ) /
+                totalStudents
+            );
+
+      setSummary({
+        totalStudents,
+        present,
+        absent,
+        late,
+        leave,
+        attendanceRate,
       });
 
-      if ((data ?? []).length === 0) {
-        await generateAttendance(
-          lessonId
-        );
+      setHeaderStats((prev) => ({
+        ...prev,
+        totalStudents,
+      }));
 
-        return;
-      }
     } catch (error) {
-      console.error(error);
+      console.error(
+        "Failed to load attendance students:",
+        error
+      );
     }
   }
 
@@ -928,6 +1141,33 @@ export default function AttendancePage() {
           </div>
         ) : (
           <>
+            {/* Selected Lesson Attendance */}
+            {selectedLesson && (
+              <div className="mt-6">
+                <AttendanceSummary
+                  {...summary}
+                />
+
+                <div className="mt-5">
+                  <AttendanceStudentTable
+                    students={
+                      students
+                    }
+                    onStatusChange={
+                      handleStatusChange
+                    }
+                    onStudentClick={(
+                      student
+                    ) =>
+                      setQuickViewStudent(
+                        student
+                      )
+                    }
+                  />
+                </div>
+              </div>
+            )}
+ 
             {/* Lesson Finder */}
             <div className="mt-6">
               <AttendanceLessonFilters
@@ -977,7 +1217,7 @@ export default function AttendancePage() {
               />
             </div>
 
-            {/* Lesson List */}
+                                 {/* Lesson List */}
            <div className="mt-5">
 
               {filteredLessons.length ===
@@ -1027,32 +1267,6 @@ export default function AttendancePage() {
               )}
             </div>
 
-            {/* Selected Lesson Attendance */}
-            {selectedLesson && (
-              <div className="mt-6">
-                <AttendanceSummary
-                  {...summary}
-                />
-
-                <div className="mt-5">
-                  <AttendanceStudentTable
-                    students={
-                      students
-                    }
-                    onStatusChange={
-                      handleStatusChange
-                    }
-                    onStudentClick={(
-                      student
-                    ) =>
-                      setQuickViewStudent(
-                        student
-                      )
-                    }
-                  />
-                </div>
-              </div>
-            )}
           </>
         )}
       </div>

@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { RegistrationData } from "@/lib/registration";
+import { synchroniseStudentStage } from "@/lib/studentSynchronisation";
 
 /**
  * ============================================================
@@ -391,7 +392,7 @@ export async function activateEnrollment(
     data
   );
 
-  /**
+    /**
    * 5. Synchronise Student Current Snapshot
    *
    * Enrollment.class_id → Classes → Student
@@ -402,10 +403,28 @@ export async function activateEnrollment(
       enrollment.class_id
     );
 
+  /**
+   * 6. Synchronise Student Stage
+   *
+   * Current Active Enrollment is the source of truth
+   * for Trial / Regular status.
+   *
+   * Enrollment.is_trial
+   *        ↓
+   * Student.student_stage
+   */
+  const stageSync =
+    await synchroniseStudentStage(
+      student.id,
+      enrollment.academic_year,
+      enrollment.term
+    );
+
   return {
     student: updatedStudent,
     parent,
     enrollment,
     familyId,
+    stageSync,
   };
 }

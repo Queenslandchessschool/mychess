@@ -3,6 +3,7 @@
 export interface ClassOption {
   id: string;
   display_name: string;
+  day: string;
 }
 
 export interface ClassScheduleRecord {
@@ -16,7 +17,9 @@ export interface ClassScheduleRecord {
   first_lesson: string;
   final_lesson: string;
 
-  status: "Active" | "Completed" | "Cancelled";
+  status: "Planned" | "Active" | "Completed" | "Cancelled";
+
+notes: string;
 
   created_at?: string;
   updated_at?: string;

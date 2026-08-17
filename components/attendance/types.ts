@@ -42,13 +42,21 @@ export interface AttendanceStudent {
 
   first_name: string;
 
+  preferred_name?: string;
+
   last_name: string;
 
   student_name: string;
 
-  current_level: string;
+  parent_name?: string;
 
-  makeup_credit: number;
+  parent_mobile?: string;
+
+  notes?: string;
+
+  school_class?: string;
+
+  current_level: string;
 
   classroom_pickup: boolean;
 

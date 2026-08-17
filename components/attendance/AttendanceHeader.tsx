@@ -6,12 +6,16 @@ interface Props {
   stats: AttendanceHeaderStats;
   onRefresh: () => void;
   isAdmin?: boolean;
+  canAddMakeup?: boolean;
+  onAddMakeup?: () => void;
 }
 
 export default function AttendanceHeader({
   stats,
   onRefresh,
   isAdmin = true,
+  canAddMakeup = isAdmin,
+  onAddMakeup,
 }: Props) {
   const {
     totalLessons,
@@ -113,10 +117,11 @@ export default function AttendanceHeader({
               lg:justify-end
             "
           >
-            {isAdmin && (
-              <button
-                type="button"
-                className="
+            {canAddMakeup && (
+  <button
+    type="button"
+    onClick={onAddMakeup}
+                  className="
                   inline-flex
                   min-h-[40px]
                   items-center

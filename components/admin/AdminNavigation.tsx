@@ -96,6 +96,11 @@ const navigationGroups = [
         href: "/admin/reenrolment",
         icon: "↺",
       },
+      {
+        label: "Trial Management",
+        href: "/admin/trials",
+        icon: "★",
+      },
     ],
   },
 

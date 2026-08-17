@@ -322,6 +322,23 @@ function MobileStudentCard({
   const isHoliday =
     student.attendance_type === "Holiday";
 
+  const currentStatus =
+  student.attendance_status ?? "Present";
+
+const nextStatus =
+  currentStatus === "Present"
+    ? "Absent"
+    : currentStatus === "Absent"
+      ? "Late"
+      : "Present";
+
+const statusColor =
+  currentStatus === "Present"
+    ? "green"
+    : currentStatus === "Absent"
+      ? "red"
+      : "orange";
+
   return (
     <div
       className="
@@ -333,89 +350,40 @@ function MobileStudentCard({
         py-3
       "
     >
-      {/* Identity */}
-      <div className="flex items-start justify-between gap-3">
-        <StudentIdentity
-          student={student}
-          onStudentClick={onStudentClick}
-        />
+      {/* Identity + Current Status */}
+<div className="flex min-w-0 items-center justify-between gap-2">
+  <div className="min-w-0 flex-1">
+    <StudentIdentity
+      student={student}
+      onStudentClick={onStudentClick}
+    />
+  </div>
 
-        {(isExcused || isHoliday) && (
-          <SpecialStatus
-            type={
-              isExcused
-                ? "Excused"
-                : "Holiday"
-            }
-          />
-        )}
-      </div>
+  {!isExcused && !isHoliday && (
+    <StatusButton
+      active
+      color={statusColor}
+      compact
+      onClick={() =>
+        onStatusChange(
+          student.student_id,
+          nextStatus
+        )
+      }
+    />
+  )}
 
-      {/* Attendance Controls */}
-      <div
-        className="
-          mt-3
-          grid
-          grid-cols-4
-          gap-1.5
-          border-t
-          border-[#E5EAF0]
-          pt-3
-        "
-      >
-        <StatusButton
-          active={
-            student.attendance_status ===
-            "Present"
-          }
-          color="green"
-          compact
-          onClick={() =>
-            onStatusChange(
-              student.student_id,
-              "Present"
-            )
-          }
-        />
+  {(isExcused || isHoliday) && (
+    <SpecialStatus
+      type={
+        isExcused
+          ? "Excused"
+          : "Holiday"
+      }
+    />
+  )}
+</div>
 
-        <StatusButton
-          active={
-            student.attendance_status ===
-            "Absent"
-          }
-          color="red"
-          compact
-          onClick={() =>
-            onStatusChange(
-              student.student_id,
-              "Absent"
-            )
-          }
-        />
-
-        <StatusButton
-          active={
-            student.attendance_status ===
-            "Late"
-          }
-          color="orange"
-          compact
-          onClick={() =>
-            onStatusChange(
-              student.student_id,
-              "Late"
-            )
-          }
-        />
-
-        <StatusButton
-          active={isExcused}
-          color="blue"
-          compact
-          disabled={isExcused}
-          onClick={() => {}}
-        />
-      </div>
     </div>
   );
 }
@@ -430,168 +398,156 @@ function StudentIdentity({
   onStudentClick,
 }: {
   student: AttendanceStudent;
-
   onStudentClick: (
     student: AttendanceStudent
   ) => void;
 }) {
+  const isTrial = student.isTrial;
+
+  const isExcused =
+    student.attendance_type === "Excused";
+
+  const isHoliday =
+    student.attendance_type === "Holiday";
+
   return (
-    <div className="flex min-w-0 items-center gap-3">
-      {/* Student Initial */}
-      <div
+    <div className="flex min-w-0 items-center gap-2">
+      {/* Trial / Leave / Holiday / Make-up icon */}
+      {isTrial && (
+        <span
+          title="Trial Student"
+          className="shrink-0 text-base leading-none"
+        >
+          ⭐
+        </span>
+      )}
+
+      {student.attendance_type === "Make-up" && (
+        <span
+          title="Make-up Student"
+          className="shrink-0 text-base leading-none"
+        >
+          🔄
+        </span>
+      )}
+
+      {isExcused && (
+        <span
+          title="Leave"
+          className="shrink-0 text-base leading-none"
+        >
+          ❌
+        </span>
+      )}
+
+      {isHoliday && (
+        <span
+          title="Holiday"
+          className="shrink-0 text-base leading-none"
+        >
+          🏖
+        </span>
+      )}
+
+      {/* Student Name */}
+      <button
+        type="button"
+        onClick={() => onStudentClick(student)}
         className="
           flex
-          h-9
-          w-9
-          shrink-0
+          min-w-0
           items-center
-          justify-center
-          rounded-full
-          bg-[#EAF2FA]
-          text-xs
-          font-bold
-          text-[#102B4D]
+          gap-1.5
+          text-left
+          font-semibold
+          text-[#10213A]
+          transition-colors
+          hover:text-[#9A7415]
         "
       >
-        {student.first_name
-          ?.charAt(0)
-          .toUpperCase()}
-      </div>
+        <span className="truncate">
+          {student.student_name}
+        </span>
 
-      <div className="min-w-0">
-        <button
-          type="button"
-          onClick={() =>
-            onStudentClick(student)
-          }
-          className="
-            flex
-            max-w-full
-            items-center
-            gap-1.5
-            text-left
-            font-semibold
-            text-[#10213A]
-            transition-colors
-            hover:text-[#9A7415]
-          "
-        >
-          <span className="truncate">
-            {student.student_name}
+        {/* Special Requests */}
+        {student.classroom_pickup &&
+  student.school_class && (
+    <span
+      title={`Classroom Pickup · ${student.school_class}`}
+      className="
+        inline-flex
+        shrink-0
+        items-center
+        gap-1
+        text-sm
+        font-medium
+        text-[#64748B]
+      "
+    >
+      <span className="text-base leading-none">
+        🏫
+      </span>
+
+      <span>
+        {student.school_class}
+      </span>
+    </span>
+  )}
+
+        {student.ymca_dropoff && (
+          <span
+            title="YMCA Drop-off"
+            className="
+              inline-flex
+              shrink-0
+              items-center
+              justify-center
+              text-base
+              leading-none
+            "
+          >
+            🚐
           </span>
+        )}
 
-          {/* Trial */}
-          {student.isTrial && (
-            <span
-              title="Trial Student"
-              className="
-                inline-flex
-                h-5
-                w-5
-                shrink-0
-                items-center
-                justify-center
-                rounded-full
-                bg-[#FFF3C7]
-                text-[11px]
-                text-[#A77B16]
-              "
-            >
-              ★
-            </span>
-          )}
-        </button>
+        {student.walk_home && (
+          <span
+            title="Walk Home"
+            className="
+              inline-flex
+              shrink-0
+              items-center
+              justify-center
+              text-base
+              leading-none
+            "
+          >
+            🚶
+          </span>
+        )}
 
-        <div
-          className="
-            mt-1
-            flex
-            flex-wrap
-            items-center
-            gap-1.5
-            text-[10px]
-            text-[#94A3B8]
-          "
-        >
-          {student.current_level && (
-            <span>
-              {student.current_level}
-            </span>
-          )}
-
-          {student.classroom_pickup && (
-            <span
-              title="School pickup"
-              className="
-                inline-flex
-                items-center
-                justify-center
-                rounded-full
-                bg-[#F5F9FD]
-                px-1.5
-                py-0.5
-              "
-            >
-              🚗
-            </span>
-          )}
-
-          {student.ymca_dropoff && (
-            <span
-              title="YMCA drop-off"
-              className="
-                inline-flex
-                items-center
-                justify-center
-                rounded-full
-                bg-[#F5F9FD]
-                px-1.5
-                py-0.5
-              "
-            >
-              🚌
-            </span>
-          )}
-
-          {student.walk_home && (
-            <span
-              title="Walk home"
-              className="
-                inline-flex
-                items-center
-                justify-center
-                rounded-full
-                bg-[#F5F9FD]
-                px-1.5
-                py-0.5
-              "
-            >
-              🚶
-            </span>
-          )}
-
-          {student.has_medical && (
-            <span
-              title="Medical information"
-              className="
-                inline-flex
-                h-5
-                min-w-5
-                items-center
-                justify-center
-                rounded-full
-                bg-red-600
-                px-1
-                text-[10px]
-                font-bold
-                text-white
-              "
-            >
-              +
-            </span>
-          )}
-        </div>
-      </div>
+        {/* Medical Badge */}
+        {student.has_medical && (
+          <span
+            title="Medical information"
+            className="
+              inline-flex
+              h-5
+              w-5
+              shrink-0
+              items-center
+              justify-center
+              rounded-full
+              bg-red-600
+              text-[11px]
+              font-bold
+              text-white
+            "
+          >
+            +
+          </span>
+        )}
+      </button>
     </div>
   );
 }
