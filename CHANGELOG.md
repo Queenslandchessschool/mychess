@@ -750,3 +750,83 @@ Frozen SRS business rules.
 
 TODO — Parent Leave Time Gate
 Parent Leave submission must be blocked once the selected lesson reaches LESSON_STARTED. The Admin Leave module intentionally retains Super Permission and is not subject to this Time Gate.
+
+## 2026-08-21 — Attendance & Leave Workflow PASS
+
+### Attendance System
+- Completed and verified the shared Attendance workflow for both Admin and Coach.
+- Admin and Coach now share the same `AttendanceStudentTable` component for Desktop and Mobile layouts.
+- Standard attendance states verified:
+  - Present
+  - Absent
+  - Late
+  - Leave
+- Attendance summary and attendance rate updated correctly.
+- Student identity badges verified for:
+  - Trial
+  - Make-up
+  - Leave
+  - Holiday
+  - Classroom Pickup
+  - YMCA Drop-off
+  - Walk Home
+  - Medical information
+
+### Leave → Attendance Integration
+- Completed Leave-to-Attendance synchronization through the shared Leave Attendance Sync engine.
+- Submitted Parent Leave correctly appears in Attendance as Leave / Excused.
+- Leave records are linked to the corresponding attendance record.
+- Leave credit creation and attendance linkage verified.
+- Reverse Leave workflow completed and tested.
+
+### Leave → Present Reverse Workflow
+- Admin and Coach can reverse a submitted Leave when a student actually attends the lesson.
+- Added confirmation protection before reversing Leave:
+  - `No, Keep Leave` → student remains on Leave.
+  - `Yes, Present` → Leave is reversed and attendance becomes Present.
+- Prevents accidental conversion of a legitimate Leave into Present.
+- Reverse Leave workflow verified on both Desktop and Mobile.
+- Browser-native confirmation was replaced with a MyCHESS-styled confirmation modal.
+- Mobile Leave UI simplified to a single Leave action without duplicate Leave labels.
+- Desktop Leave UI verified to avoid displaying Leave and Present simultaneously for a submitted Leave student.
+
+### Shared Attendance Architecture
+- Admin and Coach Attendance now use the same shared student table component.
+- Desktop and Mobile presentation are handled within the shared component.
+- This reduces duplicated UI logic and ensures consistent Attendance behaviour across Admin and Coach.
+
+### Leave Records
+- Admin Leave Records interface updated and verified.
+- Leave record status and attendance relationship tested.
+- Leave cancellation / reverse processing groundwork integrated with Attendance and Makeup Credit workflow.
+
+### Makeup / Credit Infrastructure
+- Makeup credit creation linked to Leave and Attendance.
+- Makeup attendance and booking infrastructure added.
+- Attendance reconciliation API added.
+- Supporting server-side Supabase utilities added.
+
+### Parent Leave Foundation
+- Parent Leave route and navigation foundation added.
+- Parent Leave form and table components implemented.
+- Parent Leave types and supporting components added.
+- Parent Leave workflow is not yet fully frozen and requires a dedicated final review of:
+  - UI / VI
+  - Desktop / Mobile experience
+  - Edit Leave
+  - Cancel Leave
+  - Future / past lesson restrictions
+  - Leave → Attendance synchronization
+  - Makeup Credit lifecycle
+
+### Verification Status
+- Admin Attendance: PASS
+- Coach Attendance: PASS
+- Attendance Desktop UI: PASS
+- Attendance Mobile UI: PASS
+- Leave display in Attendance: PASS
+- Leave → Present confirmation: PASS
+- Reverse Leave engine: PASS
+- Leave → Credit linkage: PASS
+- Shared Admin / Coach Attendance component: PASS
+- Parent Leave: IN REVIEW
