@@ -15,6 +15,7 @@
 // ======================================================
 
 import { supabase } from "@/lib/supabase";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 
 // ======================================================
@@ -45,7 +46,8 @@ export interface AttendanceReconciliationResult {
 // ======================================================
 
 export async function reconcileAttendance(
-  lessonId: string
+  lessonId: string,
+  db: SupabaseClient = supabase
 ): Promise<AttendanceReconciliationResult> {
 
   // ======================================================
@@ -55,7 +57,7 @@ export async function reconcileAttendance(
   const {
     data: lesson,
     error: lessonError,
-  } = await supabase
+  } = await db
     .from("lessons")
     .select(`
       id,
@@ -87,7 +89,7 @@ export async function reconcileAttendance(
   const {
     data: enrolments,
     error: enrolmentError,
-  } = await supabase
+  } = await db
     .from("student_enrolments")
     .select(`
       student_id,
@@ -117,7 +119,7 @@ export async function reconcileAttendance(
   const {
     data: existingAttendance,
     error: attendanceError,
-  } = await supabase
+  } = await db
     .from("attendance")
     .select(`
       id,
@@ -209,7 +211,7 @@ export async function reconcileAttendance(
 
     const {
       error: insertError,
-    } = await supabase
+    } = await db
       .from("attendance")
       .insert(attendanceRows);
 

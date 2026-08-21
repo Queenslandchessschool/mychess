@@ -77,6 +77,7 @@ export interface AttendanceStudent {
     | "Make-up"
     | "Excused"
     | "Holiday";
+      leave_status?: "Submitted" | "Cancelled";
 
   arrival_time?: string;
 

@@ -3,7 +3,22 @@
 import { useEffect, useState } from "react";
 
 import { supabase } from "@/lib/supabase";
+import {
+  getAttendanceStudentCounts,
+} from "@/lib/attendanceStudentCount";
+import {
+  getCoachScope,
+} from "@/lib/coachScope";
+import {
+  calculateAttendanceSummary,
+} from "@/lib/attendanceSummary";
 import { runAttendanceReconciliation } from "@/lib/attendanceRunner";
+import { reconcileAttendance } from "@/lib/attendanceEngine";
+import {
+  syncLeaveRequests,
+  reverseLeaveRequest,
+} from "@/lib/leaveAttendanceSync";
+import { addOnSiteMakeupAttendance } from "@/lib/makeupAttendance";
 
 import AttendanceHeader from "@/components/attendance/AttendanceHeader";
 import AttendanceLessonCard from "@/components/attendance/AttendanceLessonCard";
@@ -11,6 +26,7 @@ import AttendanceLessonFilters from "@/components/attendance/AttendanceLessonFil
 import AttendanceSummary from "@/components/attendance/AttendanceSummary";
 import AttendanceStudentTable from "@/components/attendance/AttendanceStudentTable";
 import StudentQuickView from "@/components/attendance/StudentQuickView";
+import MakeUpStudentDialog from "@/components/attendance/MakeUpStudentDialog";
 
 import type {
   LessonCard,
@@ -123,6 +139,82 @@ export default function CoachAttendancePage() {
   ) {
 
     if (!selectedLesson) return;
+
+    const currentStudent =
+  students.find(
+    (student) =>
+      student.student_id === studentId
+  );
+
+  if (
+  status === "Present" &&
+  currentStudent?.attendance_type === "Excused" &&
+  currentStudent?.leave_status === "Submitted"
+) {
+  const {
+    data: leaveRecord,
+    error: leaveLookupError,
+  } = await supabase
+    .from("leave_records")
+    .select("id")
+    .eq(
+      "student_id",
+      studentId
+    )
+    .eq(
+      "lesson_id",
+      selectedLesson.id
+    )
+    .eq(
+      "status",
+      "Submitted"
+    )
+    .maybeSingle();
+
+  if (leaveLookupError) {
+    console.error(
+      "COACH LEAVE REVERSE LOOKUP ERROR:",
+      leaveLookupError
+    );
+
+    await loadStudents(
+      selectedLesson.id
+    );
+
+    return;
+  }
+
+  if (!leaveRecord) {
+    console.error(
+      "COACH LEAVE REVERSE ERROR: Submitted Leave record not found."
+    );
+
+    await loadStudents(
+      selectedLesson.id
+    );
+
+    return;
+  }
+
+  try {
+    await reverseLeaveRequest(
+      leaveRecord.id
+    );
+  } catch (reverseError) {
+    console.error(
+      "COACH LEAVE REVERSE ERROR:",
+      reverseError
+    );
+
+    await loadStudents(
+      selectedLesson.id
+    );
+
+    return;
+  }
+
+  return;
+}
 
 
     // ----------------------------------------------------
@@ -308,19 +400,78 @@ export default function CoachAttendancePage() {
       // Time Engine + Attendance Engine
       // --------------------------------------------------
 
-      await runAttendanceReconciliation(
-        lessonId
-      );
+    const runnerResult =
+  await runAttendanceReconciliation(
+    lessonId
+  );
 
 
-      // --------------------------------------------------
-      // 3. Sync submitted Leave
-      // --------------------------------------------------
+// --------------------------------------------------
+// 3. Lazy Load Attendance
+//
+// When a user explicitly opens a Lesson,
+// Attendance must be available even if the
+// Time Engine does not allow automatic reconciliation.
+//
+// Future Lesson:
+// Runner does not execute
+//        ↓
+// Explicit Lesson open
+//        ↓
+// Lazy reconciliation
+//
+// reconcileAttendance() only inserts missing
+// Attendance records and does not overwrite
+// existing records.
+// --------------------------------------------------
 
-      await syncLeaveRequests(
-        lessonId
-      );
+if (!runnerResult.executed) {
+  await reconcileAttendance(
+    lessonId
+  );
+}
 
+
+// --------------------------------------------------
+// 4. Sync submitted Leave
+// --------------------------------------------------
+
+await syncLeaveRequests(
+  lessonId
+);
+
+const {
+  data: leaveRecords,
+  error: leaveError,
+} = await supabase
+  .from("leave_records")
+  .select(
+    "student_id, status"
+  )
+  .eq(
+    "lesson_id",
+    lessonId
+  )
+  .eq(
+    "status",
+    "Submitted"
+  );
+
+if (leaveError) {
+  throw leaveError;
+}
+
+const leaveMap =
+  new Map<string, "Submitted">();
+
+for (
+  const leave of leaveRecords ?? []
+) {
+  leaveMap.set(
+    leave.student_id,
+    "Submitted"
+  );
+}
 
       // --------------------------------------------------
       // 4. Load Attendance
@@ -545,6 +696,9 @@ export default function CoachAttendancePage() {
               attendance_type:
                 row.attendance_type,
 
+              leave_status:
+  leaveMap.get(row.student_id),
+
               classroom_pickup:
                 snapshot.classroom_pickup ??
                 false,
@@ -696,72 +850,18 @@ export default function CoachAttendancePage() {
       // 10. Summary
       // --------------------------------------------------
 
-      const totalStudents =
-        attendanceStudents.length;
+    const summary =
+  calculateAttendanceSummary(
+    attendanceStudents
+  );
 
-      const present =
-        attendanceStudents.filter(
-          (student) =>
-            student.attendance_status ===
-            "Present"
-        ).length;
-
-      const absent =
-        attendanceStudents.filter(
-          (student) =>
-            student.attendance_status ===
-            "Absent"
-        ).length;
-
-      const late =
-        attendanceStudents.filter(
-          (student) =>
-            student.attendance_status ===
-            "Late"
-        ).length;
-
-      const leave =
-        attendanceStudents.filter(
-          (student) =>
-            student.attendance_type ===
-            "Excused"
-        ).length;
+setSummary(summary);
 
 
-      const attendanceRate =
-        totalStudents === 0
-          ? 0
-          : Math.round(
-              (
-                attendanceStudents.filter(
-                  (student) =>
-                    student.attendance_status ===
-                      "Present" ||
-                    student.attendance_status ===
-                      "Late"
-                ).length *
-                100
-              ) /
-              totalStudents
-            );
-
-
-      setSummary({
-        totalStudents,
-        present,
-        absent,
-        late,
-        leave,
-        attendanceRate,
-      });
-
-
-      setHeaderStats(
-        (previous) => ({
-          ...previous,
-          totalStudents,
-        })
-      );
+      setHeaderStats((prev) => ({
+  ...prev,
+  totalStudents: summary.totalStudents,
+}));
 
     } catch (error) {
 
@@ -773,109 +873,242 @@ export default function CoachAttendancePage() {
   }
 
 
-  // ======================================================
-  // Leave Sync
-  // Same Attendance business rule as Admin.
-  // ======================================================
+// ======================================================
+// Make-up Eligible Students
+//
+// Frozen:
+// - Coach Scope = ALL Active Students from ALL Classes
+//   assigned to the current Coach for the Academic
+//   Year / Term of the selected Lesson.
+// - Credit Source of Truth = makeup_credits
+// - Only Available Credits are eligible.
+// - Does NOT use students.makeup_credit.
+// - Does NOT restrict Make-up to the current Class.
+//
+// IMPORTANT:
+// Make-up is NOT limited to the selected Class.
+//
+// Example:
+// Coach OLEG has:
+//   Class A
+//   Class B
+//   Class C
+//   Class D
+//
+// A student from Class A may make up in Class B/C/D,
+// provided the student has an Available Make-up Credit.
+// ======================================================
 
-  async function syncLeaveRequests(
-    lessonId: string
-  ) {
+async function loadEligibleStudents() {
+  try {
+
+    // ====================================================
+    // 1. Selected Lesson Context
+    //
+    // The selected Lesson determines the current
+    // Academic Year / Term for Coach Scope.
+    // ====================================================
+
+    if (!selectedLesson) {
+      setEligibleStudents([]);
+      return;
+    }
+
+    const academicYear =
+      Number(
+        selectedLesson.academic_year
+      );
+
+    const term =
+      Number(
+        selectedLesson.term
+      );
+
+
+    // ====================================================
+    // 2. Current Coach Scope
+    //
+    // IMPORTANT:
+    //
+    // Scope is ALL classes assigned to this Coach
+    // for the selected Lesson's Academic Year / Term.
+    //
+    // It is NOT the current Class only.
+    // ====================================================
 
     const {
-      data,
-      error,
-    } = await supabase
-      .from("leave_records")
-      .select("*")
-      .eq(
-        "lesson_id",
-        lessonId
-      )
-      .eq(
-        "status",
-        "Submitted"
-      );
+      students: coachStudents,
+    } = await getCoachScope(
+      TEST_COACH_ID,
+      academicYear,
+      term
+    );
 
 
-    if (error) {
+    // ====================================================
+    // 3. No students in Coach Scope
+    // ====================================================
 
-      console.error(
-        "COACH LEAVE SYNC ERROR:",
-        error
-      );
-
+    if (
+      coachStudents.length === 0
+    ) {
+      setEligibleStudents([]);
       return;
     }
 
 
-    for (
-      const leave
-      of data ?? []
-    ) {
+    // ====================================================
+    // 4. Get Available Make-up Credits
+    //
+    // IMPORTANT:
+    //
+    // makeup_credits is the ONLY Credit Source of Truth.
+    //
+    // Do NOT use:
+    //
+    // students.makeup_credit
+    // ====================================================
 
-      await supabase
-        .from("attendance")
-        .update({
-          attendance_status:
-            "Excused",
-        })
-        .eq(
-          "lesson_id",
-          lessonId
-        )
-        .eq(
-          "student_id",
-          leave.student_id
-        );
-    }
-  }
-
-
-  // ======================================================
-  // Make-up Eligible Students
-  //
-  // Frozen:
-  // makeup_credit > 0
-  // ======================================================
-
-  async function loadEligibleStudents() {
-
-    const {
-      data,
-      error,
-    } = await supabase
-      .from("students")
-      .select(`
-        id,
-        student_code,
-        first_name,
-        last_name,
-        current_level,
-        makeup_credit
-      `)
-      .gt(
-        "makeup_credit",
-        0
-      )
-      .eq(
-        "status",
-        "Active"
-      )
-      .order(
-        "student_code"
+    const studentIds =
+      coachStudents.map(
+        (student) =>
+          student.student_id
       );
 
 
-    if (error)
-      throw error;
+    const {
+      data: credits,
+      error: creditError,
+    } = await supabase
+      .from("makeup_credits")
+      .select(`
+        student_id,
+        credits
+      `)
+      .in(
+        "student_id",
+        studentIds
+      )
+      .eq(
+        "status",
+        "Available"
+      )
+      .gt(
+        "credits",
+        0
+      );
 
+
+    if (creditError) {
+      throw creditError;
+    }
+
+
+    // ====================================================
+    // 5. Build Credit Map
+    //
+    // A student may have more than one Available Credit.
+    //
+    // Combine all Available Credits for that student.
+    // ====================================================
+
+    const creditMap =
+      new Map<
+        string,
+        number
+      >();
+
+
+    for (
+      const credit of credits ?? []
+    ) {
+
+      creditMap.set(
+        credit.student_id,
+        (
+          creditMap.get(
+            credit.student_id
+          ) ?? 0
+        ) +
+        (
+          credit.credits ?? 0
+        )
+      );
+    }
+
+
+    // ====================================================
+    // 6. Build Make-up Eligible Students
+    //
+    // Coach Scope
+    //        +
+    // Available Credit
+    //        ↓
+    // Eligible Students
+    //
+    // IMPORTANT:
+    //
+    // The student does NOT need to belong to the
+    // currently selected Class.
+    // ====================================================
+
+    const eligibleStudents =
+      coachStudents
+        .map(
+          (student) => ({
+            id:
+              student.student_id,
+
+            student_code:
+              student.student_code,
+
+            first_name:
+              student.first_name,
+
+            last_name:
+              student.last_name,
+
+            current_level:
+              (
+                student as any
+              ).current_level ??
+              "",
+
+            makeup_credit:
+              creditMap.get(
+                student.student_id
+              ) ?? 0,
+          })
+        )
+        .filter(
+          (student) =>
+            student.makeup_credit > 0
+        )
+        .sort(
+          (a, b) =>
+            a.student_code.localeCompare(
+              b.student_code
+            )
+        );
+
+    // ====================================================
+    // 7. Update UI
+    // ====================================================
 
     setEligibleStudents(
-      data ?? []
+      eligibleStudents
     );
-  }
 
+  } catch (error) {
+
+    console.error(
+      "LOAD COACH MAKE-UP ELIGIBLE STUDENTS ERROR:",
+      error
+    );
+
+    throw error;
+  }
+}
 
   // ======================================================
   // Open Make-up
@@ -907,107 +1140,39 @@ export default function CoachAttendancePage() {
   // ======================================================
 
   async function addMakeupStudent(
-    student: any
-  ) {
-
-    if (!selectedLesson)
-      return;
-
-
-    const {
-      error,
-    } = await supabase
-      .from("attendance")
-      .insert({
-        lesson_id:
-          selectedLesson.id,
-
-        student_id:
-          student.id,
-
-        attendance_status:
-          "Present",
-
-        attendance_type:
-          "Make-up",
-
-        attendance_source:
-          "Coach",
-      });
-
-
-    if (error)
-      throw error;
-
-
-    const {
-      error: creditError,
-    } = await supabase
-      .from("students")
-      .update({
-        makeup_credit:
-          Math.max(
-            0,
-            student.makeup_credit - 1
-          ),
-      })
-      .eq(
-        "id",
-        student.id
-      );
-
-
-    if (creditError)
-      throw creditError;
-
-
-    await loadStudents(
-      selectedLesson.id
-    );
-
-
-    const {
-      data:
-        attendanceRecord,
-    } = await supabase
-      .from("attendance")
-      .select("id")
-      .eq(
-        "lesson_id",
-        selectedLesson.id
-      )
-      .eq(
-        "student_id",
-        student.id
-      )
-      .single();
-
-
-    if (attendanceRecord) {
-
-      await supabase
-        .from("attendance_logs")
-        .insert({
-          attendance_id:
-            attendanceRecord.id,
-
-          action:
-            "Add Make-up",
-
-          new_status:
-            "Present",
-
-          operator:
-            "Coach",
-
-          remarks:
-            "Make-up lesson added",
-        });
-    }
-
-
-    await loadEligibleStudents();
+  student: any
+) {
+  if (!selectedLesson) {
+    return;
   }
+
+  // ----------------------------------------------------
+  // Shared Make-up Business Action
+  // Same business logic as Admin Attendance.
+  // Coach permission is controlled by the Coach page scope.
+  // ----------------------------------------------------
+
+  await addOnSiteMakeupAttendance(
+    selectedLesson.id,
+    student.id,
+    "Coach"
+  );
+
+  // ----------------------------------------------------
+  // Reload Attendance
+  // ----------------------------------------------------
+
+  await loadStudents(
+    selectedLesson.id
+  );
+
+  // ----------------------------------------------------
+  // Reload Available Make-up Students
+  // Used Credit should disappear immediately.
+  // ----------------------------------------------------
+
+  await loadEligibleStudents();
+}
 
 
   // ======================================================
@@ -1129,35 +1294,16 @@ export default function CoachAttendancePage() {
       // 3. Attendance Counts
       // --------------------------------------------------
 
-      const {
-        data: attendanceCounts,
-      } = await supabase
-        .from("attendance")
-        .select(
-          "lesson_id"
-        );
+      const lessonIds =
+  (data ?? []).map(
+    (lesson: any) =>
+      lesson.id
+  );
 
-
-      const countMap:
-        Record<string, number> =
-        {};
-
-
-      (
-        attendanceCounts ?? []
-      ).forEach(
-        (row: any) => {
-
-          countMap[
-            row.lesson_id
-          ] =
-            (
-              countMap[
-                row.lesson_id
-              ] ?? 0
-            ) + 1;
-        }
-      );
+const countMap =
+  await getAttendanceStudentCounts(
+    lessonIds
+  );
 
 
       // --------------------------------------------------
@@ -1653,245 +1799,66 @@ export default function CoachAttendancePage() {
       </div>
 
 
-      {/* ==================================================
-          Add Make-up Dialog
-      ================================================== */}
+{/* ==================================================
+    Shared Make-up Dialog
+================================================== */}
 
-      {showMakeupDialog && (
+<MakeUpStudentDialog
+  open={showMakeupDialog}
 
-        <div
-          className="
-            fixed
-            inset-0
-            z-50
-            flex
-            items-center
-            justify-center
-            bg-black/40
-            p-4
-          "
-        >
+  students={eligibleStudents.map(
+    (student) => ({
+      student_id:
+        student.id,
 
-          <div
-            className="
-              w-full
-              max-w-[700px]
-              rounded-2xl
-              bg-white
-              p-5
-              shadow-xl
-              sm:p-6
-            "
-          >
+      student_code:
+        student.student_code,
 
-            <div
-              className="
-                mb-4
-                flex
-                items-center
-                justify-between
-              "
-            >
+      student_name:
+        `${student.first_name} ${student.last_name}`.trim(),
 
-              <h2
-                className="
-                  text-xl
-                  font-semibold
-                  text-[#10213A]
-                "
-              >
-                Add Make-up
-              </h2>
+      level:
+        student.current_level,
 
+      credits:
+        student.makeup_credit,
+    })
+  )}
 
-              <button
-                type="button"
-                onClick={() =>
-                  setShowMakeupDialog(
-                    false
-                  )
-                }
-                className="
-                  text-[#64748B]
-                  transition-colors
-                  hover:text-[#10213A]
-                "
-              >
-                ✕
-              </button>
+  onClose={() =>
+    setShowMakeupDialog(false)
+  }
 
-            </div>
+  onAdd={async (student) => {
 
+    const originalStudent =
+      eligibleStudents.find(
+        (item) =>
+          item.id ===
+          student.student_id
+      );
 
-            <div
-              className="
-                max-h-[400px]
-                overflow-y-auto
-              "
-            >
+    if (!originalStudent) {
+      return;
+    }
 
-              {eligibleStudents.length ===
-              0 ? (
+    try {
 
-                <p className="text-sm text-[#64748B]">
-                  No students have available
-                  make-up credits.
-                </p>
+      await addMakeupStudent(
+        originalStudent
+      );
 
-              ) : (
+      setShowMakeupDialog(false);
 
-                <div className="overflow-x-auto">
+    } catch (error) {
 
-                  <table className="w-full text-sm">
-
-                    <thead
-                      className="
-                        border-b
-                        border-[#D9E0E8]
-                      "
-                    >
-
-                      <tr>
-
-                        <th className="py-2 text-left">
-                          Code
-                        </th>
-
-                        <th className="py-2 text-left">
-                          Student
-                        </th>
-
-                        <th className="py-2 text-left">
-                          Level
-                        </th>
-
-                        <th className="py-2 text-center">
-                          Credits
-                        </th>
-
-                        <th className="py-2 text-center">
-                          Action
-                        </th>
-
-                      </tr>
-
-                    </thead>
-
-
-                    <tbody>
-
-                      {eligibleStudents.map(
-                        (student) => (
-
-                          <tr
-                            key={
-                              student.id
-                            }
-                            className="
-                              border-b
-                              border-[#E5EAF0]
-                            "
-                          >
-
-                            <td className="py-2">
-                              {
-                                student.student_code
-                              }
-                            </td>
-
-                            <td className="py-2">
-                              {
-                                student.first_name
-                              }{" "}
-                              {
-                                student.last_name
-                              }
-                            </td>
-
-                            <td className="py-2">
-                              {
-                                student.current_level
-                              }
-                            </td>
-
-                            <td
-                              className="
-                                py-2
-                                text-center
-                                font-semibold
-                              "
-                            >
-                              {
-                                student.makeup_credit
-                              }
-                            </td>
-
-                            <td
-                              className="
-                                py-2
-                                text-center
-                              "
-                            >
-
-                              <button
-                                type="button"
-                                onClick={async () => {
-
-                                  try {
-
-                                    await addMakeupStudent(
-                                      student
-                                    );
-
-                                    setShowMakeupDialog(
-                                      false
-                                    );
-
-                                  } catch (
-                                    error
-                                  ) {
-
-                                    console.error(
-                                      "COACH MAKE-UP ERROR:",
-                                      error
-                                    );
-                                  }
-                                }}
-                                className="
-                                  rounded-lg
-                                  bg-[#2161F5]
-                                  px-3
-                                  py-1.5
-                                  text-xs
-                                  font-medium
-                                  text-white
-                                  transition-colors
-                                  hover:bg-[#1955DE]
-                                "
-                              >
-                                Add
-                              </button>
-
-                            </td>
-
-                          </tr>
-                        )
-                      )}
-
-                    </tbody>
-
-                  </table>
-
-                </div>
-              )}
-
-            </div>
-
-          </div>
-
-        </div>
-      )}
-
+      console.error(
+        "COACH MAKE-UP ERROR:",
+        error
+      );
+    }
+  }}
+/>
 
       {/* ==================================================
           Student Quick View

@@ -11,6 +11,7 @@ export interface LeaveRecord {
   lesson_id: string;
 
   student_name: string;
+  campus: string;
   lesson_date: string;
 
   reason: LeaveReason;

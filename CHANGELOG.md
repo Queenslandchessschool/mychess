@@ -695,3 +695,58 @@ Proceed to integration testing of:
 The next objective is to verify that Attendance derives the correct daily
 student list from the actual enrollment and class data according to the
 Frozen SRS business rules.
+
+## 2026-08-18 — Attendance Core & Coach Portal Checkpoint
+
+### Added
+- Added Attendance Time Engine with Australia/Brisbane business timezone handling.
+- Added Attendance Time Engine automated test coverage for:
+  - Before T-30
+  - T-30 window
+  - Lesson start
+  - Lesson in progress
+  - Attendance lock
+- Added Attendance Reconciliation Engine.
+- Added Attendance Runner as the single execution gateway for Attendance reconciliation.
+- Added Coach Attendance Portal.
+- Added Coach Attendance lesson scoping so coaches only access their assigned classes.
+- Added shared Attendance Student List and Quick View integration.
+- Added Attendance enrollment snapshot loading for current-term student context.
+- Added Coach Attendance audit logging for attendance status changes.
+- Added Student Synchronisation Engine.
+
+### Attendance Rules
+- Attendance reconciliation inserts only missing Attendance records.
+- Existing Attendance records are never deleted or overwritten by reconciliation.
+- Trial and Regular students are correctly distinguished.
+- New Attendance records default to `Present`.
+- Attendance timing is governed centrally by the Attendance Time Engine.
+- Automatic reconciliation is permitted during the T-30 window and at lesson start.
+- Roll Call is enabled only after the lesson has started.
+- Attendance becomes locked at 00:00 Brisbane time on the following day.
+
+### Coach Portal
+- Coach Attendance uses the same Attendance UI architecture as Admin Attendance.
+- Coach access is restricted to lessons belonging to the current coach.
+- Attendance Student List, priority ordering, Quick View and attendance operations are shared with the Admin Attendance architecture.
+- Coach attendance changes are recorded in the Attendance audit log.
+
+### Validation
+- TypeScript validation: PASS
+- Production build: PASS
+- Attendance Time Engine tests: PASS
+- Attendance Runner: PASS
+- Admin Attendance: PASS
+- Coach Attendance: PASS
+- Make-up type/build validation: PASS
+- Git checkpoint created:
+
+  `61caf43 — checkpoint: attendance core and coach portal complete`
+
+### Next
+- Begin Business Workflow Integration.
+- Parent Leave → Attendance → Make-up Credit → Make-up Booking.
+- Continue integration testing without changing the completed Attendance Core.
+
+TODO — Parent Leave Time Gate
+Parent Leave submission must be blocked once the selected lesson reaches LESSON_STARTED. The Admin Leave module intentionally retains Super Permission and is not subject to this Time Gate.

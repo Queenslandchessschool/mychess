@@ -8,12 +8,15 @@
 // - Connect Attendance Time Engine with Attendance Engine
 // - Decide whether reconciliation is currently allowed
 // - Keep business timing rules outside UI
+// - Support both Browser and Server Supabase clients
 //
 // Business Timezone:
 // Australia/Brisbane
 // ======================================================
 
 import { supabase } from "@/lib/supabase";
+
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
   getLessonTimePhase,
@@ -61,13 +64,22 @@ export interface AttendanceRunnerResult {
 // - Coach Attendance
 // - Scheduler / Cron
 // - Future Supabase Edge Function
+//
+// Database Client:
+// - Default: Browser Supabase client
+// - Scheduler: Server Supabase client
+//
+// IMPORTANT:
+// Business logic remains ONE shared function.
+// Only the database execution client changes.
 // ======================================================
 
 export async function runAttendanceReconciliation(
-  lessonId: string
+  lessonId: string,
+  db: SupabaseClient = supabase
 ): Promise<AttendanceRunnerResult> {
 
-  // ======================================================
+  // ====================================================
   // 1. Load lesson context
   //
   // IMPORTANT:
@@ -78,12 +90,12 @@ export async function runAttendanceReconciliation(
   //
   // This avoids Supabase relationship ambiguity between
   // classes and class_schedule.
-  // ======================================================
+  // ====================================================
 
   const {
     data: lesson,
     error: lessonError,
-  } = await supabase
+  } = await db
     .from("lessons")
     .select(`
       id,
@@ -104,7 +116,7 @@ export async function runAttendanceReconciliation(
   }
 
 
-  // ======================================================
+  // ====================================================
   // 2. Load Class directly
   //
   // Frozen Architecture:
@@ -125,12 +137,12 @@ export async function runAttendanceReconciliation(
   //
   // Therefore lesson timing comes from classes,
   // NOT class_schedule.
-  // ======================================================
+  // ====================================================
 
   const {
     data: classData,
     error: classError,
-  } = await supabase
+  } = await db
     .from("classes")
     .select(`
       id,
@@ -150,9 +162,9 @@ export async function runAttendanceReconciliation(
   }
 
 
-  // ======================================================
+  // ====================================================
   // 3. Get class start time
-  // ======================================================
+  // ====================================================
 
   const startTime =
     classData.start_time;
@@ -167,13 +179,13 @@ export async function runAttendanceReconciliation(
   }
 
 
-  // ======================================================
+  // ====================================================
   // 4. Determine current Attendance phase
   //
   // IMPORTANT:
   // attendanceTime.ts remains the single source of truth
   // for Attendance timing.
-  // ======================================================
+  // ====================================================
 
   const phase =
     getLessonTimePhase(
@@ -182,10 +194,10 @@ export async function runAttendanceReconciliation(
     );
 
 
-  // ======================================================
+  // ====================================================
   // 5. Check whether automatic reconciliation
   // is currently allowed
-  // ======================================================
+  // ====================================================
 
   if (
     !isAutoReconciliationAllowed(
@@ -206,7 +218,7 @@ export async function runAttendanceReconciliation(
   }
 
 
-  // ======================================================
+  // ====================================================
   // 6. Execute Attendance Engine
   //
   // The Engine remains responsible for:
@@ -215,17 +227,21 @@ export async function runAttendanceReconciliation(
   // - Trial / Regular
   // - Missing Attendance only
   // - Existing Attendance protection
-  // ======================================================
+  //
+  // IMPORTANT:
+  // Pass the same database client through to the Engine.
+  // ====================================================
 
   const reconciliation =
     await reconcileAttendance(
-      lessonId
+      lessonId,
+      db
     );
 
 
-  // ======================================================
+  // ====================================================
   // 7. Result
-  // ======================================================
+  // ====================================================
 
   return {
     lessonId,

@@ -3,8 +3,18 @@
 import { useEffect, useState } from "react";
 
 import { supabase } from "@/lib/supabase";
+import {
+  getAttendanceStudentCounts,
+} from "@/lib/attendanceStudentCount";
+import {
+  calculateAttendanceSummary,
+} from "@/lib/attendanceSummary";
 
 import { runAttendanceReconciliation } from "@/lib/attendanceRunner";
+import { reconcileAttendance } from "@/lib/attendanceEngine";
+import { syncLeaveRequests } from "@/lib/leaveAttendanceSync";
+import { reverseLeaveRequest } from "@/lib/leaveAttendanceSync";
+import { addOnSiteMakeupAttendance } from "@/lib/makeupAttendance";
 
 import AttendanceHeader from "@/components/attendance/AttendanceHeader";
 import AttendanceLessonCard from "@/components/attendance/AttendanceLessonCard";
@@ -12,6 +22,7 @@ import AttendanceLessonFilters from "@/components/attendance/AttendanceLessonFil
 import AttendanceSummary from "@/components/attendance/AttendanceSummary";
 import AttendanceStudentTable from "@/components/attendance/AttendanceStudentTable";
 import StudentQuickView from "@/components/attendance/StudentQuickView";
+import MakeUpStudentDialog from "@/components/attendance/MakeUpStudentDialog";
 
 import type {
   LessonCard,
@@ -98,6 +109,105 @@ export default function AttendancePage() {
   status: AttendanceStudent["attendance_status"]
 ) {
   if (!selectedLesson) return;
+
+    const currentStudent =
+    students.find(
+      (student) =>
+        student.student_id === studentId
+    );
+
+  // ----------------------------------------------------
+  // Leave → Present
+  //
+  // Admin explicitly confirms that a student who was
+  // on Leave actually attended the lesson.
+  //
+  // Use the shared Leave Reverse Engine so that:
+  // - Leave is cancelled
+  // - Attendance becomes Present
+  // - Available Credit is reversed
+  // ----------------------------------------------------
+
+ if (
+  status === "Present" &&
+  currentStudent?.attendance_type === "Excused"
+) {
+
+   const {
+  data: leaveRecord,
+  error: leaveLookupError,
+} = await supabase
+  .from("leave_records")
+  .select("id, student_id, lesson_id, status")
+  .eq(
+  "student_id",
+  studentId
+)
+.eq(
+  "lesson_id",
+  selectedLesson.id
+)
+.eq(
+  "status",
+  "Submitted"
+)
+  .maybeSingle();
+
+    if (leaveLookupError) {
+      console.error(
+        "LEAVE REVERSE LOOKUP ERROR:",
+        leaveLookupError
+      );
+
+      await loadStudents(
+        selectedLesson.id
+      );
+
+      return;
+    }
+
+    if (!leaveRecord) {
+      console.error(
+        "LEAVE REVERSE ERROR: Submitted Leave record not found."
+      );
+
+      await loadStudents(
+        selectedLesson.id
+      );
+
+      return;
+    }
+
+    try {
+      await reverseLeaveRequest(
+        leaveRecord.id
+      );
+    } catch (reverseError) {
+      console.error(
+        "LEAVE REVERSE ERROR:",
+        reverseError
+      );
+
+      await loadStudents(
+        selectedLesson.id
+      );
+
+      return;
+    }
+
+    await loadStudents(
+  selectedLesson.id
+);
+
+    return;
+
+    // Shared Reverse Engine has already:
+    // Leave → Cancelled
+    // Attendance → Present
+    // Available Credit → Deleted
+    //
+    // Continue with the existing attendance audit flow.
+  }
 
   // Optimistic UI update
   setStudents((prev) =>
@@ -305,7 +415,6 @@ function getStudentListPriority(
       data: { session },
     } = await supabase.auth.getSession();
 
-    console.log("ATTENDANCE SESSION:", session);
       // ======================================================
       // 1. Get lesson context
       // ======================================================
@@ -334,14 +443,48 @@ function getStudentListPriority(
 // Existing Attendance status/type is never overwritten.
 // ======================================================
 
-await runAttendanceReconciliation(lessonId);
+const runnerResult =
+  await runAttendanceReconciliation(
+    lessonId
+  );
 
 
 // ======================================================
-// 3. Sync submitted leave requests
+// 3. Lazy Load Attendance
+//
+// IMPORTANT:
+// The Attendance Runner controls automatic reconciliation.
+// However, when an Admin/Coach explicitly opens a Lesson,
+// the Attendance roster must still be available.
+//
+// Future lessons are intentionally blocked by the Time Engine
+// from automatic reconciliation.
+//
+// Therefore:
+// Runner not executed
+//        ↓
+// Explicit Lesson open
+//        ↓
+// Lazy reconciliation
+//
+// reconcileAttendance() remains idempotent and only inserts
+// missing Attendance records.
 // ======================================================
 
-await syncLeaveRequests(lessonId);
+if (!runnerResult.executed) {
+  await reconcileAttendance(
+    lessonId
+  );
+}
+
+
+// ======================================================
+// 4. Sync submitted leave requests
+// ======================================================
+
+await syncLeaveRequests(
+  lessonId
+);
 
       // ======================================================
       // 4. Load attendance records + basic Student Master data
@@ -440,6 +583,38 @@ if (studentIds.length > 0) {
     );
   }
 }
+// ======================================================
+// Load active submitted Leave records for this lesson
+//
+// Only Submitted Leave is exposed to the Attendance UI.
+// Cancelled Leave is intentionally treated as no active Leave.
+// ======================================================
+
+let leaveMap = new Map<string, string>();
+
+if (studentIds.length > 0) {
+  const {
+    data: leaveRecords,
+    error: leaveError,
+  } = await supabase
+    .from("leave_records")
+    .select(`
+      student_id,
+      status
+    `)
+    .in("student_id", studentIds)
+    .eq("lesson_id", lessonId)
+    .eq("status", "Submitted");
+
+  if (leaveError) throw leaveError;
+
+  for (const leave of leaveRecords ?? []) {
+    leaveMap.set(
+      leave.student_id,
+      "Submitted"
+    );
+  }
+}
 
       // ======================================================
       // 5. Build Attendance Student list
@@ -454,6 +629,7 @@ if (studentIds.length > 0) {
 
           const snapshot =
             enrollment?.special_request_snapshot ?? {};
+
 
           return {
             id: row.id,
@@ -492,7 +668,14 @@ parent_mobile: parent?.mobile ?? "",
             attendance_type:
               row.attendance_type,
 
-            // ==================================================
+            leave_status:
+  leaveMap.get(row.student_id) as
+    | "Submitted"
+    | "Cancelled"
+    | undefined,
+
+ 
+    // ==================================================
             // Special Request
             // These come from the enrollment snapshot.
             // ==================================================
@@ -613,63 +796,17 @@ attendanceStudents.sort((a, b) => {
       // 8. Update attendance summary
       // ======================================================
 
-      const totalStudents =
-        attendanceStudents.length;
+      const summary =
+  calculateAttendanceSummary(
+    attendanceStudents
+  );
 
-      const present =
-        attendanceStudents.filter(
-          (s) =>
-            s.attendance_status === "Present"
-        ).length;
-
-      const absent =
-        attendanceStudents.filter(
-          (s) =>
-            s.attendance_status === "Absent"
-        ).length;
-
-      const late =
-        attendanceStudents.filter(
-          (s) =>
-            s.attendance_status === "Late"
-        ).length;
-
-      const leave =
-        attendanceStudents.filter(
-          (s) =>
-            s.attendance_type === "Excused"
-        ).length;
-
-      const attendanceRate =
-        totalStudents === 0
-          ? 0
-          : Math.round(
-              (
-                attendanceStudents.filter(
-                  (s) =>
-                    s.attendance_status ===
-                      "Present" ||
-                    s.attendance_status ===
-                      "Late"
-                ).length *
-                100
-              ) /
-                totalStudents
-            );
-
-      setSummary({
-        totalStudents,
-        present,
-        absent,
-        late,
-        leave,
-        attendanceRate,
-      });
+setSummary(summary);
 
       setHeaderStats((prev) => ({
-        ...prev,
-        totalStudents,
-      }));
+  ...prev,
+  totalStudents: summary.totalStudents,
+}));
 
     } catch (error) {
       console.error(
@@ -679,156 +816,205 @@ attendanceStudents.sort((a, b) => {
     }
   }
 
-  // ======================================================
-  // Leave Sync
-  // ======================================================
+// ======================================================
+// Load Eligible Make-up Students
+//
+// M011 Frozen:
+//
+// Eligible student must have at least one
+// makeup_credits record with status = "Available".
+//
+// IMPORTANT:
+// We no longer use students.makeup_credit.
+// ======================================================
 
-  async function syncLeaveRequests(
-    lessonId: string
-  ) {
-    const {
-      data,
-      error,
-    } = await supabase
-      .from("leave_records")
-      .select("*")
-      .eq("lesson_id", lessonId)
-      .eq("status", "Submitted");
+async function loadEligibleStudents() {
+  // ----------------------------------------------------
+  // 1. Load Available Make-up Credits
+  // ----------------------------------------------------
 
-    if (error) {
-      console.error(error);
-      return;
-    }
+  const {
+    data: availableCredits,
+    error: creditError,
+  } = await supabase
+    .from("makeup_credits")
+    .select(`
+      id,
+      student_id
+    `)
+    .eq("status", "Available");
 
-    for (const leave of data ?? []) {
-      await supabase
-        .from("attendance")
-        .update({
-          attendance_status: "Excused",
-        })
-        .eq("lesson_id", lessonId)
-        .eq("student_id", leave.student_id);
-    }
+  if (creditError) {
+    throw creditError;
   }
 
-  // ======================================================
-  // Load Eligible Make-up Students
-  // ======================================================
+  const credits =
+    availableCredits ?? [];
 
-  async function loadEligibleStudents() {
-    const {
-      data,
-      error,
-    } = await supabase
-      .from("students")
-      .select(`
-        id,
-        student_code,
-        first_name,
-        last_name,
-        current_level,
-        makeup_credit
-      `)
-      .gt("makeup_credit", 0)
-      .eq("status", "Active")
-      .order("student_code");
+  if (credits.length === 0) {
+    setEligibleStudents([]);
+    return;
+  }
 
-    if (error) throw error;
 
-    setEligibleStudents(
-      data ?? []
+  // ----------------------------------------------------
+  // 2. Build unique Student IDs
+  // ----------------------------------------------------
+
+  const studentIds = Array.from(
+    new Set(
+      credits
+        .map(
+          (credit) =>
+            credit.student_id
+        )
+        .filter(Boolean)
+    )
+  );
+
+  if (studentIds.length === 0) {
+    setEligibleStudents([]);
+    return;
+  }
+
+
+  // ----------------------------------------------------
+  // 3. Load Active Students
+  //
+  // We keep the same student fields currently used
+  // by the Make-up dialog.
+  // ----------------------------------------------------
+
+  const {
+    data: students,
+    error: studentError,
+  } = await supabase
+    .from("students")
+    .select(`
+      id,
+      student_code,
+      first_name,
+      last_name,
+      current_level
+    `)
+    .in("id", studentIds)
+    .eq("status", "Active")
+    .order("student_code");
+
+  if (studentError) {
+    throw studentError;
+  }
+
+
+  // ----------------------------------------------------
+  // 4. Count Available Credits per Student
+  //
+  // The existing UI still expects:
+  //
+  // student.makeup_credit
+  //
+  // We preserve that UI contract for now.
+  //
+  // The source of truth is now makeup_credits.
+  // ----------------------------------------------------
+
+  const creditCount =
+    new Map<string, number>();
+
+  for (const credit of credits) {
+    if (!credit.student_id) {
+      continue;
+    }
+
+    creditCount.set(
+      credit.student_id,
+      (creditCount.get(
+        credit.student_id
+      ) ?? 0) + 1
     );
   }
 
-  // ======================================================
-  // Add Make-up Student
-  // ======================================================
 
-  async function addMakeupStudent(
-    student: any
-  ) {
-    if (!selectedLesson) return;
+  // ----------------------------------------------------
+  // 5. Build UI-compatible student list
+  // ----------------------------------------------------
 
-    const { error } =
-      await supabase
-        .from("attendance")
-        .insert({
-          lesson_id:
-            selectedLesson.id,
+  const eligibleStudents =
+    (students ?? []).map(
+      (student) => ({
+        ...student,
 
-          student_id:
-            student.id,
-
-          attendance_status:
-            "Present",
-
-          attendance_type:
-            "Make-up",
-
-          attendance_source:
-            "Coach",
-        });
-
-    if (error) throw error;
-
-    const {
-      error: creditError,
-    } = await supabase
-      .from("students")
-      .update({
         makeup_credit:
-          Math.max(
-            0,
-            student.makeup_credit - 1
-          ),
+          creditCount.get(
+            student.id
+          ) ?? 0,
       })
-      .eq("id", student.id);
-
-    if (creditError)
-      throw creditError;
-
-    await loadStudents(
-      selectedLesson.id
     );
 
-    const {
-      data: attendanceRecord,
-    } = await supabase
-      .from("attendance")
-      .select("id")
-      .eq(
-        "lesson_id",
-        selectedLesson.id
-      )
-      .eq(
-        "student_id",
-        student.id
-      )
-      .single();
 
-    if (attendanceRecord) {
-      await supabase
-        .from("attendance_logs")
-        .insert({
-          attendance_id:
-            attendanceRecord.id,
+  setEligibleStudents(
+    eligibleStudents
+  );
+}
 
-          action:
-            "Add Make-up",
+// ======================================================
+// Add On-site Make-up Student
+//
+// M011 Shared Attendance Business Logic
+//
+// IMPORTANT:
+//
+// Admin does NOT directly modify Credit.
+//
+// The shared Make-up Attendance function handles:
+//
+// Available Credit
+//       ↓
+// Attendance = Present / Make-up
+//       ↓
+// Credit = Used
+//
+// This is the same business logic Coach will use.
+// Only the operator / permission scope differs.
+// ======================================================
 
-          new_status:
-            "Present",
-
-          operator:
-            "Coach",
-
-          remarks:
-            "Make-up lesson added",
-        });
-    }
-
-    await loadEligibleStudents();
+async function addMakeupStudent(
+  student: any
+) {
+  if (!selectedLesson) {
+    return;
   }
+
+
+  // ----------------------------------------------------
+  // Shared Make-up Business Action
+  // ----------------------------------------------------
+
+  await addOnSiteMakeupAttendance(
+    selectedLesson.id,
+    student.id,
+    "Admin"
+  );
+
+
+  // ----------------------------------------------------
+  // Reload Attendance
+  // ----------------------------------------------------
+
+  await loadStudents(
+    selectedLesson.id
+  );
+
+
+  // ----------------------------------------------------
+  // Reload Available Make-up Students
+  //
+  // The used Credit should immediately disappear
+  // from the available list or show the reduced count.
+  // ----------------------------------------------------
+
+  await loadEligibleStudents();
+}
 
   // ======================================================
   // Load Lessons
@@ -878,23 +1064,16 @@ attendanceStudents.sort((a, b) => {
 
       if (error) throw error;
 
-      const {
-        data: attendanceCounts,
-      } = await supabase
-        .from("attendance")
-        .select("lesson_id");
+      const lessonIds =
+  (data ?? []).map(
+    (lesson: any) =>
+      lesson.id
+  );
 
-      const countMap:
-        Record<string, number> =
-        {};
-
-      (attendanceCounts ?? [])
-        .forEach((row: any) => {
-          countMap[row.lesson_id] =
-            (countMap[
-              row.lesson_id
-            ] ?? 0) + 1;
-        });
+const countMap =
+  await getAttendanceStudentCounts(
+    lessonIds
+  );
 
       const lessonCards:
         LessonCard[] =
@@ -1117,10 +1296,14 @@ attendanceStudents.sort((a, b) => {
         "
       >
         <AttendanceHeader
-          stats={headerStats}
-          onRefresh={loadLessons}
-          isAdmin={isAdmin}
-        />
+  stats={headerStats}
+  onRefresh={loadLessons}
+  onAddMakeup={async () => {
+    await loadEligibleStudents();
+    setShowMakeupDialog(true);
+  }}
+  isAdmin={isAdmin}
+/>
 
         {loading ? (
           <div
@@ -1271,182 +1454,55 @@ attendanceStudents.sort((a, b) => {
         )}
       </div>
 
-      {/* Add Make-up Dialog */}
-      {showMakeupDialog && (
-        <div
-          className="
-            fixed
-            inset-0
-            z-50
-            flex
-            items-center
-            justify-center
-            bg-black/40
-            p-4
-          "
-        >
-          <div
-            className="
-              w-full
-              max-w-[700px]
-              rounded-2xl
-              bg-white
-              p-5
-              shadow-xl
-              sm:p-6
-            "
-          >
-            <div
-              className="
-                mb-4
-                flex
-                items-center
-                justify-between
-              "
-            >
-              <h2
-                className="
-                  text-xl
-                  font-semibold
-                  text-[#10213A]
-                "
-              >
-                Add Make-up
-              </h2>
+ {/* ======================================================
+    Shared Make-up Dialog
+    ====================================================== */}
 
-              <button
-                type="button"
-                onClick={() =>
-                  setShowMakeupDialog(
-                    false
-                  )
-                }
-                className="
-                  text-[#64748B]
-                  transition-colors
-                  hover:text-[#10213A]
-                "
-              >
-                ✕
-              </button>
-            </div>
+<MakeUpStudentDialog
+  open={showMakeupDialog}
 
-            <div
-              className="
-                max-h-[400px]
-                overflow-y-auto
-              "
-            >
-              {eligibleStudents.length ===
-              0 ? (
-                <p className="text-sm text-[#64748B]">
-                  No students have available
-                  make-up credits.
-                </p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="border-b border-[#D9E0E8]">
-                      <tr>
-                        <th className="py-2 text-left">
-                          Code
-                        </th>
+  students={eligibleStudents.map(
+    (student) => ({
+      student_id: student.id,
 
-                        <th className="py-2 text-left">
-                          Student
-                        </th>
+      student_code:
+        student.student_code,
 
-                        <th className="py-2 text-left">
-                          Level
-                        </th>
+      student_name:
+        `${student.first_name} ${student.last_name}`.trim(),
 
-                        <th className="py-2 text-center">
-                          Credits
-                        </th>
+      level:
+        student.current_level,
 
-                        <th className="py-2 text-center">
-                          Action
-                        </th>
-                      </tr>
-                    </thead>
+      credits:
+        student.makeup_credit,
+    })
+  )}
 
-                    <tbody>
-                      {eligibleStudents.map(
-                        (student) => (
-                          <tr
-                            key={
-                              student.id
-                            }
-                            className="
-                              border-b
-                              border-[#E5EAF0]
-                            "
-                          >
-                            <td className="py-2">
-                              {
-                                student.student_code
-                              }
-                            </td>
+  onClose={() =>
+    setShowMakeupDialog(false)
+  }
 
-                            <td className="py-2">
-                              {
-                                student.first_name
-                              }{" "}
-                              {
-                                student.last_name
-                              }
-                            </td>
+  onAdd={async (student) => {
 
-                            <td className="py-2">
-                              {
-                                student.current_level
-                              }
-                            </td>
+    const originalStudent =
+      eligibleStudents.find(
+        (item) =>
+          item.id ===
+          student.student_id
+      );
 
-                            <td className="py-2 text-center font-semibold">
-                              {
-                                student.makeup_credit
-                              }
-                            </td>
+    if (!originalStudent) {
+      return;
+    }
 
-                            <td className="py-2 text-center">
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  await addMakeupStudent(
-                                    student
-                                  );
+    await addMakeupStudent(
+      originalStudent
+    );
 
-                                  setShowMakeupDialog(
-                                    false
-                                  );
-                                }}
-                                className="
-                                  rounded-lg
-                                  bg-[#2161F5]
-                                  px-3
-                                  py-1.5
-                                  text-xs
-                                  font-medium
-                                  text-white
-                                  transition-colors
-                                  hover:bg-[#1955DE]
-                                "
-                              >
-                                Add
-                              </button>
-                            </td>
-                          </tr>
-                        )
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+    setShowMakeupDialog(false);
+  }}
+/>
 
       {/* Student Quick View */}
       <StudentQuickView
