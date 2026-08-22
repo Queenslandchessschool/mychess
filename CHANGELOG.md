@@ -830,3 +830,35 @@ Parent Leave submission must be blocked once the selected lesson reaches LESSON_
 - Leave → Credit linkage: PASS
 - Shared Admin / Coach Attendance component: PASS
 - Parent Leave: IN REVIEW
+
+## 2026-08-23 — PASS: Parent Leave Workflow & Leave UI Standardisation
+
+### Leave Management
+- Completed and stabilised the Parent Leave workflow.
+- Parent Leave is scoped to the signed-in parent's own children and their upcoming lessons.
+- Added multi-lesson Leave submission with one Leave Record per selected lesson.
+- Leave takes effect immediately after submission.
+- Added Leave cancellation for active Submitted Leave requests.
+- Added Leave cancellation confirmation modal.
+- Added Leave reactivation support when a previously cancelled Leave is submitted again.
+- Integrated the shared Reverse Leave Engine for Leave → Cancelled and related attendance / make-up credit reversal.
+- Enforced the lesson-start deadline for Parent Leave cancellation and submission.
+
+### UI / VI
+- Standardised Parent Leave visual language with Admin Leave.
+- Applied the MyCHESS Navy / Gold card system and gold tapered top highlight.
+- Standardised card spacing and desktop content width.
+- Improved responsive behaviour for mobile and desktop layouts.
+- Standardised Leave Details, lesson cards, buttons and confirmation dialogs.
+- Improved Cancel Leave confirmation button styling.
+- Added consistent spacing between Leave Details and lesson cards.
+
+### Admin / Parent Consistency
+- Reused the existing Leave business logic and UI patterns where applicable instead of creating separate implementations.
+- Preserved Admin Leave management permissions and scope while applying the shared Leave visual standard.
+- Parent Leave remains restricted to the parent's own family scope.
+
+### Validation
+- Parent Leave workflow tested through submission, cancellation and re-submission/reactivation scenarios.
+- Desktop and mobile Leave layouts reviewed.
+- TypeScript / production build validated successfully before final UI adjustments.

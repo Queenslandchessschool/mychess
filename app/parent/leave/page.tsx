@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { syncLeaveRequests } from "@/lib/leaveAttendanceSync";
+import {
+  syncLeaveRequests,
+  reverseLeaveRequest,
+} from "@/lib/leaveAttendanceSync";
 
 /**
  * ============================================================
@@ -261,6 +264,12 @@ export default function ParentLeavePage() {
 
   const [submitting, setSubmitting] =
     useState(false);
+
+  const [cancellingLeaveId, setCancellingLeaveId] =
+  useState<string | null>(null);
+
+  const [cancelConfirmLeave, setCancelConfirmLeave] =
+  useState<LeaveRecord | null>(null);
 
   const [error, setError] =
     useState<string | null>(null);
@@ -931,9 +940,7 @@ export default function ParentLeavePage() {
           const row
           of rows
         ) {
-          if (
-            !row.leaveRecord
-          ) {
+if (row.leaveRecord?.status !== "Submitted") {
             next.add(
               getSelectionKey(
                 row.student.id,
@@ -1043,9 +1050,7 @@ export default function ParentLeavePage() {
         const row
         of selectedRows
       ) {
-        if (
-          row.leaveRecord
-        ) {
+if (row.leaveRecord?.status === "Submitted") {
           throw new Error(
             `${getStudentDisplayName(
               row.student
@@ -1088,51 +1093,54 @@ export default function ParentLeavePage() {
       }
 
       // ------------------------------------------------------
-      // 4. Build records
+      // 5. Create or reactivate Leave Records
       //
-      // One selected Lesson = one Leave Record.
-      //
-      // status = Submitted is retained because the current
-      // Attendance integration reads submitted leave records.
-      //
-      // It is NOT an approval workflow.
+      // One Student + Lesson has one Leave Record.
+      // A Cancelled record is reactivated instead of creating
+      // a duplicate row, preserving unique_student_lesson.
       // ------------------------------------------------------
 
-      const records =
-        selectedRows.map(
-          (row) => ({
-            student_id:
-              row.student.id,
+      for (const row of selectedRows) {
+        const existingLeave = row.leaveRecord;
+        const payload = {
+          reason,
+          comments: comments.trim() || null,
+          status: "Submitted",
+          updated_at: new Date().toISOString(),
+        };
 
-            lesson_id:
-              row.lesson.id,
+        if (existingLeave?.status === "Cancelled") {
+          const { error: updateError } = await supabase
+            .from("leave_records")
+            .update(payload)
+            .eq("id", existingLeave.id)
+            .eq("status", "Cancelled");
 
-            reason,
+          if (updateError) {
+            throw updateError;
+          }
+        } else {
+          const { error: insertError } = await supabase
+            .from("leave_records")
+            .insert({
+              student_id: row.student.id,
+              lesson_id: row.lesson.id,
+              ...payload,
+            });
 
-            comments:
-              comments.trim() ||
-              null,
-
-            status:
-              "Submitted",
-          })
-        );
-
-      // ------------------------------------------------------
-      // 5. Insert Leave Records
-      // ------------------------------------------------------
-
-      const {
-        error: insertError,
-      } = await supabase
-        .from("leave_records")
-        .insert(
-          records
-        );
-
-      if (insertError) {
-        throw insertError;
+          if (insertError) {
+            throw insertError;
+          }
+        }
       }
+
+      const records = selectedRows.map((row) => ({
+        student_id: row.student.id,
+        lesson_id: row.lesson.id,
+        reason,
+        comments: comments.trim() || null,
+        status: "Submitted",
+      }));
 
       // ------------------------------------------------------
       // 6. Immediate Leave Business Sync
@@ -1221,19 +1229,131 @@ export default function ParentLeavePage() {
     }
   }
 
+    // ==========================================================
+  // Cancel Leave
+  //
+  // Parent may cancel only an active Submitted Leave.
+  //
+  // Shared Reverse Engine handles:
+  // - Leave → Cancelled
+  // - Attendance → Present
+  // - Available Make-up Credit → removed
+  // - Used Credit → untouched
+  // ==========================================================
+
+  async function handleCancelLeave(
+    leaveRecord: LeaveRecord
+  ) {
+    setError(null);
+    setSuccess(null);
+
+    if (
+      leaveRecord.status !== "Submitted"
+    ) {
+      return;
+    }
+
+    const lesson =
+      lessonRows.find(
+        (row) =>
+          row.lesson.id ===
+          leaveRecord.lesson_id &&
+          row.student.id ===
+          leaveRecord.student_id
+      )?.lesson;
+
+    if (!lesson) {
+      setError(
+        "The lesson associated with this Leave request could not be found."
+      );
+      return;
+    }
+
+    // ------------------------------------------------------
+    // Business deadline check
+    //
+    // Parent Cancel is only allowed before Lesson Start.
+    // ------------------------------------------------------
+
+    if (
+      !isLessonOpenForLeave(lesson)
+    ) {
+      setError(
+        `This Leave request can no longer be cancelled because the lesson has started or is about to start.`
+      );
+      return;
+    }
+
+    setCancellingLeaveId(
+      leaveRecord.id
+    );
+
+    try {
+      // ----------------------------------------------------
+      // Shared Reverse Engine
+      // ----------------------------------------------------
+
+      await reverseLeaveRequest(
+        leaveRecord.id
+      );
+
+      setSuccess(
+        "Leave cancelled successfully."
+      );
+
+      // ----------------------------------------------------
+      // Reload
+      // ----------------------------------------------------
+
+      await loadParentLeaveData();
+
+    } catch (cancelError: any) {
+      console.error(
+        "PARENT LEAVE CANCEL ERROR:",
+        cancelError
+      );
+
+      setError(
+        cancelError?.message ??
+        "Unable to cancel Leave."
+      );
+    } finally {
+      setCancellingLeaveId(null);
+    }
+  }
+
   // ==========================================================
   // Loading
   // ==========================================================
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#011029] text-white">
-        <div className="mx-auto max-w-6xl px-6 py-10">
-          <div className="rounded-2xl border border-[#D4AF37]/30 bg-[#102B4D] p-8 shadow-xl">
-            <div className="animate-pulse">
-              <div className="mb-4 h-8 w-48 rounded bg-white/10" />
-              <div className="mb-2 h-4 w-80 rounded bg-white/10" />
-              <div className="h-4 w-64 rounded bg-white/10" />
+      <main className="min-h-screen text-white">
+        <div
+          className="min-h-screen"
+          style={{
+            backgroundImage: `
+              conic-gradient(
+                #102A4A 25%,
+                #0D2444 0 50%,
+                #102A4A 0 75%,
+                #0D2444 0
+              )
+            `,
+            backgroundSize: "50px 50px",
+          }}
+        >
+          <div className="mx-auto w-full max-w-[1500px] px-4 py-8 sm:px-6 lg:px-8">
+            <div className="relative overflow-hidden rounded-2xl border border-[#D4AF37]/30 bg-[#FFFDF8] p-8 shadow-sm">
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute left-0 right-0 top-0 h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent [clip-path:polygon(0_0,100%_42%,100%_58%,0_100%)]"
+              />
+              <div className="animate-pulse">
+                <div className="mb-4 h-8 w-48 rounded bg-[#10213A]/10" />
+                <div className="mb-2 h-4 w-80 rounded bg-[#10213A]/10" />
+                <div className="h-4 w-64 rounded bg-[#10213A]/10" />
+              </div>
             </div>
           </div>
         </div>
@@ -1247,7 +1367,21 @@ export default function ParentLeavePage() {
 
   return (
     <main className="min-h-screen text-white">
-      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+      <div
+        className="min-h-screen"
+        style={{
+          backgroundImage: `
+            conic-gradient(
+              #102A4A 25%,
+              #0D2444 0 50%,
+              #102A4A 0 75%,
+              #0D2444 0
+            )
+          `,
+          backgroundSize: "50px 50px",
+        }}
+      >
+      <div className="mx-auto w-full max-w-[1500px] px-4 py-8 sm:px-6 lg:px-8">
 
         {/* ==================================================
             Header
@@ -1301,12 +1435,12 @@ export default function ParentLeavePage() {
         ================================================== */}
 
         {students.length === 0 && (
-          <div className="rounded-2xl border border-[#D4AF37]/20 bg-[#102B4D] p-8">
-            <h2 className="text-xl font-semibold">
+          <div className="relative overflow-hidden rounded-2xl border border-[#D4AF37]/30 bg-[#FFFDF8] p-8 text-[#10213A] shadow-sm">
+            <h2 className="text-xl font-semibold text-[#10213A]">
               No children found
             </h2>
 
-            <p className="mt-2 text-sm text-white/60">
+            <p className="mt-2 text-sm text-[#64748B]">
               No students are currently linked to this Family.
             </p>
           </div>
@@ -1318,12 +1452,12 @@ export default function ParentLeavePage() {
 
         {students.length > 0 &&
           lessonRows.length === 0 && (
-            <div className="rounded-2xl border border-[#D4AF37]/20 bg-[#102B4D] p-8">
+            <div className="relative overflow-hidden rounded-2xl border border-[#D4AF37]/30 bg-[#FFFDF8] p-8 text-[#10213A] shadow-sm">
               <h2 className="text-xl font-semibold">
                 No upcoming lessons available
               </h2>
 
-              <p className="mt-2 text-sm leading-6 text-white/60">
+              <p className="mt-2 text-sm leading-6 text-[#64748B]">
                 There are currently no upcoming lessons available
                 for Leave submission.
               </p>
@@ -1331,11 +1465,147 @@ export default function ParentLeavePage() {
           )}
 
         {/* ==================================================
+            Leave Form
+        ================================================== */}
+
+        {selectedStudentLessonKeys.size > 0 && (
+          <section className="relative mt-8 overflow-hidden rounded-2xl border border-[#D4AF37]/30 bg-[#FFFDF8] p-5 text-[#10213A] shadow-sm sm:p-7">
+
+            <div aria-hidden="true" className="pointer-events-none absolute left-0 right-0 top-0 h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent [clip-path:polygon(0_0,100%_42%,100%_58%,0_100%)]" />
+
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold">
+                Leave Details
+              </h2>
+
+              <p className="mt-2 text-sm leading-6 text-[#64748B]">
+                The selected lesson
+                {selectedStudentLessonKeys.size === 1
+                  ? ""
+                  : "s"} will be submitted together.
+                Each lesson will receive its own Leave Record.
+              </p>
+            </div>
+
+            {/* Reason */}
+
+            <div>
+              <label
+                htmlFor="leave-reason"
+                className="mb-2 block text-sm font-medium text-[#10213A]"
+              >
+                Leave Reason
+              </label>
+
+              <select
+                id="leave-reason"
+                value={reason}
+                disabled={submitting}
+                onChange={(event) =>
+                  setReason(
+                    event.target.value as LeaveReason
+                  )
+                }
+                className="w-full rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] px-4 py-3 text-sm text-[#10213A] outline-none transition focus:border-[#D4AF37]"
+              >
+                {LEAVE_REASONS.map(
+                  (item) => (
+                    <option
+                      key={item}
+                      value={item}
+                      className="bg-[#F5F9FD] text-[#10213A]"
+                    >
+                      {item}
+                    </option>
+                  )
+                )}
+              </select>
+            </div>
+
+            {/* Comments */}
+
+            <div className="mt-5">
+              <label
+                htmlFor="leave-comments"
+                className="mb-2 block text-sm font-medium text-[#10213A]"
+              >
+                Comments
+                <span className="ml-2 text-xs text-[#64748B]">
+                  Optional
+                </span>
+              </label>
+
+              <textarea
+                id="leave-comments"
+                value={comments}
+                disabled={submitting}
+                onChange={(event) =>
+                  setComments(
+                    event.target.value
+                  )
+                }
+                rows={4}
+                maxLength={500}
+                placeholder="Add any additional information if required."
+                className="w-full resize-none rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] px-4 py-3 text-sm text-[#10213A] placeholder:text-[#94A3B8] outline-none transition focus:border-[#D4AF37]"
+              />
+
+              <div className="mt-1 text-right text-xs text-[#64748B]">
+                {comments.length}/500
+              </div>
+            </div>
+
+            {/* Confirmation */}
+
+            <div className="mt-6 rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] p-4">
+              <p className="text-sm leading-6 text-[#64748B]">
+                By submitting this request, the selected
+                lessons will immediately be recorded as Leave.
+                Leave must be submitted before the scheduled
+                lesson start time.
+              </p>
+            </div>
+
+            {/* Actions */}
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={clearSelection}
+                className="rounded-xl border border-[#D9E3ED] bg-white px-5 py-3 text-sm font-medium text-[#64748B] transition hover:bg-[#F5F9FD] hover:text-[#10213A] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Clear Selection
+              </button>
+
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={handleSubmit}
+                className="rounded-xl border border-[#D4AF37] bg-[#D4AF37] px-6 py-3 text-sm font-semibold text-[#10213A] shadow-sm transition hover:bg-[#F4D35E] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {submitting
+                  ? "Submitting..."
+                  : `Submit Leave${
+                      selectedStudentLessonKeys.size > 1
+                        ? ` (${selectedStudentLessonKeys.size})`
+                        : ""
+                    }`}
+              </button>
+
+            </div>
+
+          </section>
+        )}
+
+
+        {/* ==================================================
             Children / Lessons
         ================================================== */}
 
         {studentGroups.length > 0 && (
-          <div className="space-y-6">
+          <div className="mt-5 space-y-6">
 
             {studentGroups.map(
               ({
@@ -1363,12 +1633,15 @@ export default function ParentLeavePage() {
                 return (
                   <section
                     key={student.id}
-                    className="overflow-hidden rounded-2xl border border-[#D4AF37]/25 bg-[#102B4D] shadow-xl"
+                    className="relative overflow-hidden rounded-2xl border border-[#D4AF37]/30 bg-[#FFFDF8] text-[#10213A] shadow-sm"
                   >
+
+                    {/* Frozen MyCHESS Gold Tapered Accent */}
+                    <div aria-hidden="true" className="pointer-events-none absolute left-0 right-0 top-0 h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent [clip-path:polygon(0_0,100%_42%,100%_58%,0_100%)]" />
 
                     {/* Student Header */}
 
-                    <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-col gap-4 border-b border-[#D9E3ED] px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
 
                       <div>
                         <div className="flex items-center gap-3">
@@ -1379,13 +1652,13 @@ export default function ParentLeavePage() {
                           </h2>
 
                           {student.student_code && (
-                            <span className="rounded-full border border-white/10 px-2.5 py-1 text-xs text-white/50">
+                            <span className="rounded-full border border-[#D9E3ED] px-2.5 py-1 text-xs text-[#64748B]">
                               {student.student_code}
                             </span>
                           )}
                         </div>
 
-                        <p className="mt-1 text-sm text-white/50">
+                        <p className="mt-1 text-sm text-[#64748B]">
                           {rows.length} upcoming lesson
                           {rows.length === 1
                             ? ""
@@ -1411,7 +1684,7 @@ export default function ParentLeavePage() {
 
                     {/* Lesson List */}
 
-                    <div className="divide-y divide-white/10">
+                    <div className="divide-y divide-[#D9E3ED]">
 
                       {rows.map(
                         (row) => {
@@ -1438,15 +1711,15 @@ export default function ParentLeavePage() {
                               ?.end_time ?? "";
 
                           const isAlreadySubmitted =
-                            !!leaveRecord;
+  leaveRecord?.status === "Submitted";
 
                           return (
                             <label
                               key={lesson.id}
                               className={`block px-5 py-5 transition ${
                                 isAlreadySubmitted
-                                  ? "cursor-default bg-white/[0.025]"
-                                  : "cursor-pointer hover:bg-white/[0.035]"
+                                  ? "cursor-default bg-[#F5F9FD]"
+                                  : "cursor-pointer hover:bg-[#F5F9FD]"
                               }`}
                             >
 
@@ -1470,7 +1743,7 @@ export default function ParentLeavePage() {
                                         lesson.id
                                       )
                                     }
-                                    className="h-5 w-5 rounded border-white/30 bg-transparent accent-[#D4AF37]"
+                                    className="h-5 w-5 rounded border-[#B8C7D8] bg-white accent-[#D4AF37]"
                                   />
                                 </div>
 
@@ -1481,13 +1754,13 @@ export default function ParentLeavePage() {
                                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
 
                                     <div>
-                                      <div className="font-medium text-white">
+                                      <div className="font-medium text-[#10213A]">
                                         {formatDate(
                                           lesson.lesson_date
                                         )}
                                       </div>
 
-                                      <div className="mt-1 text-sm text-white/60">
+                                      <div className="mt-1 text-sm text-[#64748B]">
                                         {getClassDisplayName(
                                           lesson
                                         )}
@@ -1505,7 +1778,7 @@ export default function ParentLeavePage() {
                                         )}
                                       </div>
 
-                                      <div className="mt-1 text-xs text-white/40">
+                                      <div className="mt-1 text-xs text-[#64748B]">
                                         Lesson
                                       </div>
                                     </div>
@@ -1514,30 +1787,91 @@ export default function ParentLeavePage() {
 
                                   {/* Existing Leave */}
 
-                                  {isAlreadySubmitted && (
+{isAlreadySubmitted &&
+  leaveRecord?.status === "Submitted" && (
+    <div className="mt-3 flex flex-wrap items-center gap-2">
+
+      {/* Leave Status */}
+      <span
+        className="
+          inline-flex
+          items-center
+          gap-1.5
+          rounded-full
+          border
+          border-[#B9D6F2]
+          bg-[#EEF6FF]
+          px-3
+          py-1
+          text-xs
+          font-medium
+          text-[#2563A6]
+        "
+      >
+        <span>✓</span>
+        Leave Submitted
+      </span>
+
+      {/* Reason */}
+      {leaveRecord.reason && (
+        <span className="text-xs text-[#64748B]">
+          {leaveRecord.reason}
+        </span>
+      )}
+
+      {/* Cancel */}
+      <button
+        type="button"
+        disabled={
+          cancellingLeaveId ===
+          leaveRecord.id
+        }
+        onClick={() =>
+          setCancelConfirmLeave(
+            leaveRecord
+          )
+        }
+        className="
+          ml-1
+          inline-flex
+          min-h-[32px]
+          items-center
+          justify-center
+          rounded-lg
+          border
+          border-[#E7B8B8]
+          bg-[#FFF7F7]
+          px-3
+          py-1
+          text-xs
+          font-medium
+          text-[#B45353]
+          transition
+          hover:border-[#D99A9A]
+          hover:bg-[#FFF0F0]
+          disabled:cursor-not-allowed
+          disabled:opacity-50
+        "
+      >
+        {cancellingLeaveId ===
+        leaveRecord.id
+          ? "Cancelling..."
+          : "Cancel Leave"}
+      </button>
+
+    </div>
+  )}
+
+                                  {leaveRecord?.status === "Cancelled" && (
                                     <div className="mt-3 flex flex-wrap items-center gap-2">
-
-                                      <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-300">
-                                        Leave Submitted
+                                      <span className="inline-flex items-center rounded-full border border-[#D9E3ED] bg-[#F5F9FD] px-3 py-1 text-xs font-medium text-[#64748B]">
+                                        Leave Cancelled
                                       </span>
-
-                                      {leaveRecord?.reason && (
-                                        <span className="text-xs text-white/45">
-                                          {leaveRecord.reason}
-                                        </span>
-                                      )}
-
+                                      <span className="text-xs text-[#64748B]">
+                                        Select this lesson to submit Leave again.
+                                      </span>
                                     </div>
                                   )}
-
-                                  {/* Selected */}
-
-                                  {selected &&
-                                    !isAlreadySubmitted && (
-                                      <div className="mt-3 text-xs text-[#D4AF37]">
-                                        Selected for Leave
-                                      </div>
-                                    )}
 
                                 </div>
                               </div>
@@ -1552,7 +1886,7 @@ export default function ParentLeavePage() {
                     {/* Student Footer */}
 
                     {selectedCount > 0 && (
-                      <div className="border-t border-[#D4AF37]/20 bg-[#D4AF37]/5 px-5 py-3 text-xs text-[#D4AF37]">
+                      <div className="border-t border-[#D9E3ED] bg-[#F8F5ED] px-5 py-3 text-xs text-[#8F6B18]">
                         {selectedCount} lesson
                         {selectedCount === 1
                           ? ""
@@ -1569,144 +1903,11 @@ export default function ParentLeavePage() {
         )}
 
         {/* ==================================================
-            Leave Form
-        ================================================== */}
-
-        {selectedStudentLessonKeys.size > 0 && (
-          <section className="mt-8 rounded-2xl border border-[#D4AF37]/30 bg-[#102B4D] p-5 shadow-xl sm:p-7">
-
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold">
-                Leave Details
-              </h2>
-
-              <p className="mt-2 text-sm leading-6 text-white/60">
-                The selected lesson
-                {selectedStudentLessonKeys.size === 1
-                  ? ""
-                  : "s"} will be submitted together.
-                Each lesson will receive its own Leave Record.
-              </p>
-            </div>
-
-            {/* Reason */}
-
-            <div>
-              <label
-                htmlFor="leave-reason"
-                className="mb-2 block text-sm font-medium text-white/80"
-              >
-                Leave Reason
-              </label>
-
-              <select
-                id="leave-reason"
-                value={reason}
-                disabled={submitting}
-                onChange={(event) =>
-                  setReason(
-                    event.target.value as LeaveReason
-                  )
-                }
-                className="w-full rounded-xl border border-white/15 bg-[#011029] px-4 py-3 text-sm text-white outline-none transition focus:border-[#D4AF37]"
-              >
-                {LEAVE_REASONS.map(
-                  (item) => (
-                    <option
-                      key={item}
-                      value={item}
-                      className="bg-[#011029]"
-                    >
-                      {item}
-                    </option>
-                  )
-                )}
-              </select>
-            </div>
-
-            {/* Comments */}
-
-            <div className="mt-5">
-              <label
-                htmlFor="leave-comments"
-                className="mb-2 block text-sm font-medium text-white/80"
-              >
-                Comments
-                <span className="ml-2 text-xs text-white/35">
-                  Optional
-                </span>
-              </label>
-
-              <textarea
-                id="leave-comments"
-                value={comments}
-                disabled={submitting}
-                onChange={(event) =>
-                  setComments(
-                    event.target.value
-                  )
-                }
-                rows={4}
-                maxLength={500}
-                placeholder="Add any additional information if required."
-                className="w-full resize-none rounded-xl border border-white/15 bg-[#011029] px-4 py-3 text-sm text-white placeholder:text-white/25 outline-none transition focus:border-[#D4AF37]"
-              />
-
-              <div className="mt-1 text-right text-xs text-white/30">
-                {comments.length}/500
-              </div>
-            </div>
-
-            {/* Confirmation */}
-
-            <div className="mt-6 rounded-xl border border-white/10 bg-white/[0.03] p-4">
-              <p className="text-sm leading-6 text-white/65">
-                By submitting this request, the selected
-                lessons will immediately be recorded as Leave.
-                Leave must be submitted before the scheduled
-                lesson start time.
-              </p>
-            </div>
-
-            {/* Actions */}
-
-            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
-
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={clearSelection}
-                className="rounded-xl border border-white/15 px-5 py-3 text-sm font-medium text-white/70 transition hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Clear Selection
-              </button>
-
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={handleSubmit}
-                className="rounded-xl border border-[#D4AF37] bg-[#D4AF37] px-6 py-3 text-sm font-semibold text-[#011029] transition hover:bg-[#e0bd4f] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {submitting
-                  ? "Submitting..."
-                  : `Submit Leave${
-                      selectedStudentLessonKeys.size > 1
-                        ? ` (${selectedStudentLessonKeys.size})`
-                        : ""
-                    }`}
-              </button>
-
-            </div>
-
-          </section>
-        )}
-
-        {/* ==================================================
             Business Rule Note
         ================================================== */}
 
-        <div className="mt-8 rounded-xl border border-white/10 bg-white/[0.02] px-5 py-4">
-          <p className="text-xs leading-5 text-white/40">
+        <div className="mt-8 rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] px-5 py-4">
+          <p className="text-xs leading-5 text-[#64748B]">
             Leave requests are effective immediately and do not
             require approval. Attendance and Make-up processing
             are handled by the existing MyCHESS Leave /
@@ -1715,6 +1916,187 @@ export default function ParentLeavePage() {
         </div>
 
       </div>
+      </div>
+      {cancelConfirmLeave && (
+  <div
+    className="
+      fixed
+      inset-0
+      z-50
+      flex
+      items-center
+      justify-center
+      bg-black/60
+      px-4
+      backdrop-blur-sm
+    "
+  >
+    <div
+      className="
+        w-full
+        max-w-md
+        rounded-2xl
+        border
+        border-[#D4AF37]/30
+        bg-[#FFFDF8]
+        p-6
+        text-[#10213A]
+        shadow-2xl
+      "
+    >
+
+      {/* Warning Icon */}
+      <div
+        className="
+          mx-auto
+          flex
+          h-12
+          w-12
+          items-center
+          justify-center
+          rounded-full
+          border
+          border-amber-400/30
+          bg-amber-400/10
+          text-2xl
+        "
+      >
+        ⚠️
+      </div>
+
+      {/* Title */}
+      <h3
+        className="
+          mt-4
+          text-center
+          text-xl
+          font-semibold
+          text-[#10213A]
+        "
+      >
+        Cancel Leave Request?
+      </h3>
+
+      {/* Message */}
+      <p
+        className="
+          mt-3
+          text-center
+          text-sm
+          leading-6
+          text-[#64748B]
+        "
+      >
+        Are you sure you want to cancel
+        this leave request?
+      </p>
+
+      {cancelConfirmLeave.reason && (
+        <div
+          className="
+            mt-4
+            rounded-xl
+            border
+            border-[#D9E3ED]
+            bg-[#F5F9FD]
+            px-4
+            py-3
+            text-center
+            text-sm
+            text-[#64748B]
+          "
+        >
+          Reason:{" "}
+          <span className="font-medium text-[#D4AF37]">
+            {cancelConfirmLeave.reason}
+          </span>
+        </div>
+      )}
+
+      {/* Actions */}
+      <div
+        className="
+          mt-6
+          flex
+          flex-col-reverse
+          gap-3
+          sm:flex-row
+          sm:justify-end
+        "
+      >
+
+        {/* Keep Leave */}
+        <button
+          type="button"
+          onClick={() =>
+            setCancelConfirmLeave(null)
+          }
+          className="
+            min-h-[44px]
+            rounded-xl
+            border
+            border-[#D9E3ED]
+            bg-white
+            px-5
+            py-2.5
+            text-sm
+            font-medium
+            text-[#10213A]
+            transition
+            hover:bg-white/[0.08]
+          "
+        >
+          Keep Leave
+        </button>
+
+        {/* Confirm Cancel */}
+        <button
+          type="button"
+          disabled={
+            cancellingLeaveId ===
+            cancelConfirmLeave.id
+          }
+          onClick={async () => {
+            const leave =
+              cancelConfirmLeave;
+
+            setCancelConfirmLeave(null);
+
+            await handleCancelLeave(
+              leave
+            );
+          }}
+          className="
+  min-h-[44px]
+  rounded-xl
+  border
+  border-[#10213A]
+  bg-[#10213A]
+  px-5
+  py-2.5
+  text-sm
+  font-semibold
+  text-white
+  shadow-sm
+  transition-all
+  duration-200
+  hover:bg-[#1B3558]
+  hover:border-[#1B3558]
+  active:scale-[0.98]
+  disabled:cursor-not-allowed
+  disabled:opacity-50
+"
+        >
+          {cancellingLeaveId ===
+          cancelConfirmLeave.id
+            ? "Cancelling..."
+            : "Cancel Leave"}
+        </button>
+
+      </div>
+    </div>
+  </div>
+)}
     </main>
   );
 }

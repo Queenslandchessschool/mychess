@@ -92,7 +92,7 @@ export default function LeavePage() {
 
         reason: item.reason,
         comments: item.comments ?? "",
-
+       status: item.status ?? "Submitted",
         created_at: item.created_at,
       }));
 
