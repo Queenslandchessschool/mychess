@@ -862,3 +862,43 @@ Parent Leave submission must be blocked once the selected lesson reaches LESSON_
 - Parent Leave workflow tested through submission, cancellation and re-submission/reactivation scenarios.
 - Desktop and mobile Leave layouts reviewed.
 - TypeScript / production build validated successfully before final UI adjustments.
+
+## 2026-08-23 — PASS: MyFAMILY Student Profile & Edit Module
+
+### MyFAMILY
+- Completed and stabilised the MyFAMILY student profile page.
+- Standardised the page with the frozen MyCHESS Navy / Gold visual language.
+- Preserved the global Navy Chessboard background supplied by the shared layout.
+- Applied the Cream card, Pale Blue secondary surface, Navy text and restrained Gold accent system.
+- Removed the unnecessary `PARENT PORTAL` label.
+- Removed the Student Code badge from the profile header.
+- Removed the redundant `Student Information` subtitle.
+- Removed the duplicate upper `Current Chess Class` field.
+- Retained the lower summary field as `Current Chess Class`.
+- Kept student profile information focused on the fields required by the frozen MyFAMILY design.
+
+### Student Data / Schema Alignment
+- Corrected School Class data sourcing to use Student Master `students.school_class`.
+- Removed reliance on `school_class` / `school_year` fields from `student_enrolments` where they are not part of the current schema.
+- Preserved Enrollment Snapshot usage for enrollment-specific fields such as special requests, medical snapshot and trial status.
+- Kept the existing Parent / Family scope restrictions intact.
+
+### Edit Student
+- Preserved the existing Edit Student workflow.
+- Preserved the Review Changes confirmation step.
+- Preserved the existing changed-field detection and save flow.
+- Maintained the existing audit-friendly confirmation pattern.
+
+### Validation
+- MyFAMILY module: PASS
+- UI / VI: PASS
+- Desktop layout: PASS
+- Mobile layout: PASS
+- Student profile display: PASS
+- Current Chess Class display: PASS
+- Edit Student workflow: PASS
+- Schema alignment: PASS
+- Production / TypeScript validation: PASS
+
+### Frozen Baseline
+This module is now treated as the current PASS baseline. Future changes should be additive and should not redesign or regress the frozen MyFAMILY UI, data scope or workflow without an explicit requirement.
