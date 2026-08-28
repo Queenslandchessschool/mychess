@@ -2,10 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { getCurrentUser } from "@/lib/currentUser";
 import Link from "next/link";
-
-const TEST_COACH_ID =
-  "3fef5df8-f438-4258-9c3c-e1cf58a2d0a8";
 
 type MyClass = {
   id: string;
@@ -52,8 +50,16 @@ export default function MyClassPage() {
 
   useEffect(() => {
     async function loadMyClasses() {
-      setLoading(true);
-      setError(null);
+  setLoading(true);
+  setError(null);
+
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser || currentUser.role !== "coach" || !currentUser.coachId) {
+    setError("Your Coach account could not be verified.");
+    setLoading(false);
+    return;
+  }
 
       /*
        * 1. Find the current Academic Year / Term
@@ -136,7 +142,7 @@ export default function MyClassPage() {
       )
     )
   `)
-        .eq("classes.coach_id", TEST_COACH_ID)
+        .eq("classes.coach_id", currentUser.coachId)
 .eq("academic_year", academicYear)
 .eq("term", term)
         .order("first_lesson", {

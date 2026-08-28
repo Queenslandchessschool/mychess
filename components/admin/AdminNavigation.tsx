@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import LogoutButton from "@/components/auth/LogoutButton";
 
 const navigationGroups = [
   {
@@ -399,29 +400,31 @@ export default function AdminNavigation() {
         </nav>
 
         {/* Bottom User Area */}
-        <div className="border-t border-[#D4AF37]/15 p-4">
-          <div className="rounded-xl border border-[#D4AF37]/20 bg-[#152D4D] px-3 py-3">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#D4AF37]/60 text-xs font-semibold text-[#D4AF37]">
-                AU
-              </div>
+<div className="border-t border-[#D4AF37]/15 p-4">
+  <div className="rounded-xl border border-[#D4AF37]/20 bg-[#152D4D] px-3 py-3">
+    <div className="flex items-center gap-3">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#D4AF37]/60 text-xs font-semibold text-[#D4AF37]">
+        AU
+      </div>
 
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium">
-                  Admin User
-                </p>
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium">
+          Admin User
+        </p>
 
-                <p className="truncate text-[10px] text-[#C8D2DF]/70">
-                  System Administrator
-                </p>
-              </div>
-            </div>
-          </div>
+        <p className="truncate text-[10px] text-[#C8D2DF]/70">
+          System Administrator
+        </p>
+      </div>
+    </div>
+  </div>
 
-          <p className="mt-3 text-center text-[9px] text-[#C8D2DF]/45">
-            © 2026 MyCHESS
-          </p>
-        </div>
+  <LogoutButton />
+
+  <p className="mt-3 text-center text-[9px] text-[#C8D2DF]/45">
+    © 2026 MyCHESS
+  </p>
+</div>
       </aside>
 
       {/* =====================================================
@@ -670,6 +673,9 @@ export default function AdminNavigation() {
               );
             })}
           </nav>
+      <div className="mt-3 border-t border-[#D4AF37]/15 pt-3">
+  <LogoutButton />
+</div>
         </div>
       )}
     </>

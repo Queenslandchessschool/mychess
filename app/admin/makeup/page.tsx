@@ -425,7 +425,6 @@ setBookingCredits(
 }
 
 async function loadBookingLessons() {
-
   const today =
     new Date().toLocaleDateString("en-CA");
 
@@ -435,14 +434,28 @@ async function loadBookingLessons() {
       .select(`
         id,
         lesson_date,
+        start_time,
+        end_time,
+        status,
+        class_id,
         classes:class_id(
+          id,
           level,
-          class_suffix
+          class_suffix,
+          campus:campus_id(
+            campus_name,
+            short_name
+          )
         )
       `)
       .gte("lesson_date", today)
       .neq("status", "Cancelled")
-      .order("lesson_date");
+      .order("lesson_date", {
+        ascending: true,
+      })
+      .order("start_time", {
+        ascending: true,
+      });
 
   if (error) {
     console.error(error);
@@ -450,35 +463,61 @@ async function loadBookingLessons() {
   }
 
   const rows: LessonOption[] =
-    (data ?? []).map((lesson: any) => ({
-      id: lesson.id,
+    (data ?? []).map((lesson: any) => {
+      const classData = lesson.classes;
 
-      name:
-        `${lesson.lesson_date} - ${lesson.classes?.level ?? ""} ${lesson.classes?.class_suffix ?? ""}`,
-    }));
+      const level =
+        classData?.level ?? "";
+
+      const suffix =
+        classData?.class_suffix ?? "";
+
+      const className =
+        `${level} ${suffix}`.trim();
+
+      const campus =
+        classData?.campus;
+
+      const campusName =
+        campus?.short_name ||
+        campus?.campus_name ||
+        "";
+
+      return {
+        id: lesson.id,
+        lesson_date: lesson.lesson_date,
+        start_time: lesson.start_time ?? "",
+        end_time: lesson.end_time ?? "",
+        class_id: lesson.class_id,
+        class_name: className,
+        level,
+        campus_name: campusName,
+      };
+    });
 
   setBookingLessons(rows);
-
 }
 
 async function loadBookings() {
 
   const { data, error } = await supabase
     .from("makeup_bookings")
-   .select(`
-  *,
-  students:student_id(
-    first_name,
-    last_name
-  ),
-  lessons:lesson_id(
-    lesson_date,
-    classes:class_id(
-      level,
-      class_suffix
-    )
-  )
-`)
+    .select(`
+      *,
+      students:student_id(
+        first_name,
+        last_name
+      ),
+      lessons:lesson_id(
+        lesson_date,
+        classes:class_id(
+          level,
+          class_suffix,
+          start_time,
+          end_time
+        )
+      )
+    `)
     .order("created_at", {
       ascending: false,
     });
@@ -504,38 +543,81 @@ async function loadBookings() {
       lesson_id: item.lesson_id,
 
       lesson_name:
-  item.lessons
-    ? `${item.lessons.lesson_date} - ${item.lessons.classes?.level ?? ""} ${item.lessons.classes?.class_suffix ?? ""}`
-    : "",
+        item.lessons
+          ? `${item.lessons.lesson_date} - ${
+              item.lessons.classes?.level ?? ""
+            } ${
+              item.lessons.classes?.class_suffix ?? ""
+            }`
+          : "",
 
-    attendance_id: item.attendance_id,
+      start_time:
+        item.lessons?.classes?.start_time ?? "",
 
-      status: item.status,
+      end_time:
+        item.lessons?.classes?.end_time ?? "",
 
-      created_at: item.created_at,
+      attendance_id:
+        item.attendance_id,
 
-      completed_at: item.completed_at,
+      status:
+        item.status,
+
+      created_at:
+        item.created_at,
+
+      completed_at:
+        item.completed_at,
     }));
 
   setBookingRecords(rows);
-
 }
 
-  return (
-    <div className="space-y-6">
+    return (
+    <div
+      className="
+        mx-auto
+        w-full
+        max-w-[1500px]
+        px-4
+        py-6
+        sm:px-6
+        sm:py-8
+        lg:px-8
+        lg:py-10
+      "
+    >
 
-      <div>
+      {/* Page Header */}
+      <div className="mb-6">
 
-        <h1 className="text-3xl font-bold">
+        <h1
+          className="
+            text-3xl
+            font-bold
+            tracking-tight
+            text-white
+            sm:text-4xl
+          "
+        >
           Make-up Management
         </h1>
 
-        <p className="mt-1 text-gray-500">
+        <p
+          className="
+            mt-1.5
+            text-sm
+            leading-5
+            text-gray-400
+            sm:text-base
+          "
+        >
           Manage make-up credits.
         </p>
 
       </div>
 
+      {/* Make-up Credit Form */}
       <MakeupForm
         form={form}
         students={students}
@@ -544,37 +626,44 @@ async function loadBookings() {
         onCancel={handleCancel}
       />
 
-      <MakeupTable
-  records={records}
-  onEdit={(record) => {
+      {/* Make-up Credit Records */}
+      <div className="mt-6">
+        <MakeupTable
+          records={records}
+          onEdit={(record) => {
 
-    setForm({
-      student_id: record.student_id,
-      credits: record.credits,
-      reason: record.reason,
-    });
+            setForm({
+              student_id: record.student_id,
+              credits: record.credits,
+              reason: record.reason,
+            });
 
-    setEditingId(record.id);
+            setEditingId(record.id);
 
-  }}
-  onDelete={handleDelete}
-/>
+          }}
+          onDelete={handleDelete}
+        />
+      </div>
 
-<BookingForm
-  form={bookingForm}
-  credits={bookingCredits}       // 临时占位
-  lessons={bookingLessons}
-  onChange={setBookingForm}
-  onSave={handleBookingSave}
-  onCancel={handleBookingCancel}
-/>
+      {/* Make-up Booking Form */}
+      <div className="mt-6">
+        <BookingForm
+          form={bookingForm}
+          credits={bookingCredits}  // 临时占位
+          lessons={bookingLessons}
+          onChange={setBookingForm}
+          onSave={handleBookingSave}
+          onCancel={handleBookingCancel}
+        />
+      </div>
 
-<BookingTable
-  records={bookingRecords}
-  onDelete={handleBookingDelete}
-/>
-
-
+      {/* Make-up Booking Records */}
+      <div className="mt-6">
+        <BookingTable
+          records={bookingRecords}
+          onDelete={handleBookingDelete}
+        />
+      </div>
 
     </div>
   );

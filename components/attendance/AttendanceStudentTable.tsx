@@ -14,12 +14,15 @@ interface Props {
   onStudentClick: (
     student: AttendanceStudent
   ) => void;
+
+  locked?: boolean;
 }
 
 export default function AttendanceStudentTable({
   students,
   onStatusChange,
   onStudentClick,
+  locked = false,
 }: Props) {
   return (
     <section
@@ -144,6 +147,7 @@ export default function AttendanceStudentTable({
                 student={student}
                 onStatusChange={onStatusChange}
                 onStudentClick={onStudentClick}
+                locked={locked}
               />
             ))}
           </tbody>
@@ -158,6 +162,7 @@ export default function AttendanceStudentTable({
             student={student}
             onStatusChange={onStatusChange}
             onStudentClick={onStudentClick}
+            locked={locked}
           />
         ))}
       </div>
@@ -186,6 +191,7 @@ function StudentRow({
   student,
   onStatusChange,
   onStudentClick,
+  locked,
 }: {
   student: AttendanceStudent;
 
@@ -197,6 +203,8 @@ function StudentRow({
   onStudentClick: (
     student: AttendanceStudent
   ) => void;
+
+  locked: boolean;
 }) {
   const isExcused =
     student.attendance_type === "Excused";
@@ -244,6 +252,7 @@ const [showLeaveConfirm, setShowLeaveConfirm] =
         "Present"
       }
       color="green"
+      disabled={locked}
       onClick={() =>
         onStatusChange(
           student.student_id,
@@ -256,37 +265,43 @@ const [showLeaveConfirm, setShowLeaveConfirm] =
 
       {/* Absent */}
       <td className="px-2 py-3.5 text-center">
-        <StatusButton
-          active={
-            student.attendance_status ===
-            "Absent"
-          }
-          color="red"
-          onClick={() =>
-            onStatusChange(
-              student.student_id,
-              "Absent"
-            )
-          }
-        />
-      </td>
+  {!isLeave && (
+    <StatusButton
+      active={
+        student.attendance_status ===
+        "Absent"
+      }
+      color="red"
+      disabled={locked}
+      onClick={() =>
+        onStatusChange(
+          student.student_id,
+          "Absent"
+        )
+      }
+    />
+  )}
+</td>
 
       {/* Late */}
       <td className="px-2 py-3.5 text-center">
-        <StatusButton
-          active={
-            student.attendance_status ===
-            "Late"
-          }
-          color="orange"
-          onClick={() =>
-            onStatusChange(
-              student.student_id,
-              "Late"
-            )
-          }
-        />
-      </td>
+  {!isLeave && (
+    <StatusButton
+      active={
+        student.attendance_status ===
+        "Late"
+      }
+      color="orange"
+      disabled={locked}
+      onClick={() =>
+        onStatusChange(
+          student.student_id,
+          "Late"
+        )
+      }
+    />
+  )}
+</td>
 
       {/* Leave */}
 <td className="px-2 py-3.5 text-center">
@@ -294,7 +309,7 @@ const [showLeaveConfirm, setShowLeaveConfirm] =
     <StatusButton
       active
       color="blue"
-      disabled={false}
+      disabled={locked}
       onClick={() => setShowLeaveConfirm(true)}
     />
   )}
@@ -391,13 +406,16 @@ const [showLeaveConfirm, setShowLeaveConfirm] =
 
           <button
             type="button"
-            onClick={() => {
+            disabled={locked}
+          onClick={() => {
               setShowLeaveConfirm(false);
 
-              onStatusChange(
-                student.student_id,
-                "Present"
-              );
+              if (!locked) {
+                onStatusChange(
+                  student.student_id,
+                  "Present"
+                );
+              }
             }}
             className="
               min-h-[42px]
@@ -431,6 +449,7 @@ function MobileStudentCard({
   student,
   onStatusChange,
   onStudentClick,
+  locked,
 }: {
   student: AttendanceStudent;
 
@@ -442,6 +461,8 @@ function MobileStudentCard({
   onStudentClick: (
     student: AttendanceStudent
   ) => void;
+
+  locked: boolean;
 }) {
   const isExcused =
     student.attendance_type === "Excused";
@@ -496,6 +517,7 @@ student.leave_status === "Submitted" ? (
     active
     color="blue"
     compact
+    disabled={locked}
    onClick={() =>
   setShowLeaveConfirm(true)
 }
@@ -505,6 +527,7 @@ student.leave_status === "Submitted" ? (
     active
     color={statusColor}
     compact
+    disabled={locked}
     onClick={() =>
       onStatusChange(
         student.student_id,
@@ -609,13 +632,16 @@ student.leave_status === "Submitted" ? (
 
         <button
           type="button"
+          disabled={locked}
           onClick={() => {
             setShowLeaveConfirm(false);
 
-            onStatusChange(
-              student.student_id,
-              "Present"
-            );
+            if (!locked) {
+              onStatusChange(
+                student.student_id,
+                "Present"
+              );
+            }
           }}
           className="
             min-h-[42px]

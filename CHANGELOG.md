@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+2026-08-29 — Development Checkpoint
+
+Attendance
+- Attendance Time Engine remains Frozen.
+- 23:59 Brisbane attendance edit boundary / next-day 00:00 lock is implemented.
+- Admin Attendance lock integration completed.
+- Coach Attendance lock integration completed.
+- Attendance RLS reviewed.
+- Attendance History foundation added.
+- Attendance History UI / VI requires final acceptance.
+- 4:00 PM automatic loading remains pending final trigger / scheduling implementation.
+
+Attendance Notifications
+- Attendance reminder API routes added.
+- 8:00 PM reminder route added.
+- Resend integration test route added.
+- Production Resend configuration and scheduled trigger remain pending deployment verification.
+
+Make-up
+- Make-up Booking foundation added.
+- Make-up Credit foundation added.
+- Lesson selection component added.
+- Make-up Booking / Credit integration added.
+- Final end-to-end acceptance remains pending.
+
+Authentication
+- Forgot Password page added.
+- Reset Password page added.
+- Shared LogoutButton added.
+- Parent Logout requires final acceptance.
+
+Other
+- Web POP / Popup verification remains pending final browser acceptance.
+
 # v0.1.0 - 2026-08-07
 
 ## 🎉 Major Milestone

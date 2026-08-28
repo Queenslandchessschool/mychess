@@ -3,9 +3,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
-const TEST_COACH_ID =
-  "3fef5df8-f438-4258-9c3c-e1cf58a2d0a8";
-
 type Coach = {
   id: string;
   first_name: string;
@@ -47,15 +44,43 @@ export default function CoachDashboard() {
   );
 
   useEffect(() => {
-    async function loadDashboard() {
+        async function loadDashboard() {
       setLoading(true);
       setError(null);
 
-      /*
-       * ==========================================
-       * 1. Load Coach
-       * ==========================================
-       */
+      // ==================================================
+      // 0. Current Authenticated User
+      // ==================================================
+
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError || !user) {
+        console.error(
+          "COACH AUTH USER ERROR:",
+          authError
+        );
+
+        setError(
+          "Authenticated Coach could not be identified."
+        );
+
+        setLoading(false);
+        return;
+      }
+
+      // ==================================================
+      // 1. Load Current Coach
+      //
+      // Auth User
+      //      ↓
+      // coaches.auth_user_id
+      //
+      // IMPORTANT:
+      // No hard-coded Coach ID.
+      // ==================================================
 
       const {
         data: coachData,
@@ -70,18 +95,30 @@ export default function CoachDashboard() {
           status,
           display_name
         `)
-        .eq("id", TEST_COACH_ID)
-        .single();
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
 
-      if (coachError || !coachData) {
+      if (coachError) {
         console.error(
           "COACH LOAD ERROR:",
           coachError
         );
 
         setError(
-          coachError?.message ??
-            "Coach record could not be found."
+          "Unable to load the current Coach record."
+        );
+
+        setLoading(false);
+        return;
+      }
+
+      if (!coachData) {
+        console.error(
+          "COACH LOAD ERROR: No Coach record linked to Auth User."
+        );
+
+        setError(
+          "No Coach record is linked to the signed-in account."
         );
 
         setLoading(false);
@@ -90,11 +127,9 @@ export default function CoachDashboard() {
 
       setCoach(coachData);
 
-      /*
-       * ==========================================
-       * 2. Current Academic Term
-       * ==========================================
-       */
+      // ==================================================
+      // 2. Current Academic Term
+      // ==================================================
 
       const today =
         new Date().toISOString().split("T")[0];
@@ -126,15 +161,27 @@ export default function CoachDashboard() {
           "ACADEMIC CALENDAR ERROR:",
           calendarError
         );
+
+        setError(
+          "Unable to determine the current Academic Term."
+        );
+
+        setLoading(false);
+        return;
       }
 
-      setCurrentTerm(calendarData ?? null);
+      if (!calendarData) {
+        setCurrentTerm(null);
+        setLessons([]);
+        setLoading(false);
+        return;
+      }
 
-      /*
-       * ==========================================
-       * 3. Find Classes assigned to this Coach
-       * ==========================================
-       */
+      setCurrentTerm(calendarData);
+
+      // ==================================================
+      // 3. Find Classes assigned to Current Coach
+      // ==================================================
 
       const {
         data: classData,
@@ -142,7 +189,7 @@ export default function CoachDashboard() {
       } = await supabase
         .from("classes")
         .select("id")
-        .eq("coach_id", TEST_COACH_ID);
+        .eq("coach_id", coachData.id);
 
       if (classError) {
         console.error(
@@ -166,11 +213,17 @@ export default function CoachDashboard() {
         return;
       }
 
-      /*
-       * ==========================================
-       * 4. Load Class Schedules
-       * ==========================================
-       */
+      // ==================================================
+      // 4. Load Current Term Class Schedules
+      //
+      // Current Coach
+      //      ↓
+      // Current Academic Year / Term
+      //      ↓
+      // Assigned Classes
+      //      ↓
+      // Current schedules
+      // ==================================================
 
       const {
         data: scheduleData,
@@ -182,18 +235,31 @@ export default function CoachDashboard() {
           class_id,
           first_lesson,
           final_lesson,
-class:classes(
-  day,
-  level,
-  class_suffix,
-  start_time,
-  end_time,
-  campus:campuses(
-    campus_code
-  )
-)
+          academic_year,
+          term,
+          class:classes(
+            day,
+            level,
+            class_suffix,
+            start_time,
+            end_time,
+            campus:campuses(
+              campus_code
+            )
+          )
         `)
-        .in("class_id", coachClassIds);
+        .in(
+          "class_id",
+          coachClassIds
+        )
+        .eq(
+          "academic_year",
+          calendarData.academic_year
+        )
+        .eq(
+          "term",
+          calendarData.term
+        );
 
       if (scheduleError) {
         console.error(
@@ -206,23 +272,28 @@ class:classes(
         return;
       }
 
-      /*
-       * ==========================================
-       * 5. Calculate next actual lesson
-       *
-       * We do NOT use School Week.
-       * Chess lessons can start from any school week.
-       * ==========================================
-       */
+      // ==================================================
+      // 5. Calculate Next Actual Lesson
+      //
+      // We do NOT use School Week.
+      // Chess lessons can start from any school week.
+      // ==================================================
 
       const upcoming: UpcomingLesson[] = [];
 
-      for (const item of scheduleData ?? []) {
-        if (!item.first_lesson || !item.final_lesson) {
+      for (
+        const item of scheduleData ?? []
+      ) {
+        if (
+          !item.first_lesson ||
+          !item.final_lesson
+        ) {
           continue;
         }
 
-        const classData = Array.isArray(item.class)
+        const classData = Array.isArray(
+          item.class
+        )
           ? item.class[0]
           : item.class;
 
@@ -230,84 +301,102 @@ class:classes(
           continue;
         }
 
-        const firstDate = parseLocalDate(
-          item.first_lesson
-        );
+        const firstDate =
+          parseLocalDate(
+            item.first_lesson
+          );
 
-        const finalDate = parseLocalDate(
-          item.final_lesson
-        );
+        const finalDate =
+          parseLocalDate(
+            item.final_lesson
+          );
 
         let nextDate = firstDate;
 
-        /*
-         * Move forward by one week until the next
-         * actual lesson date is today or later.
-         */
+        // Move forward by one week until
+        // the next actual lesson date is today
+        // or later.
         while (
-          nextDate < parseLocalDate(today) &&
+          nextDate <
+            parseLocalDate(today) &&
           nextDate <= finalDate
         ) {
-          nextDate = new Date(nextDate);
+          nextDate = new Date(
+            nextDate
+          );
+
           nextDate.setDate(
             nextDate.getDate() + 7
           );
         }
 
-        if (nextDate > finalDate) {
+        if (
+          nextDate > finalDate
+        ) {
           continue;
         }
 
-      const campusValue: any = classData.campus;
+        const campusValue: any =
+          classData.campus;
 
-const campus = Array.isArray(campusValue)
-  ? campusValue[0]?.campus_code ?? ""
-  : campusValue?.campus_code ?? "";
+        const campus =
+          Array.isArray(campusValue)
+            ? campusValue[0]
+                ?.campus_code ?? ""
+            : campusValue?.campus_code ??
+              "";
 
         const level =
           classData.level ?? "";
 
         const suffix =
-          classData.class_suffix?.trim() ?? "";
+          classData.class_suffix?.trim() ??
+          "";
 
         upcoming.push({
-  id: item.id,
+          id: item.id,
 
-  // Keep the real ISO date for sorting.
-  lessonDate: formatISODate(nextDate),
+          lessonDate:
+            formatISODate(nextDate),
 
-startTime: formatTime(
-  classData.start_time
-),
+          startTime:
+            formatTime(
+              classData.start_time
+            ),
 
-endTime: formatTime(
-  classData.end_time
-),
+          endTime:
+            formatTime(
+              classData.end_time
+            ),
 
-  campus,
-  level,
-  suffix,
-});
+          campus,
+          level,
+          suffix,
+        });
       }
 
-      /*
-       * Sort by actual lesson date.
-       */
-     upcoming.sort((a, b) => {
-  return (
-    parseLocalDate(
-      a.lessonDate
-    ).getTime() -
-    parseLocalDate(
-      b.lessonDate
-    ).getTime()
-  );
-});
+      // ==================================================
+      // 6. Sort by Actual Lesson Date
+      // ==================================================
 
-      /*
-       * Only show the next 4 classes.
-       */
-      setLessons(upcoming.slice(0, 4));
+      upcoming.sort((a, b) => {
+        return (
+          parseLocalDate(
+            a.lessonDate
+          ).getTime() -
+          parseLocalDate(
+            b.lessonDate
+          ).getTime()
+        );
+      });
+
+      // ==================================================
+      // 7. Show Next 4 Classes
+      // ==================================================
+
+      setLessons(
+        upcoming.slice(0, 4)
+      );
 
       setLoading(false);
     }
@@ -407,7 +496,7 @@ endTime: formatTime(
             sm:text-4xl
           "
         >
-          Welcome back, {coach.first_name}!
+          Welcome back, {coach.title ? `${coach.title} ` : ""}{coach.first_name}!
         </h1>
 
         <p

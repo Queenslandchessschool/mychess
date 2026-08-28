@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+import LogoutButton from "@/components/auth/LogoutButton";
 
 const navigationItems = [
   {
@@ -44,6 +45,7 @@ const navigationItems = [
 
 export default function CoachNavigation() {
   const pathname = usePathname();
+  const router = useRouter();
 
   const isActive = (href: string) => {
     if (href === "/coach/dashboard") {
@@ -259,7 +261,7 @@ export default function CoachNavigation() {
               </div>
             </div>
           </div>
-
+         <LogoutButton />
           <p
             className="
               mt-3
@@ -341,6 +343,7 @@ export default function CoachNavigation() {
 function CoachMobileMenu() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
 
   const isActive = (href: string) => {
     if (href === "/coach/dashboard") {
@@ -463,6 +466,10 @@ function CoachMobileMenu() {
               );
             })}
           </nav>
+
+<div className="mt-3 border-t border-[#D4AF37]/15 pt-3">
+  <LogoutButton />
+</div>
         </div>
       )}
     </>

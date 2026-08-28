@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { getCurrentUser } from "@/lib/currentUser";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,26 +15,63 @@ export default function LoginPage() {
   const [error, setError] = useState("");
 
   async function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
+  e.preventDefault();
 
-    setLoading(true);
-    setError("");
+  setLoading(true);
+  setError("");
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
+  const { error: signInError } =
+    await supabase.auth.signInWithPassword({
+      email: email.trim(),
       password,
     });
 
+  if (signInError) {
     setLoading(false);
-
-    if (error) {
-      setError(error.message);
-      return;
-    }
-
-    router.push("/admin/dashboard");
-    router.refresh();
+    setError(signInError.message);
+    return;
   }
+
+  // ====================================================
+  // Resolve MyCHESS identity
+  // ====================================================
+
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    await supabase.auth.signOut();
+
+    setLoading(false);
+    setError(
+      "Your account is not configured for MyCHESS. Please contact the administrator."
+    );
+
+    return;
+  }
+
+  // ====================================================
+  // Universal Portal Routing
+  // ====================================================
+
+  if (currentUser.role === "admin") {
+    router.push("/admin/dashboard");
+  } else if (currentUser.role === "coach") {
+    router.push("/coach/dashboard");
+  } else if (currentUser.role === "parent") {
+    router.push("/parent/family");
+  } else {
+    await supabase.auth.signOut();
+
+    setLoading(false);
+    setError(
+      "Your MyCHESS account role could not be determined."
+    );
+
+    return;
+  }
+
+  router.refresh();
+}
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -70,6 +108,16 @@ export default function LoginPage() {
           >
             {loading ? "Signing In..." : "Sign In"}
           </button>
+
+          <div className="text-right">
+  <button
+    type="button"
+    onClick={() => router.push("/forgot-password")}
+    className="text-sm text-blue-600 hover:text-blue-700 hover:underline"
+  >
+    Forgot password?
+  </button>
+</div>
 
           {error && (
             <p className="text-center text-sm text-red-600">

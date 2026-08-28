@@ -3,9 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-
-const TEST_COACH_ID =
-  "3fef5df8-f438-4258-9c3c-e1cf58a2d0a8";
+import { getCurrentUser } from "@/lib/currentUser";
 
 type ClassInfo = {
   id: string;
@@ -64,8 +62,16 @@ export default function CoachClassDetailPage() {
     if (!classId) return;
 
     async function loadClassDetail() {
-      setLoading(true);
-      setError(null);
+  setLoading(true);
+  setError(null);
+
+  const currentUser = await getCurrentUser();
+
+  if (!currentUser || currentUser.role !== "coach" || !currentUser.coachId) {
+    setError("Your Coach account could not be verified.");
+    setLoading(false);
+    return;
+  }
 
       /*
        * 1. Load the current schedule for this class
@@ -125,7 +131,7 @@ export default function CoachClassDetailPage() {
        * Coach permission check.
        */
       if (
-        classData.coach_id !== TEST_COACH_ID
+        classData.coach_id !== currentUser.coachId
       ) {
         setError(
           "You are not assigned to this class."

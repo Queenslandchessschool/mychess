@@ -1387,32 +1387,16 @@ if (row.leaveRecord?.status === "Submitted") {
             Header
         ================================================== */}
 
-        <div className="mb-8">
-          <div className="mb-2 text-sm font-medium uppercase tracking-[0.2em] text-[#D4AF37]">
-            Parent Portal
-          </div>
+        <div className="mb-6">
+  <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+    Leave Request
+  </h1>
 
-          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-            Leave Request
-          </h1>
-
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-white/70 sm:text-base">
-            Submit leave for one or more upcoming lessons.
-            Leave takes effect immediately after submission.
-          </p>
-
-          {parentEmail && (
-            <div className="mt-3 text-xs text-white/45">
-              Signed in as {parentEmail}
-            </div>
-          )}
-
-          {familyId && (
-            <div className="mt-1 text-xs text-white/30">
-              Family: {familyId}
-            </div>
-          )}
-        </div>
+  <p className="mt-3 max-w-3xl text-sm leading-6 text-white/70 sm:text-base">
+    Submit leave for one or more upcoming lessons.
+    Leave takes effect immediately after submission.
+  </p>
+</div>
 
         {/* ==================================================
             Messages
@@ -1608,10 +1592,13 @@ if (row.leaveRecord?.status === "Submitted") {
           <div className="mt-5 space-y-6">
 
             {studentGroups.map(
-              ({
-                student,
-                rows,
-              }) => {
+  (
+    {
+      student,
+      rows,
+    },
+    studentIndex
+  ) => {
 
                 const selectableRows =
                   rows.filter(
@@ -1644,21 +1631,17 @@ if (row.leaveRecord?.status === "Submitted") {
                     <div className="flex flex-col gap-4 border-b border-[#D9E3ED] px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
 
                       <div>
-                        <div className="flex items-center gap-3">
-                          <h2 className="text-xl font-semibold">
-                            {getStudentDisplayName(
-                              student
-                            )}
-                          </h2>
+  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#B28A22]">
+    {studentGroups.length === 1
+      ? "CHILD"
+      : `CHILD ${studentIndex + 1}`}
+  </div>
 
-                          {student.student_code && (
-                            <span className="rounded-full border border-[#D9E3ED] px-2.5 py-1 text-xs text-[#64748B]">
-                              {student.student_code}
-                            </span>
-                          )}
-                        </div>
+  <h2 className="mt-1 text-xl font-semibold">
+    {getStudentDisplayName(student)}
+  </h2>
 
-                        <p className="mt-1 text-sm text-[#64748B]">
+  <p className="mt-1 text-sm text-[#64748B]">
                           {rows.length} upcoming lesson
                           {rows.length === 1
                             ? ""
@@ -1914,6 +1897,26 @@ if (row.leaveRecord?.status === "Submitted") {
             Attendance workflow.
           </p>
         </div>
+        {/* ==================================================
+    Special Arrangements
+================================================== */}
+
+<div className="mt-5 rounded-xl border border-[#E8D49A] bg-[#FFF8DD] px-5 py-5 text-[#10213A]">
+  <h3 className="text-sm font-semibold">
+    Special Arrangements
+  </h3>
+
+  <p className="mt-3 text-sm leading-6 text-[#35506F]">
+    Any special arrangement, such as a long planned holiday,
+    should be discussed with Admin in advance so we can
+    maintain it in the system before the next Term starts.
+  </p>
+
+  <p className="mt-3 text-sm leading-6 text-[#35506F]">
+    Lessons covered by an approved Special Arrangement
+    are not charged and do not generate Make-up Credits.
+  </p>
+</div>
 
       </div>
       </div>

@@ -1,8 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { supabase } from "@/lib/supabase";
+import {
+  isAttendanceLocked,
+} from "@/lib/attendanceTime";
 import {
   getAttendanceStudentCounts,
 } from "@/lib/attendanceStudentCount";
@@ -11,6 +18,9 @@ import {
 } from "@/lib/attendanceSummary";
 
 import { runAttendanceReconciliation } from "@/lib/attendanceRunner";
+import {
+  syncMakeupBookingsToAttendance,
+} from "@/lib/makeupBookingAttendance";
 import { reconcileAttendance } from "@/lib/attendanceEngine";
 import { syncLeaveRequests } from "@/lib/leaveAttendanceSync";
 import { reverseLeaveRequest } from "@/lib/leaveAttendanceSync";
@@ -46,6 +56,9 @@ export default function AttendancePage() {
 
   const [selectedLesson, setSelectedLesson] =
     useState<LessonCard | null>(null);
+
+  const selectedLessonRef =
+  useRef<LessonCard | null>(null);
 
   const [showMakeupDialog, setShowMakeupDialog] =
     useState(false);
@@ -486,6 +499,13 @@ await syncLeaveRequests(
   lessonId
 );
 
+// ====================================================
+// Make-up Booking → Attendance Integration
+// ====================================================
+
+await syncMakeupBookingsToAttendance(
+  lessonId
+);
       // ======================================================
       // 4. Load attendance records + basic Student Master data
       //
@@ -1277,6 +1297,97 @@ const countMap =
   }, []);
 
   // ======================================================
+// Make-up Booking Realtime → Attendance
+//
+// Part 3D-C
+//
+// Purpose:
+// - Detect Parent Make-up Booking changes in real time
+// - Refresh the currently selected Lesson only
+// - Preserve Lazy Loading as the fallback mechanism
+//
+// Realtime is an enhancement.
+// Lazy Loading remains authoritative.
+//
+// Booking INSERT / UPDATE
+//        ↓
+// Realtime
+//        ↓
+// Current selected lesson?
+//        ↓
+// loadStudents()
+//        ↓
+// Makeup Booking → Attendance
+//        ↓
+// Attendance Student List
+// ======================================================
+
+useEffect(() => {
+  const channel =
+    supabase
+      .channel(
+        "admin-attendance-makeup-bookings"
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "makeup_bookings",
+        },
+        (payload) => {
+          const booking =
+            (payload.new ??
+              payload.old) as {
+              lesson_id?: string;
+              status?: string;
+            };
+
+          const lessonId =
+            booking?.lesson_id;
+
+          if (!lessonId) {
+            return;
+          }
+
+          const currentLesson =
+            selectedLessonRef.current;
+
+          if (
+            !currentLesson ||
+            currentLesson.id !==
+              lessonId
+          ) {
+            return;
+          }
+
+          // Re-run the complete existing
+          // Attendance loading pipeline.
+          //
+          // This preserves:
+          // - Attendance Runner
+          // - Lazy reconciliation
+          // - Leave synchronization
+          // - Make-up Booking integration
+          // - Attendance loading
+          // - Student sorting
+          // - Summary refresh
+
+          void loadStudents(
+            lessonId
+          );
+        }
+      )
+      .subscribe();
+
+  return () => {
+    void supabase.removeChannel(
+      channel
+    );
+  };
+}, []);
+
+  // ======================================================
   // Render
   // ======================================================
 
@@ -1333,20 +1444,32 @@ const countMap =
 
                 <div className="mt-5">
                   <AttendanceStudentTable
-                    students={
-                      students
-                    }
-                    onStatusChange={
-                      handleStatusChange
-                    }
-                    onStudentClick={(
-                      student
-                    ) =>
-                      setQuickViewStudent(
-                        student
-                      )
-                    }
-                  />
+
+  students={
+    students
+  }
+
+  onStatusChange={
+    handleStatusChange
+  }
+
+  onStudentClick={(
+    student
+  ) =>
+    setQuickViewStudent(
+      student
+    )
+  }
+
+  locked={
+    selectedLesson
+      ? isAttendanceLocked(
+          selectedLesson.lesson_date
+        )
+      : false
+  }
+
+/>
                 </div>
               </div>
             )}
@@ -1435,14 +1558,17 @@ const countMap =
                           lesson.id
                         }
                         onClick={() => {
-                          setSelectedLesson(
-                            lesson
-                          );
+  setSelectedLesson(
+    lesson
+  );
 
-                          loadStudents(
-                            lesson.id
-                          );
-                        }}
+  selectedLessonRef.current =
+    lesson;
+
+  loadStudents(
+    lesson.id
+  );
+}}
                       />
                     )
                   )}

@@ -10,6 +10,10 @@ import {
   getCoachScope,
 } from "@/lib/coachScope";
 import {
+  getCurrentUser,
+} from "@/lib/currentUser";
+
+import {
   calculateAttendanceSummary,
 } from "@/lib/attendanceSummary";
 import { runAttendanceReconciliation } from "@/lib/attendanceRunner";
@@ -19,6 +23,12 @@ import {
   reverseLeaveRequest,
 } from "@/lib/leaveAttendanceSync";
 import { addOnSiteMakeupAttendance } from "@/lib/makeupAttendance";
+import {
+  getLessonStartTimestamp,
+  getBrisbaneDate,
+  getBrisbaneDateParts,
+  isAttendanceLocked,
+} from "@/lib/attendanceTime";
 
 import AttendanceHeader from "@/components/attendance/AttendanceHeader";
 import AttendanceLessonCard from "@/components/attendance/AttendanceLessonCard";
@@ -34,16 +44,6 @@ import type {
   AttendanceHeaderStats,
   AttendanceSummary as AttendanceSummaryType,
 } from "@/components/attendance/types";
-
-
-// ======================================================
-// Coach Permission
-//
-// Frozen Coach test identity already used by MyCLASS.
-// ======================================================
-
-const TEST_COACH_ID =
-  "3fef5df8-f438-4258-9c3c-e1cf58a2d0a8";
 
 
 // ======================================================
@@ -98,6 +98,32 @@ export default function CoachAttendancePage() {
 
 
   // ======================================================
+  // Attendance Submission
+  //
+  // New feature only:
+  // - Does NOT change any attendance record.
+  // - Records that the Coach has completed roll call.
+  // - submitted_at is stored as timestamptz and displayed
+  //   in Australia/Brisbane time.
+  // ======================================================
+
+  const [attendanceSubmittedAt, setAttendanceSubmittedAt] =
+    useState<string | null>(null);
+
+  const [submittingAttendance, setSubmittingAttendance] =
+    useState(false);
+
+  const [reminderMessage, setReminderMessage] =
+  useState<string | null>(null);
+
+  const [eightPmPopupShown, setEightPmPopupShown] =
+  useState(false);
+
+const [coachGreetingName, setCoachGreetingName] =
+  useState("");
+
+
+  // ======================================================
   // Lesson Filters
   // Same UI architecture as Admin Attendance.
   // Coach scope is applied when loading Lessons.
@@ -139,6 +165,19 @@ export default function CoachAttendancePage() {
   ) {
 
     if (!selectedLesson) return;
+
+    // Coach Attendance becomes read-only at 00:00 Brisbane
+    // on the lesson date.
+    if (
+      isAttendanceLocked(
+        selectedLesson.lesson_date
+      )
+    ) {
+      await loadStudents(
+        selectedLesson.id
+      );
+      return;
+    }
 
     const currentStudent =
   students.find(
@@ -347,6 +386,407 @@ export default function CoachAttendancePage() {
 
 
   // ======================================================
+  // Attendance Submission
+  // ======================================================
+
+  async function loadAttendanceSubmission(lessonId: string) {
+    try {
+      const { data, error } = await supabase
+        .from("attendance_submissions")
+        .select("submitted_at")
+        .eq("lesson_id", lessonId)
+        .maybeSingle();
+
+      if (error) {
+        console.error(
+          "COACH ATTENDANCE SUBMISSION LOAD ERROR:",
+          error
+        );
+        setAttendanceSubmittedAt(null);
+        return;
+      }
+
+      setAttendanceSubmittedAt(
+        data?.submitted_at ?? null
+      );
+    } catch (error) {
+      console.error(
+        "COACH ATTENDANCE SUBMISSION LOAD ERROR:",
+        error
+      );
+      setAttendanceSubmittedAt(null);
+    }
+  }
+
+  async function handleSubmitAttendance() {
+    if (!selectedLesson || submittingAttendance) return;
+
+    const currentUser = await getCurrentUser();
+
+    if (
+      !currentUser ||
+      currentUser.role !== "coach" ||
+      !currentUser.coachId
+    ) {
+      console.error(
+        "COACH ATTENDANCE SUBMISSION ERROR: Coach user not found."
+      );
+      return;
+    }
+
+      try {
+      setSubmittingAttendance(true);
+
+        const { data, error } = await supabase
+  .from("attendance_submissions")
+  .upsert(
+    {
+      lesson_id: selectedLesson.id,
+      coach_id: currentUser.coachId,
+      submitted_at: new Date().toISOString(),
+    },
+    {
+      onConflict: "lesson_id",
+    }
+  )
+  .select("submitted_at")
+  .single();
+
+      if (error) {
+        throw error;
+      }
+
+      setAttendanceSubmittedAt(
+        data?.submitted_at ??
+          new Date().toISOString()
+      );
+    } catch (error) {
+      console.error(
+        "COACH ATTENDANCE SUBMISSION ERROR:",
+        error
+      );
+    } finally {
+      setSubmittingAttendance(false);
+    }
+  }
+
+// ======================================================
+// Attendance Reminder
+//
+// Step 1F-C-2-B
+//
+// IMPORTANT:
+// - Reminder only.
+// - Does NOT change Attendance.
+// - Does NOT submit Attendance.
+// - Does NOT change Leave / Make-up.
+// - Uses Australia/Brisbane business time.
+// ======================================================
+
+async function loadCoachGreeting() {
+  const currentUser = await getCurrentUser();
+
+  if (
+    !currentUser ||
+    currentUser.role !== "coach" ||
+    !currentUser.coachId
+  ) {
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from("coaches")
+    .select("title, first_name")
+    .eq("id", currentUser.coachId)
+    .single();
+
+  if (error) {
+    console.error(
+      "COACH REMINDER NAME LOAD ERROR:",
+      error
+    );
+    return;
+  }
+
+  const title =
+    data?.title?.trim() ?? "";
+
+  const firstName =
+    data?.first_name?.trim() ?? "";
+
+  setCoachGreetingName(
+    `${title ? `${title} ` : ""}${firstName}`.trim()
+  );
+}
+
+
+async function hasReminderBeenSent(
+  lessonId: string,
+  reminderType:
+    | "LESSON_START"
+    | "T10"
+) {
+  const { data, error } =
+    await supabase
+      .from("attendance_reminder_logs")
+      .select("id")
+      .eq("lesson_id", lessonId)
+      .eq(
+        "reminder_type",
+        reminderType
+      )
+      .maybeSingle();
+
+  if (error) {
+    console.error(
+      "ATTENDANCE REMINDER LOG CHECK ERROR:",
+      error
+    );
+
+    // Fail closed:
+    // Do not risk duplicate reminders.
+    return true;
+  }
+
+  return Boolean(data);
+}
+
+
+async function checkAttendanceReminder(
+  lesson: LessonCard
+) {
+  if (!lesson) return;
+
+  const now =
+    new Date().getTime();
+
+  const lessonStart =
+    getLessonStartTimestamp(
+      lesson.lesson_date,
+      lesson.start_time
+    );
+
+  const lessonEnd =
+  getLessonStartTimestamp(
+    lesson.lesson_date,
+    lesson.end_time
+  );
+
+const t10 =
+  lessonEnd -
+  10 * 60 * 1000;
+
+  let reminderType:
+    | "LESSON_START"
+    | "T10"
+    | null = null;
+
+  // Lesson Start reminder:
+// Once the lesson has started, show the reminder
+// until the T-10 reminder window begins.
+//
+// The reminder log prevents duplicate display.
+if (
+  now >= lessonStart &&
+  now < t10
+) {
+  reminderType =
+    "LESSON_START";
+}
+
+  // T-10 reminder.
+  else if (
+  now >= t10 &&
+  now < lessonEnd
+) {
+  reminderType = "T10";
+}
+
+// ----------------------------------------------------
+// 8 PM Brisbane Reminder
+//
+// IMPORTANT:
+// - UI popup only.
+// - Email is handled by /api/attendance/reminder-8pm.
+// - Do NOT use attendance_reminder_logs to suppress
+//   this popup.
+// ----------------------------------------------------
+
+const brisbaneNow = getBrisbaneDateParts();
+const brisbaneToday = getBrisbaneDate();
+
+const isTodayLesson =
+  lesson.lesson_date === brisbaneToday;
+
+const isAfterEightPm =
+  brisbaneNow.hour >= 20;
+
+if (
+  isTodayLesson &&
+  isAfterEightPm
+) {
+  const popupKey =
+    `mychess-attendance-8pm-popup-${lesson.id}`;
+
+  const alreadyShown =
+    sessionStorage.getItem(popupKey) === "1";
+
+  if (!alreadyShown) {
+    const {
+      data: eightPmSubmission,
+      error: eightPmSubmissionError,
+    } = await supabase
+      .from("attendance_submissions")
+      .select("submitted_at")
+      .eq("lesson_id", lesson.id)
+      .maybeSingle();
+
+    if (eightPmSubmissionError) {
+      console.error(
+        "8PM POPUP SUBMISSION CHECK ERROR:",
+        eightPmSubmissionError
+      );
+    } else if (!eightPmSubmission?.submitted_at) {
+      setReminderMessage(
+        `Hi ${coachGreetingName}, the attendance for today's lesson has not been submitted yet. Please complete the attendance before 11:59 PM, when attendance will be locked.`
+      );
+
+      sessionStorage.setItem(
+        popupKey,
+        "1"
+      );
+    }
+  }
+}
+
+  if (!reminderType) {
+    return;
+  }
+
+  // ----------------------------------------------------
+  // Check Submission
+  // ----------------------------------------------------
+
+  const {
+    data: submission,
+    error: submissionError,
+  } = await supabase
+    .from("attendance_submissions")
+    .select("submitted_at")
+    .eq("lesson_id", lesson.id)
+    .maybeSingle();
+
+  if (submissionError) {
+    console.error(
+      "ATTENDANCE REMINDER SUBMISSION CHECK ERROR:",
+      submissionError
+    );
+
+    return;
+  }
+
+  // Already submitted:
+  // No Reminder.
+  if (submission?.submitted_at) {
+    return;
+  }
+
+  // ----------------------------------------------------
+  // Prevent duplicate Reminder
+  // ----------------------------------------------------
+
+  const alreadySent =
+    await hasReminderBeenSent(
+      lesson.id,
+      reminderType
+    );
+
+  if (alreadySent) {
+    return;
+  }
+
+  // ----------------------------------------------------
+  // Reminder Message
+  // ----------------------------------------------------
+
+  const message =
+    reminderType ===
+    "LESSON_START"
+      ? `Hi ${coachGreetingName}, you can start marking roll call now.`
+      : `Hi ${coachGreetingName}, don't forget to make a roll call.`;
+
+  // ----------------------------------------------------
+  // Record Reminder
+  // ----------------------------------------------------
+
+  const currentUser =
+    await getCurrentUser();
+
+  if (
+    !currentUser ||
+    currentUser.role !== "coach" ||
+    !currentUser.coachId
+  ) {
+    return;
+  }
+
+  const {
+  error: insertError,
+} = await supabase
+  .from("attendance_reminder_logs")
+  .insert({
+    lesson_id: lesson.id,
+    coach_id: currentUser.coachId,
+    reminder_type: reminderType,
+    sent_at: new Date().toISOString(),
+  });
+
+if (insertError) {
+  // Another reminder check may have inserted
+  // the same reminder at the same time.
+  //
+  // The database unique constraint guarantees
+  // that only one reminder log is created.
+  // Treat duplicate insert as already handled.
+  if (insertError.code === "23505") {
+    return;
+  }
+
+  console.error(
+    "ATTENDANCE REMINDER LOG INSERT ERROR:",
+    insertError
+  );
+
+  return;
+}
+
+  // ----------------------------------------------------
+  // Show Popup
+  // ----------------------------------------------------
+
+  setReminderMessage(
+    message
+  );
+}
+
+
+  function formatBrisbaneDateTime(value: string) {
+    return new Intl.DateTimeFormat(
+      "en-AU",
+      {
+        timeZone: "Australia/Brisbane",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }
+    ).format(new Date(value));
+  }
+
+
+  // ======================================================
   // Student List
   //
   // IMPORTANT:
@@ -360,6 +800,8 @@ export default function CoachAttendancePage() {
   ) {
 
     try {
+
+      await loadAttendanceSubmission(lessonId);
 
       // --------------------------------------------------
       // 1. Lesson context
@@ -889,7 +1331,7 @@ setSummary(summary);
 // Make-up is NOT limited to the selected Class.
 //
 // Example:
-// Coach OLEG has:
+// A Coach has:
 //   Class A
 //   Class B
 //   Class C
@@ -936,10 +1378,21 @@ async function loadEligibleStudents() {
     // It is NOT the current Class only.
     // ====================================================
 
+    const currentUser = await getCurrentUser();
+
+if (
+  !currentUser ||
+  currentUser.role !== "coach" ||
+  !currentUser.coachId
+) {
+  setEligibleStudents([]);
+  return;
+}
+
     const {
       students: coachStudents,
     } = await getCoachScope(
-      TEST_COACH_ID,
+      currentUser.coachId,
       academicYear,
       term
     );
@@ -1203,16 +1656,27 @@ async function loadEligibleStudents() {
       // 1. Coach Classes
       // --------------------------------------------------
 
-      const {
-        data: coachClasses,
-        error: coachClassError,
-      } = await supabase
-        .from("classes")
-        .select("id")
-        .eq(
-          "coach_id",
-          TEST_COACH_ID
-        );
+      const currentUser = await getCurrentUser();
+
+if (
+  !currentUser ||
+  currentUser.role !== "coach" ||
+  !currentUser.coachId
+) {
+  setLessons([]);
+  return;
+}
+
+const {
+  data: coachClasses,
+  error: coachClassError,
+} = await supabase
+  .from("classes")
+  .select("id")
+  .eq(
+    "coach_id",
+    currentUser.coachId
+  );
 
 
       if (coachClassError)
@@ -1541,6 +2005,57 @@ const countMap =
     loadLessons();
   }, []);
 
+  useEffect(() => {
+  loadCoachGreeting();
+}, []);
+
+useEffect(() => {
+  if (!selectedLesson) {
+    return;
+  }
+
+  const checkReminder = () => {
+    checkAttendanceReminder(
+      selectedLesson
+    );
+  };
+
+  // Check immediately.
+  checkReminder();
+
+  // Re-check every 30 seconds.
+  const interval =
+    window.setInterval(
+      checkReminder,
+      30 * 1000
+    );
+
+  return () => {
+    window.clearInterval(
+      interval
+    );
+  };
+}, [selectedLesson]);
+
+  // ======================================================
+  // Coach Attendance Lock
+  //
+  // Frozen rule:
+  // - Attendance remains editable until 23:59 Brisbane.
+  // - At 00:00 Brisbane, Coach Attendance becomes read-only.
+  // - Student Quick View remains available.
+  //
+  // The shared Attendance Time Engine remains the
+  // single source of truth.
+  // ======================================================
+
+  const attendanceLocked =
+    selectedLesson
+      ? isAttendanceLocked(
+          selectedLesson.lesson_date
+        )
+      : false;
+
 
   // ======================================================
   // Render
@@ -1616,6 +2131,114 @@ const countMap =
 
                 <div className="mt-5">
 
+                  <div
+                    className="
+                      mb-4
+                      flex
+                      flex-col
+                      gap-3
+                      rounded-2xl
+                      border
+                      border-[#D9E0E8]
+                      bg-[#FFFDF8]
+                      px-4
+                      py-4
+                      sm:flex-row
+                      sm:items-center
+                      sm:justify-between
+                      sm:px-5
+                    "
+                  >
+                    <div>
+                      <div
+                        className="
+                          text-sm
+                          font-semibold
+                          text-[#0B2A4A]
+                        "
+                      >
+                        Roll Call
+                      </div>
+
+                      {attendanceSubmittedAt ? (
+                        <div
+                          className="
+                            mt-1
+                            text-sm
+                            text-[#64748B]
+                          "
+                        >
+                          <div
+  className="
+    mt-1
+    text-sm
+    text-[#64748B]
+  "
+>
+  {attendanceLocked
+
+    ? "Attendance is now locked for Coach editing."
+
+    : "You can still update attendance before the lesson locks."}
+
+  <br />
+  Last submitted{" "}
+  <span className="font-medium text-[#0B2A4A]">
+    {formatBrisbaneDateTime(
+      attendanceSubmittedAt
+    )}
+  </span>
+</div>
+                        </div>
+                      ) : (
+                        <div
+                          className="
+                            mt-1
+                            text-sm
+                            text-[#64748B]
+                          "
+                        >
+                          Complete the roll call, then submit attendance.
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleSubmitAttendance}
+                      disabled={
+                        submittingAttendance ||
+                        attendanceLocked
+                      }
+                      className={`
+                        inline-flex
+                        min-h-[44px]
+                        items-center
+                        justify-center
+                        rounded-xl
+                        border
+                        px-5
+                        py-2.5
+                        text-sm
+                        font-semibold
+                        transition
+                        ${
+                          attendanceSubmittedAt
+  ? "cursor-pointer border-[#16A34A] bg-[#DCFCE7] text-[#15803D] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+  : "border-[#D4AF37] bg-[#071B36] text-[#F4C542] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                        }
+                      `}
+                    >
+                      {attendanceLocked
+  ? "Attendance Locked"
+  : submittingAttendance
+  ? "Saving..."
+  : attendanceSubmittedAt
+  ? "Update Submission"
+  : "Submit Attendance"}
+                    </button>
+                  </div>
+
                   <AttendanceStudentTable
                     students={
                       students
@@ -1631,6 +2254,10 @@ const countMap =
                       setQuickViewStudent(
                         student
                       )
+                    }
+
+                    locked={
+                      attendanceLocked
                     }
                   />
 
@@ -1802,6 +2429,81 @@ const countMap =
 {/* ==================================================
     Shared Make-up Dialog
 ================================================== */}
+
+{reminderMessage && (
+  <div
+    className="
+      fixed
+      inset-0
+      z-[100]
+      flex
+      items-center
+      justify-center
+      bg-black/40
+      px-4
+    "
+  >
+    <div
+      className="
+        w-full
+        max-w-md
+        rounded-2xl
+        border
+        border-[#D4AF37]
+        bg-[#FFFDF8]
+        p-6
+        shadow-2xl
+      "
+    >
+      <div
+        className="
+          text-lg
+          font-semibold
+          text-[#0B2A4A]
+        "
+      >
+        Attendance Reminder
+      </div>
+
+      <p
+        className="
+          mt-4
+          text-sm
+          leading-6
+          text-[#475569]
+        "
+      >
+        {reminderMessage}
+      </p>
+
+      <button
+        type="button"
+        onClick={() =>
+          setReminderMessage(
+            null
+          )
+        }
+        className="
+          mt-6
+          min-h-[44px]
+          w-full
+          rounded-xl
+          border
+          border-[#D4AF37]
+          bg-[#071B36]
+          px-5
+          py-2.5
+          text-sm
+          font-semibold
+          text-[#F4C542]
+          hover:opacity-90
+        "
+      >
+        OK
+      </button>
+    </div>
+  </div>
+)}
 
 <MakeUpStudentDialog
   open={showMakeupDialog}

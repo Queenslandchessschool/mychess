@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import LogoutButton from "@/components/auth/LogoutButton";
 
 const navigationItems = [
   {
@@ -274,7 +275,7 @@ export default function ParentNavigation() {
               </div>
             </div>
           </div>
-
+<LogoutButton />
           <p
             className="
               mt-3
@@ -480,6 +481,10 @@ function ParentMobileMenu() {
               );
             })}
           </nav>
+
+          <div className="mt-3 border-t border-[#D4AF37]/15 pt-3">
+  <LogoutButton />
+</div>
         </div>
       )}
     </>
