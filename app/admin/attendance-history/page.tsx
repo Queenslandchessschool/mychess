@@ -15,6 +15,7 @@ import ChessboardBackground from "@/components/layout/ChessboardBackground";
 import AttendanceLessonCard from "@/components/attendance/AttendanceLessonCard";
 import AttendanceLessonFilters from "@/components/attendance/AttendanceLessonFilters";
 import AttendanceSummary from "@/components/attendance/AttendanceSummary";
+import AttendanceHeader from "@/components/attendance/AttendanceHeader";
 
 import type {
   LessonCard,
@@ -654,67 +655,70 @@ export default function AdminAttendanceHistoryPage() {
   }
 
   function getStatusLabel(
-    status?: string
-  ) {
-    switch (status) {
-      case "Present":
-        return "Present";
-
-      case "Absent":
-        return "Absent";
-
-      case "Late":
-        return "Late";
-
-      case "Excused":
-        return "Excused";
-
-      default:
-        return status ||
-          "—";
-    }
+  status?: string,
+  attendanceType?: string
+) {
+  if (attendanceType === "Excused") {
+    return "Leave";
   }
+
+  switch (status) {
+    case "Present":
+      return "Present";
+
+    case "Absent":
+      return "Absent";
+
+    case "Late":
+      return "Late";
+
+    default:
+      return status || "—";
+  }
+}
 
   function getStatusClasses(
-    status?: string
-  ) {
-    switch (status) {
-      case "Present":
-        return `
-          bg-[#ECFDF3]
-          text-[#15803D]
-          border-[#BBF7D0]
-        `;
-
-      case "Absent":
-        return `
-          bg-[#FEF2F2]
-          text-[#B91C1C]
-          border-[#FECACA]
-        `;
-
-      case "Late":
-        return `
-          bg-[#FFF7ED]
-          text-[#C2410C]
-          border-[#FED7AA]
-        `;
-
-      case "Excused":
-        return `
-          bg-[#EFF6FF]
-          text-[#1D4ED8]
-          border-[#BFDBFE]
-        `;
-
-      default:
-        return `
-          bg-[#F8FAFC]
-          text-[#64748B]
-          border-[#E2E8F0]
-        `;
-    }
+  status?: string,
+  attendanceType?: string
+) {
+  if (attendanceType === "Excused") {
+    return `
+      bg-[#EFF6FF]
+      text-[#1D4ED8]
+      border-[#BFDBFE]
+    `;
   }
+
+  switch (status) {
+    case "Present":
+      return `
+        bg-[#ECFDF3]
+        text-[#15803D]
+        border-[#BBF7D0]
+      `;
+
+    case "Absent":
+      return `
+        bg-[#FEF2F2]
+        text-[#B91C1C]
+        border-[#FECACA]
+      `;
+
+    case "Late":
+      return `
+        bg-[#FFF7ED]
+        text-[#C2410C]
+        border-[#FED7AA]
+      `;
+
+    default:
+      return `
+        bg-[#F8FAFC]
+        text-[#64748B]
+        border-[#E2E8F0]
+      `;
+  }
+}
 
   function getTypeLabel(
     type?: string
@@ -727,7 +731,7 @@ export default function AdminAttendanceHistoryPage() {
         return "Make-up";
 
       case "Excused":
-        return "Excused";
+  return "";
 
       case "Holiday":
         return "Holiday";
@@ -757,218 +761,12 @@ export default function AdminAttendanceHistoryPage() {
             lg:py-10
           "
         >
-
-          {/* ==================================================
-              History Header
-             ================================================== */}
-
-          <section
-            className="
-              overflow-hidden
-              rounded-2xl
-              border
-              border-[#D4AF37]/40
-              bg-[#011029]
-              shadow-[0_8px_30px_rgba(1,16,41,0.12)]
-            "
-          >
-            <div
-              className="
-                border-b
-                border-[#D4AF37]/30
-                px-5
-                py-5
-                sm:px-7
-                sm:py-6
-              "
-            >
-              <div
-                className="
-                  flex
-                  flex-col
-                  gap-4
-                  sm:flex-row
-                  sm:items-center
-                  sm:justify-between
-                "
-              >
-                <div>
-                  <div
-                    className="
-                      text-xs
-                      font-semibold
-                      uppercase
-                      tracking-[0.18em]
-                      text-[#D4AF37]
-                    "
-                  >
-                    Attendance
-                  </div>
-
-                  <h1
-                    className="
-                      mt-1
-                      font-serif
-                      text-2xl
-                      font-semibold
-                      text-white
-                      sm:text-3xl
-                    "
-                  >
-                    Attendance History
-                  </h1>
-
-                  <p
-                    className="
-                      mt-1
-                      text-sm
-                      text-[#CBD5E1]
-                    "
-                  >
-                    View completed lesson
-                    attendance records.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={
-                    loadLessons
-                  }
-                  className="
-                    inline-flex
-                    items-center
-                    justify-center
-                    rounded-lg
-                    border
-                    border-[#D4AF37]
-                    px-4
-                    py-2
-                    text-sm
-                    font-semibold
-                    text-[#D4AF37]
-                    transition
-                    hover:bg-[#D4AF37]
-                    hover:text-[#011029]
-                  "
-                >
-                  Refresh
-                </button>
-              </div>
-            </div>
-
-            <div
-              className="
-                grid
-                grid-cols-2
-                divide-x
-                divide-[#D4AF37]/20
-                sm:grid-cols-4
-              "
-            >
-              <div className="px-4 py-4 sm:px-6">
-                <div
-                  className="
-                    text-xs
-                    uppercase
-                    tracking-wide
-                    text-[#94A3B8]
-                  "
-                >
-                  Lessons
-                </div>
-
-                <div
-                  className="
-                    mt-1
-                    text-2xl
-                    font-semibold
-                    text-white
-                  "
-                >
-                  {
-                    headerStats.totalLessons
-                  }
-                </div>
-              </div>
-
-              <div className="px-4 py-4 sm:px-6">
-                <div
-                  className="
-                    text-xs
-                    uppercase
-                    tracking-wide
-                    text-[#94A3B8]
-                  "
-                >
-                  Students
-                </div>
-
-                <div
-                  className="
-                    mt-1
-                    text-2xl
-                    font-semibold
-                    text-white
-                  "
-                >
-                  {
-                    selectedLesson
-                      ? summary.totalStudents
-                      : "—"
-                  }
-                </div>
-              </div>
-
-              <div className="px-4 py-4 sm:px-6">
-                <div
-                  className="
-                    text-xs
-                    uppercase
-                    tracking-wide
-                    text-[#94A3B8]
-                  "
-                >
-                  Status
-                </div>
-
-                <div
-                  className="
-                    mt-1
-                    text-sm
-                    font-semibold
-                    text-[#D4AF37]
-                  "
-                >
-                  Frozen
-                </div>
-              </div>
-
-              <div className="px-4 py-4 sm:px-6">
-                <div
-                  className="
-                    text-xs
-                    uppercase
-                    tracking-wide
-                    text-[#94A3B8]
-                  "
-                >
-                  Access
-                </div>
-
-                <div
-                  className="
-                    mt-1
-                    text-sm
-                    font-semibold
-                    text-white
-                  "
-                >
-                  View Only
-                </div>
-              </div>
-            </div>
-          </section>
+<AttendanceHeader
+  stats={headerStats}
+  onRefresh={loadLessons}
+  canAddMakeup={false}
+  isHistory={true}
+/>
 
           {/* ==================================================
               Loading
@@ -1173,15 +971,20 @@ export default function AdminAttendanceHistoryPage() {
                                         py-1
                                         text-xs
                                         font-semibold
-                                        ${getStatusClasses(
-                                          student.attendance_status
-                                        )}
+                                        ${getStatusClasses
+(
+  student.
+attendance_status,
+  student.
+attendance_type
+)}
                                       `}
                                     >
                                       {
                                         getStatusLabel(
-                                          student.attendance_status
-                                        )
+  student.attendance_status,
+  student.attendance_type
+)
                                       }
                                     </span>
                                   </div>
@@ -1276,15 +1079,20 @@ export default function AdminAttendanceHistoryPage() {
                                         py-1
                                         text-xs
                                         font-semibold
-                                        ${getStatusClasses(
-                                          student.attendance_status
-                                        )}
+                                        ${getStatusClasses
+(
+  student.
+attendance_status,
+  student.
+attendance_type
+)}
                                       `}
                                     >
                                       {
                                         getStatusLabel(
-                                          student.attendance_status
-                                        )
+  student.attendance_status,
+  student.attendance_type
+)
                                       }
                                     </span>
                                   </div>

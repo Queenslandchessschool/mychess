@@ -8,6 +8,7 @@ interface Props {
   isAdmin?: boolean;
   canAddMakeup?: boolean;
   onAddMakeup?: () => void;
+  isHistory?: boolean;
 }
 
 export default function AttendanceHeader({
@@ -16,6 +17,7 @@ export default function AttendanceHeader({
   isAdmin = true,
   canAddMakeup = isAdmin,
   onAddMakeup,
+  isHistory = false,
 }: Props) {
   const {
     totalLessons,
@@ -76,7 +78,7 @@ export default function AttendanceHeader({
                 sm:text-xs
               "
             >
-              ATTENDANCE
+              {isHistory ? "ATTENDANCE HISTORY" : "ATTENDANCE"}
             </p>
 
             <h1
@@ -89,7 +91,7 @@ export default function AttendanceHeader({
                 sm:text-3xl
               "
             >
-              Attendance Management
+              {isHistory ? "Past Attendance" : "Attendance Management"}
             </h1>
 
             <p
@@ -100,7 +102,9 @@ export default function AttendanceHeader({
                 text-[#64748B]
               "
             >
-              Record and manage lesson attendance.
+              {isHistory
+  ? "View completed lesson attendance records."
+  : "Record and manage lesson attendance."}
             </p>
           </div>
 

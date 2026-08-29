@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## 2026-08-29
+Attendance History V2
+- History Header now reuses AttendanceHeader
+- History Add Make-up hidden
+- History header copy updated to Past Attendance
+- Leave presentation corrected:
+  Excused → Leave
+- Present + Excused no longer displayed as Present | Excused
+- Leave styling aligned with Attendance
+- Desktop / Mobile History Leave presentation aligned
+
 ## 2026-08-29 — Attendance Final Acceptance
 
 ### Attendance Lock
