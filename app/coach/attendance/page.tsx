@@ -1592,10 +1592,31 @@ if (
   // - Attendance Type = Make-up
   // ======================================================
 
-  async function addMakeupStudent(
+async function addMakeupStudent(
   student: any
 ) {
   if (!selectedLesson) {
+    return;
+  }
+
+  // ----------------------------------------------------
+  // Coach Attendance Lock
+  //
+  // Frozen rule:
+  // - Attendance remains editable until 23:59 Brisbane.
+  // - At 00:00 Brisbane, Coach cannot make any
+  //   Attendance mutation.
+  // - Admin may continue to modify Attendance.
+  // ----------------------------------------------------
+
+  if (
+    isAttendanceLocked(
+      selectedLesson.lesson_date
+    )
+  ) {
+    await loadStudents(
+      selectedLesson.id
+    );
     return;
   }
 

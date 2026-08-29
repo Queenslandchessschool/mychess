@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## 2026-08-29 — Attendance Final Acceptance
+
+### Attendance Lock
+- Coach Attendance remains editable until the end of the lesson date in Australia/Brisbane time.
+- At 00:00 Brisbane time, Coach Attendance becomes read-only.
+- Admin retains the ability to modify locked Attendance.
+- Locked Coach UI and mutation blocking verified by UAT.
+- Status: PASS / FROZEN
+
+### 8:00 PM Web Reminder Popup
+- Verified with a real today's lesson after 20:00 Brisbane time.
+- Temporarily removed the existing attendance submission record for UAT.
+- Confirmed the Attendance Reminder popup appeared correctly.
+- Confirmed coach name and 11:59 PM lock message were displayed correctly.
+- Original attendance submission record was restored after testing.
+- Status: PASS / FROZEN
+
 2026-08-29 — Development Checkpoint
 
 Attendance
