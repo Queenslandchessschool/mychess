@@ -91,7 +91,7 @@ export default function AttendanceHeader({
                 sm:text-3xl
               "
             >
-              {isHistory ? "Past Attendance" : "Attendance Management"}
+              {isHistory ? "Past Attendances" : "Attendance Management"}
             </h1>
 
             <p

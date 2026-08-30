@@ -293,9 +293,6 @@ export default function ParentFamilyPage() {
   const [success, setSuccess] =
     useState<string | null>(null);
 
-  const [parentEmail, setParentEmail] =
-    useState("");
-
   const [familyStudents, setFamilyStudents] =
     useState<FamilyStudent[]>([]);
 
@@ -358,9 +355,7 @@ export default function ParentFamilyPage() {
         );
       }
 
-      setParentEmail(email);
-
-      /**
+        /**
        * ------------------------------------------------------
        * 2. Resolve Family
        * ------------------------------------------------------
@@ -821,37 +816,9 @@ export default function ParentFamilyPage() {
     }
   }
 
-  /**
-   * ==========================================================
-   * Loading
-   * ==========================================================
-   */
-
-  if (loading) {
-    return (
-      <main className="min-h-screen text-[#10213A]">
-        <div className="mx-auto w-full max-w-[1500px] px-4 py-8 sm:px-6 lg:px-8">
-          <div className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-xl">
-            <div
-              className="
-                h-[5px]
-                bg-gradient-to-r
-                from-[#F7D968]
-                via-[#D4AF37]/70
-                to-transparent
-              "
-            />
-
-            <div className="animate-pulse p-8">
-              <div className="mb-5 h-4 w-28 rounded bg-[#10213A]/10" />
-              <div className="mb-3 h-9 w-64 rounded bg-[#10213A]/10" />
-              <div className="h-4 w-96 rounded bg-[#10213A]/10" />
-            </div>
-          </div>
-        </div>
-      </main>
-    );
-  }
+if (loading) {
+  return <main className="min-h-screen" />;
+}
 
   /**
    * ==========================================================
@@ -876,15 +843,10 @@ export default function ParentFamilyPage() {
             </h1>
 
             <p className="mt-3 max-w-3xl text-sm leading-6 text-[#64748B] sm:text-base">
-              View and update your children&apos;s
-              information.
-            </p>
-
-            {parentEmail && (
-              <div className="mt-3 text-xs text-[#64748B]">
-                Signed in as {parentEmail}
-              </div>
-            )}
+  View and update my{" "}
+  {familyStudents.length === 1 ? "child's" : "children's"}{" "}
+  information.
+</p>
           </div>
 
           {/* ==================================================
@@ -997,9 +959,17 @@ export default function ParentFamilyPage() {
                           <div>
                             <div className="flex flex-wrap items-center gap-3">
 
-                              <h2 className="text-xl font-semibold sm:text-2xl">
-                                Child {index + 1}: {studentName || "Student"}
-                              </h2>
+                              <h2 className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+  <span className="text-[13px] font-semibold uppercase tracking-[0.22em] text-[#D4AF37]">
+    {familyStudents.length === 1
+      ? "CHILD"
+      : `CHILD ${index + 1}`}
+  </span>
+
+  <span className="text-[20px] font-semibold text-[#10213A]">
+    : {studentName || "Student"}
+  </span>
+</h2>
 
                             </div>
 

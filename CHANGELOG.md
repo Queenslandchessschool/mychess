@@ -4,6 +4,120 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## 2026-08-30 — Parent Portal Checkpoint
+
+### Added
+
+- Completed Parent Dashboard current-term data flow.
+- Added parent name resolution and personalised welcome message.
+- Added Family-based child resolution.
+- Added current active enrolment and class resolution.
+- Added actual class schedule integration for Family dates and upcoming lessons.
+- Added upcoming lesson calculation independently for each child.
+- Added four upcoming lessons per child.
+- Completed Parent Attendance data loading from attendance records and lesson information.
+- Added Parent Attendance history presentation.
+- Added attendance status and attendance type display.
+- Added special attendance type display while hiding the default Regular type.
+- Added per-child attendance history limit of 10 records.
+- Added Load More behaviour for extended attendance history.
+
+### Changed
+
+- Unified Child heading presentation across Parent Dashboard, MyFAMILY and Parent Attendance.
+- Single-child display now uses:
+  `CHILD : Student Name`
+- Multiple-child display uses:
+  `CHILD 1 : Student Name`, `CHILD 2 : Student Name`, etc.
+- Improved Child heading visual hierarchy using the MyCHESS Gold accent.
+- Added darker Child heading background on multi-child Dashboard sections.
+- Improved mobile Child / Student name layout.
+- Reduced visual pressure from nested cards in Parent Attendance.
+- Added hover interaction for lesson rows.
+- Added mobile-friendly lesson history presentation.
+- Removed unnecessary Parent email display from MyFAMILY.
+- Removed refresh white-flash behaviour from MyFAMILY.
+- Preserved the global Navy chessboard visual language.
+
+### Fixed
+
+- Fixed Parent Attendance family/student lookup.
+- Fixed student master lookup to use `students.id`.
+- Fixed Parent Attendance loading error caused by incorrect student identifier handling.
+- Fixed Parent Dashboard single-child naming behaviour.
+- Fixed Parent Dashboard upcoming lesson count from two to four lessons per child.
+
+### Frozen
+
+- Parent Dashboard architecture:
+  Parent → Family → Children → Active Enrolment → Class → class_schedule.
+- Australia/Brisbane remains the Parent Portal business timezone.
+- Actual `class_schedule.first_lesson` / `final_lesson` remains the source for class schedule dates.
+- Upcoming lessons are calculated independently per child.
+- Attendance history displays a maximum of 10 records per child before Load More.
+
+### Admin Attendance History
+
+- Completed Admin Attendance History workflow improvements.
+- Added Attendance History Modify functionality.
+- Historical attendance records can now be modified according to the existing attendance business rules.
+- Preserved the frozen attendance time and lock behaviour.
+- Added Attendance History Download functionality.
+- Added Excel export for Attendance History.
+- Export includes lesson and attendance information.
+- Added course / class information to the exported Excel file.
+- Improved exported attendance information for administrative use.
+- Added automatic sequential numbering to exported attendance records.
+- Download button remains labelled simply as `Download`.
+- Verified exported Excel data against the Attendance History page.
+
+### Attendance UI
+
+- Updated shared `AttendanceHeader` presentation.
+- Kept Attendance History UI consistent with the established MyCHESS Attendance visual language.
+- Preserved existing attendance business logic while improving administrative presentation.
+
+### Make-up Credit
+
+- Applied minor UI / presentation adjustments to Parent Make-up Credit.
+- Preserved existing Make-up Credit business logic and functionality.
+
+### Parent Portal
+
+- Completed Parent Dashboard initial implementation and responsive layout.
+- Added personalised parent welcome message.
+- Added Family child resolution.
+- Added current-term class and schedule information.
+- Added upcoming lessons for each child.
+- Upcoming lessons are now displayed as the next four lessons per child.
+- Added single-child and multiple-child display rules.
+- Single child uses `CHILD : Student Name`.
+- Multiple children use `CHILD 1 : Student Name`, `CHILD 2 : Student Name`, etc.
+- Added subtle visual emphasis to multi-child headings.
+- Completed MyFAMILY child heading visual consistency.
+- Removed unnecessary Parent email display from MyFAMILY.
+- Removed refresh white-flash behaviour from MyFAMILY.
+- Started and completed the Parent Attendance page foundation.
+- Added Family-scoped attendance record retrieval.
+- Added lesson date, campus, class level and lesson time information.
+- Added attendance status and attendance type presentation.
+- Regular attendance type is hidden from the Parent UI.
+- Special attendance types such as Trial and Excused remain visible.
+- Added visual differentiation for Present, Absent and Late statuses.
+- Added per-child attendance history display.
+- Limited initial attendance history display to the latest 10 lessons per child.
+- Added independent `Load more` behaviour per child.
+- Added responsive Parent Attendance presentation for desktop and mobile.
+- Unified Child heading presentation across Parent Dashboard, MyFAMILY and Parent Attendance.
+
+### Verification
+
+- `next build` completed successfully with 0 TypeScript problems.
+- Parent Attendance data query successfully returned real attendance records.
+- Parent Attendance Family / Student resolution verified successfully.
+- Admin Attendance History Modify and Download workflow verified.
+- Excel export verified against the corresponding Attendance History records.
+
 ### 2026-08-30 Attendance History V2 — Coach Portal
 
 - Added `/coach/attendance-history`.

@@ -830,8 +830,8 @@ export default function ParentMakeupCreditPage() {
   " 
 > 
   {familyStudents.length === 1
-    ? "Your Child"
-    : "Your Children"}
+    ? "My Child"
+    : "My Children"}
 </h2>
 
             </div>
