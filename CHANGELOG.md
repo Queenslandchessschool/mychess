@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+### 2026-08-30 Attendance History V2 — Coach Portal
+
+- Added `/coach/attendance-history`.
+- History displays completed lessons only.
+- Coach scope is limited to the coach's own classes.
+- Reused the Attendance lesson card, filters, summary, and student attendance presentation.
+- Historical attendance is read-only for Coach.
+- Attendance status is displayed as locked and cannot be edited.
+- History lesson cards display `Completed` / `COMPLETED`.
+- Desktop and mobile layouts verified.
+- Coach History V2 build passed.
+
 ## 2026-08-29
 Attendance History V2
 - History Header now reuses AttendanceHeader
