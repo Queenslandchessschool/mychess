@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## 2026-08-31 — Parent Portal UI & Make-up Booking Checkpoint
+
+### UI / Visual Cleanup
+- Refined Parent Leave page UI and visual presentation.
+- Refined Parent Make-up Credit page UI and visual presentation.
+- Refined Parent Make-up Booking page and booking history layout.
+- Improved responsive presentation across desktop and mobile views.
+- Added campus information to make-up booking lesson records.
+
+### Make-up Booking
+- Improved make-up booking history display.
+- Added lesson campus information to booking records.
+- Refined booking cancellation behaviour.
+- Cancellation is available only while a booking is `Booked` and the lesson has not started.
+- Cancelled bookings no longer display the Cancel action.
+- Bookings for lessons that have already started no longer display the Cancel action.
+- Cancellation correctly returns the associated make-up credit.
+- Preserved the existing Brisbane business-time rules for lesson start/cancellation boundaries.
+
+### Status
+- Parent Leave UI cleanup — PASS
+- Parent Make-up Credit UI cleanup — PASS
+- Parent Make-up Booking UI cleanup — PASS
+- Make-up Booking campus display — PASS
+- Make-up Booking cancellation logic — PASS
+- Cancel button visibility rules — PASS
+- Desktop / Mobile booking history presentation — PASS
+
+### Git Checkpoint
+Previous checkpoint: `96e2f83`
+
 ## 2026-08-30 — Parent Portal Checkpoint
 
 ### Added

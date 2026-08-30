@@ -1326,40 +1326,24 @@ if (row.leaveRecord?.status === "Submitted") {
   // Loading
   // ==========================================================
 
-  if (loading) {
-    return (
-      <main className="min-h-screen text-white">
-        <div
-          className="min-h-screen"
-          style={{
-            backgroundImage: `
-              conic-gradient(
-                #102A4A 25%,
-                #0D2444 0 50%,
-                #102A4A 0 75%,
-                #0D2444 0
-              )
-            `,
-            backgroundSize: "50px 50px",
-          }}
-        >
-          <div className="mx-auto w-full max-w-[1500px] px-4 py-8 sm:px-6 lg:px-8">
-            <div className="relative overflow-hidden rounded-2xl border border-[#D4AF37]/30 bg-[#FFFDF8] p-8 shadow-sm">
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute left-0 right-0 top-0 h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent [clip-path:polygon(0_0,100%_42%,100%_58%,0_100%)]"
-              />
-              <div className="animate-pulse">
-                <div className="mb-4 h-8 w-48 rounded bg-[#10213A]/10" />
-                <div className="mb-2 h-4 w-80 rounded bg-[#10213A]/10" />
-                <div className="h-4 w-64 rounded bg-[#10213A]/10" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </main>
-    );
-  }
+if (loading) {
+  return (
+    <main
+      className="min-h-screen text-white"
+      style={{
+        backgroundImage: `
+          conic-gradient(
+            #102A4A 25%,
+            #0D2444 0 50%,
+            #102A4A 0 75%,
+            #0D2444 0
+          )
+        `,
+        backgroundSize: "50px 50px",
+      }}
+    />
+  );
+}
 
   // ==========================================================
   // Page

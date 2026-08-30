@@ -1,6 +1,7 @@
 "use client";
 
 import { formatBrisbaneDateTime } from "@/lib/date";
+import { getLessonStartTimestamp } from "@/lib/attendanceTime";
 
 import type { MakeupBooking } from "./types";
 
@@ -106,78 +107,118 @@ export default function BookingTable({
                 </tr>
               )}
 
-              {records.map((record) => (
-                <tr
-                  key={record.id}
-                  className="
-                    border-b
-                    border-[#E2E8F0]
-                    last:border-b-0
-                    hover:bg-[#F8FAFC]
-                  "
-                >
-                  <td className="px-4 py-4 text-sm text-[#10213A]">
-                    {record.student_name}
-                  </td>
+              {records.map((record) => {
+                /*
+                 * Cancel is available only when:
+                 *
+                 * 1. Booking status is Booked
+                 * 2. Lesson has NOT started
+                 * 3. Lesson is NOT locked
+                 *
+                 * Once the lesson starts, or once the lesson
+                 * date has passed and becomes LOCKED, Cancel
+                 * must not be available.
+                 */
 
-                  <td className="px-4 py-4 text-sm text-[#475569]">
-                    <div className="max-w-[420px] whitespace-normal break-words">
-                      {record.lesson_name}
-                    </div>
-                    <div className="mt-1 text-sm text-[#64748B]">
-  {record.start_time && record.end_time
-    ? `${record.start_time.slice(0, 5)} – ${record.end_time.slice(0, 5)}`
-    : "—"}
-</div>
-                  </td>
+                const canCancel =
+  record.status === "Booked" &&
+  Date.now() <
+    getLessonStartTimestamp(
+      record.lesson_date,
+      record.start_time
+    );
 
-                  <td className="px-4 py-4 text-sm text-[#10213A]">
-                    {record.status}
-                  </td>
+                return (
+                  <tr
+                    key={record.id}
+                    className="
+                      border-b
+                      border-[#E2E8F0]
+                      last:border-b-0
+                      hover:bg-[#F8FAFC]
+                    "
+                  >
+                    {/* Student */}
+                    <td className="px-4 py-4 text-sm text-[#10213A]">
+                      {record.student_name}
+                    </td>
 
-                  <td className="px-4 py-4 text-sm text-[#475569]">
-                    {formatBrisbaneDateTime(
-                      record.created_at
-                    )}
-                  </td>
+                    {/* Lesson */}
+<td className="px-4 py-4 text-sm text-[#475569]">
+  <div className="max-w-[420px] whitespace-normal break-words">
+    {record.lesson_name}
+  </div>
 
-                  <td className="px-4 py-4 text-sm text-[#475569]">
-                    {formatBrisbaneDateTime(
-                      record.completed_at
-                    )}
-                  </td>
+  <div className="mt-1 text-sm text-[#64748B]">
+    {record.campus_name || "—"}
+    {" · "}
+    {record.start_time &&
+    record.end_time
+      ? `${record.start_time.slice(
+          0,
+          5
+        )} – ${record.end_time.slice(
+          0,
+          5
+        )}`
+      : "—"}
+  </div>
+</td>
 
-                  <td className="px-4 py-4">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onDelete(record)
-                      }
-                      className="
-                        inline-flex
-                        min-h-[40px]
-                        items-center
-                        justify-center
-                        rounded-xl
-                        border
-                        border-red-500
-                        bg-white
-                        px-3
-                        py-2
-                        text-sm
-                        font-medium
-                        text-red-600
-                        transition-all
-                        duration-200
-                        hover:bg-red-50
-                        active:scale-[0.98]
-                      "
-                    >
-                      {actionLabel}
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    {/* Status */}
+                    <td className="px-4 py-4 text-sm text-[#10213A]">
+                      {record.status}
+                    </td>
+
+                    {/* Created */}
+                    <td className="px-4 py-4 text-sm text-[#475569]">
+                      {formatBrisbaneDateTime(
+                        record.created_at
+                      )}
+                    </td>
+
+                    {/* Completed */}
+                    <td className="px-4 py-4 text-sm text-[#475569]">
+                      {formatBrisbaneDateTime(
+                        record.completed_at
+                      )}
+                    </td>
+
+                    {/* Action */}
+                    <td className="px-4 py-4">
+                      {canCancel && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onDelete(record)
+                          }
+                          className="
+                            inline-flex
+                            min-h-[40px]
+                            items-center
+                            justify-center
+                            rounded-xl
+                            border
+                            border-red-500
+                            bg-white
+                            px-3
+                            py-2
+                            text-sm
+                            font-medium
+                            text-red-600
+                            transition-all
+                            duration-200
+                            hover:bg-red-50
+                            active:scale-[0.98]
+                          "
+                        >
+                          {actionLabel}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -209,215 +250,249 @@ export default function BookingTable({
           </div>
         )}
 
-        {records.map((record) => (
-          <article
-            key={record.id}
-            className="
-              rounded-2xl
-              border
-              border-[#D9E0E8]
-              bg-[#FFFDF8]
-              shadow-sm
-            "
-          >
-            <div className="p-5">
-              {/* Student / Status */}
+        {records.map((record) => {
+          /*
+           * Same cancellation rule as Desktop.
+           */
 
-              <div
-                className="
-                  flex
-                  items-start
-                  justify-between
-                  gap-4
-                "
-              >
-                <div className="min-w-0">
-                  <p
-                    className="
-                      text-[11px]
-                      font-semibold
-                      uppercase
-                      tracking-[0.16em]
-                      text-[#64748B]
-                    "
-                  >
-                    Student
-                  </p>
+          const canCancel =
+  record.status === "Booked" &&
+  Date.now() <
+    getLessonStartTimestamp(
+      record.lesson_date,
+      record.start_time
+    );
 
-                  <p
-                    className="
-                      mt-1
-                      truncate
-                      text-base
-                      font-semibold
-                      text-[#10213A]
-                    "
-                  >
-                    {record.student_name}
-                  </p>
-                </div>
-
-                <div className="shrink-0 text-right">
-                  <p
-                    className="
-                      text-[11px]
-                      font-semibold
-                      uppercase
-                      tracking-[0.16em]
-                      text-[#64748B]
-                    "
-                  >
-                    Status
-                  </p>
-
-                  <p
-                    className="
-                      mt-1
-                      text-sm
-                      font-medium
-                      text-[#10213A]
-                    "
-                  >
-                    {record.status}
-                  </p>
-                </div>
-              </div>
-
-              {/* Lesson */}
-
-              <div className="mt-4">
-                <p
-                  className="
-                    text-[11px]
-                    font-semibold
-                    uppercase
-                    tracking-[0.16em]
-                    text-[#64748B]
-                  "
-                >
-                  Lesson
-                </p>
+          return (
+            <article
+              key={record.id}
+              className="
+                rounded-2xl
+                border
+                border-[#D9E0E8]
+                bg-[#FFFDF8]
+                shadow-sm
+              "
+            >
+              <div className="p-5">
+                {/* Student / Status */}
 
                 <div
-  className="
-    mt-1
-    break-words
-    text-sm
-    leading-5
-    text-[#475569]
-  "
->
-  <div>
-    {record.lesson_name}
-  </div>
-
-  <div className="mt-1 text-sm text-[#64748B]">
-    {record.start_time && record.end_time
-      ? `${record.start_time.slice(0, 5)} – ${record.end_time.slice(0, 5)}`
-      : "—"}
-  </div>
-</div>
-              </div>
-
-              {/* Dates */}
-
-              <div
-                className="
-                  mt-4
-                  grid
-                  grid-cols-1
-                  gap-3
-                  sm:grid-cols-2
-                "
-              >
-                <div>
-                  <p
-                    className="
-                      text-[11px]
-                      font-semibold
-                      uppercase
-                      tracking-[0.16em]
-                      text-[#64748B]
-                    "
-                  >
-                    Created
-                  </p>
-
-                  <p
-                    className="
-                      mt-1
-                      text-sm
-                      text-[#475569]
-                    "
-                  >
-                    {formatBrisbaneDateTime(
-                      record.created_at
-                    )}
-                  </p>
-                </div>
-
-                <div>
-                  <p
-                    className="
-                      text-[11px]
-                      font-semibold
-                      uppercase
-                      tracking-[0.16em]
-                      text-[#64748B]
-                    "
-                  >
-                    Completed
-                  </p>
-
-                  <p
-                    className="
-                      mt-1
-                      text-sm
-                      text-[#475569]
-                    "
-                  >
-                    {formatBrisbaneDateTime(
-                      record.completed_at
-                    )}
-                  </p>
-                </div>
-              </div>
-
-              {/* Action */}
-
-              <div className="mt-5">
-                <button
-                  type="button"
-                  onClick={() =>
-                    onDelete(record)
-                  }
                   className="
-                    inline-flex
-                    min-h-[44px]
-                    w-full
-                    items-center
-                    justify-center
-                    rounded-xl
-                    border
-                    border-red-500
-                    bg-white
-                    px-5
-                    py-2.5
-                    text-sm
-                    font-medium
-                    text-red-600
-                    transition-all
-                    duration-200
-                    hover:bg-red-50
-                    active:scale-[0.98]
+                    flex
+                    items-start
+                    justify-between
+                    gap-4
                   "
                 >
-                  {actionLabel}
-                </button>
+                  {/* Student */}
+
+                  <div className="min-w-0">
+                    <p
+                      className="
+                        text-[11px]
+                        font-semibold
+                        uppercase
+                        tracking-[0.16em]
+                        text-[#64748B]
+                      "
+                    >
+                      Student
+                    </p>
+
+                    <p
+                      className="
+                        mt-1
+                        truncate
+                        text-base
+                        font-semibold
+                        text-[#10213A]
+                      "
+                    >
+                      {record.student_name}
+                    </p>
+                  </div>
+
+                  {/* Status */}
+
+                  <div className="shrink-0 text-right">
+                    <p
+                      className="
+                        text-[11px]
+                        font-semibold
+                        uppercase
+                        tracking-[0.16em]
+                        text-[#64748B]
+                      "
+                    >
+                      Status
+                    </p>
+
+                    <p
+                      className="
+                        mt-1
+                        text-sm
+                        font-medium
+                        text-[#10213A]
+                      "
+                    >
+                      {record.status}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Lesson */}
+
+                <div className="mt-4">
+                  <p
+                    className="
+                      text-[11px]
+                      font-semibold
+                      uppercase
+                      tracking-[0.16em]
+                      text-[#64748B]
+                    "
+                  >
+                    Lesson
+                  </p>
+
+                  <div
+                    className="
+                      mt-1
+                      break-words
+                      text-sm
+                      leading-5
+                      text-[#475569]
+                    "
+                  >
+                    {/* Lesson */}
+<div>
+  {record.lesson_name}
+</div>
+
+<div className="mt-1 text-sm text-[#64748B]">
+  {record.campus_name || "—"}
+  {" · "}
+  {record.start_time &&
+  record.end_time
+    ? `${record.start_time.slice(
+        0,
+        5
+      )} – ${record.end_time.slice(
+        0,
+        5
+      )}`
+    : "—"}
+</div>
+                  </div>
+                </div>
+
+                {/* Dates */}
+
+                <div
+                  className="
+                    mt-4
+                    grid
+                    grid-cols-1
+                    gap-3
+                    sm:grid-cols-2
+                  "
+                >
+                  {/* Created */}
+
+                  <div>
+                    <p
+                      className="
+                        text-[11px]
+                        font-semibold
+                        uppercase
+                        tracking-[0.16em]
+                        text-[#64748B]
+                      "
+                    >
+                      Created
+                    </p>
+
+                    <p
+                      className="
+                        mt-1
+                        text-sm
+                        text-[#475569]
+                      "
+                    >
+                      {formatBrisbaneDateTime(
+                        record.created_at
+                      )}
+                    </p>
+                  </div>
+
+                  {/* Completed */}
+
+                  <div>
+                    <p
+                      className="
+                        text-[11px]
+                        font-semibold
+                        uppercase
+                        tracking-[0.16em]
+                        text-[#64748B]
+                      "
+                    >
+                      Completed
+                    </p>
+
+                    <p
+                      className="
+                        mt-1
+                        text-sm
+                        text-[#475569]
+                      "
+                    >
+                      {formatBrisbaneDateTime(
+                        record.completed_at
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Action */}
+
+                {canCancel && (
+                  <div className="mt-5">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onDelete(record)
+                      }
+                      className="
+                        inline-flex
+                        min-h-[44px]
+                        w-full
+                        items-center
+                        justify-center
+                        rounded-xl
+                        border
+                        border-red-500
+                        bg-white
+                        px-5
+                        py-2.5
+                        text-sm
+                        font-medium
+                        text-red-600
+                        transition-all
+                        duration-200
+                        hover:bg-red-50
+                        active:scale-[0.98]
+                      "
+                    >
+                      {actionLabel}
+                    </button>
+                  </div>
+                )}
               </div>
-            </div>
-          </article>
-        ))}
+            </article>
+          );
+        })}
       </div>
     </>
   );

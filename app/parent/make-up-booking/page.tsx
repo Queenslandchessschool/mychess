@@ -35,6 +35,19 @@ export default function MakeupBookingPage() {
       credit_id: "",
       lesson_id: "",
     });
+    
+const [notice, setNotice] = useState<{
+  title: string;
+  message: string;
+} | null>(null);
+
+const [confirmBooking, setConfirmBooking] = useState<{
+  credit: CreditOption;
+  lesson: LessonOption;
+} | null>(null);
+
+const [confirmCancel, setConfirmCancel] =
+  useState<MakeupBooking | null>(null);
 
   /*
    * ============================================================
@@ -327,7 +340,11 @@ export default function MakeupBookingPage() {
     level,
     class_suffix,
     start_time,
-    end_time
+    end_time,
+    campus:campus_id(
+      campus_name,
+      short_name
+    )
   )
 )
       `)
@@ -368,21 +385,28 @@ export default function MakeupBookingPage() {
               ? `${item.students.first_name} ${item.students.last_name}`
               : "",
 
-          lesson_id:
-            item.lesson_id,
+lesson_id: item.lesson_id,
 
-          lesson_name:
-            item.lessons
-              ? `${item.lessons.lesson_date} - ${item.lessons.classes?.level ?? ""} ${item.lessons.classes?.class_suffix ?? ""}`.trim()
-              : "",
+lesson_date:
+  item.lessons?.lesson_date ?? "",
 
-           start_time:
+start_time:
   item.lessons?.classes?.start_time ?? "",
 
 end_time:
   item.lessons?.classes?.end_time ?? "",
 
-          attendance_id:
+campus_name:
+  item.lessons?.classes?.campus?.short_name ||
+  item.lessons?.classes?.campus?.campus_name ||
+  "",
+
+lesson_name:
+  item.lessons
+    ? `${item.lessons.lesson_date} - ${item.lessons.classes?.level ?? ""} ${item.lessons.classes?.class_suffix ?? ""}`
+    : "",
+
+attendance_id:
             item.attendance_id,
 
           status:
@@ -530,110 +554,149 @@ end_time:
    */
 
   async function handleSave() {
-    /*
-     * ----------------------------------------------------------
-     * Step 1 — Validate Credit
-     * ----------------------------------------------------------
-     */
+  /*
+   * ----------------------------------------------------------
+   * Step 1 — Validate Credit
+   * ----------------------------------------------------------
+   */
 
-    if (!form.credit_id) {
-      window.alert(
-        "Please select a make-up credit."
-      );
+  if (!form.credit_id) {
+    setNotice({
+      title: "Make-up Booking",
+      message: "Please select a make-up credit.",
+    });
 
-      return;
-    }
-
-    /*
-     * ----------------------------------------------------------
-     * Step 2 — Validate Lesson
-     * ----------------------------------------------------------
-     */
-
-    if (!form.lesson_id) {
-      window.alert(
-        "Please select a lesson."
-      );
-
-      return;
-    }
-
-    /*
-     * ----------------------------------------------------------
-     * Step 3 — Confirm selected Credit
-     * ----------------------------------------------------------
-     */
-
-    const selectedCredit =
-      credits.find(
-        (credit) =>
-          credit.id ===
-          form.credit_id
-      );
-
-    if (!selectedCredit) {
-      window.alert(
-        "The selected make-up credit is no longer available."
-      );
-
-      return;
-    }
-
-    try {
-      /*
-       * Shared Booking Engine
-       */
-
-      await createMakeupBooking({
-        creditId:
-          form.credit_id,
-
-        lessonId:
-          form.lesson_id,
-      });
-
-      /*
-       * Clear current selection
-       */
-
-      setForm({
-        credit_id: "",
-        lesson_id: "",
-      });
-
-      setLessons([]);
-
-      /*
-       * Refresh both sides of the UI.
-       *
-       * Credit:
-       * Available → Booked
-       *
-       * Booking History:
-       * new Booked record appears immediately
-       */
-
-      await Promise.all([
-        loadFamilyCredits(),
-        loadFamilyBookingRecords(),
-      ]);
-
-      window.alert(
-        "Make-up lesson booked successfully."
-      );
-    } catch (error: any) {
-      console.error(
-        "MAKEUP BOOKING SAVE ERROR:",
-        error
-      );
-
-      window.alert(
-        error?.message ||
-          "Unable to book the make-up lesson."
-      );
-    }
+    return;
   }
 
+  /*
+   * ----------------------------------------------------------
+   * Step 2 — Validate Lesson
+   * ----------------------------------------------------------
+   */
+
+  if (!form.lesson_id) {
+    setNotice({
+      title: "Make-up Booking",
+      message: "Please select a lesson.",
+    });
+
+    return;
+  }
+
+  /*
+   * ----------------------------------------------------------
+   * Step 3 — Resolve selected Credit
+   * ----------------------------------------------------------
+   */
+
+  const selectedCredit =
+    credits.find(
+      (credit) =>
+        credit.id === form.credit_id
+    );
+
+  if (!selectedCredit) {
+    setNotice({
+      title: "Make-up Booking",
+      message:
+        "The selected make-up credit is no longer available.",
+    });
+
+    return;
+  }
+
+  /*
+   * ----------------------------------------------------------
+   * Step 4 — Resolve selected Lesson
+   * ----------------------------------------------------------
+   */
+
+  const selectedLesson =
+    lessons.find(
+      (lesson) =>
+        lesson.id === form.lesson_id
+    );
+
+  if (!selectedLesson) {
+    setNotice({
+      title: "Make-up Booking",
+      message:
+        "The selected lesson is no longer available.",
+    });
+
+    return;
+  }
+
+  /*
+   * ----------------------------------------------------------
+   * Step 5 — Frozen Confirmation Dialog
+   *
+   * Do NOT create the Booking yet.
+   * ----------------------------------------------------------
+   */
+
+  setConfirmBooking({
+    credit: selectedCredit,
+    lesson: selectedLesson,
+  });
+}
+
+async function handleConfirmBooking() {
+  if (!confirmBooking) {
+    return;
+  }
+
+  const {
+    credit,
+    lesson,
+  } = confirmBooking;
+
+  setConfirmBooking(null);
+
+  try {
+    /*
+     * Shared Booking Engine
+     *
+     * Final validation is still owned by
+     * the shared business layer.
+     */
+    await createMakeupBooking({
+      creditId: credit.id,
+      lessonId: lesson.id,
+    });
+
+    setForm({
+      credit_id: "",
+      lesson_id: "",
+    });
+
+    setLessons([]);
+
+    await Promise.all([
+      loadFamilyCredits(),
+      loadFamilyBookingRecords(),
+    ]);
+
+    setNotice({
+      title: "Booking Confirmed",
+      message:
+        "Make-up lesson booked successfully.",
+    });
+  } catch (error: any) {
+    console.error(
+      "MAKEUP BOOKING SAVE ERROR:",
+      error
+    );
+
+    setNotice({
+      title: "Unable to Book Lesson",
+      message:
+        error?.message ||
+        "Unable to book the make-up lesson.",
+    });
+  }
+}
   /*
    * ============================================================
    * Part 3C — Cancel Booking
@@ -641,8 +704,7 @@ end_time:
    *
    * Parent may cancel only before lesson start.
    *
-   * The shared cancellation engine is responsible
-   * for:
+   * The shared cancellation engine is responsible for:
    *
    * - Lesson Start protection
    * - Booking → Cancelled
@@ -652,64 +714,61 @@ end_time:
    * ============================================================
    */
 
-  async function handleBookingCancel(
+  function handleBookingCancel(
     record: MakeupBooking
   ) {
-    const confirmed =
-      window.confirm(
-        "Cancel this make-up booking?\n\nThe make-up credit will be returned because the lesson has not started."
-      );
+    setConfirmCancel(record);
+  }
 
-    if (!confirmed) {
+  async function handleConfirmCancel() {
+    if (!confirmCancel) {
       return;
     }
 
+    const record = confirmCancel;
+
+    setConfirmCancel(null);
+
     try {
       await cancelMakeupBooking({
-        bookingId:
-          record.id,
+        bookingId: record.id,
       });
-
-      /*
-       * Refresh:
-       *
-       * 1. Available Credits
-       * 2. Booking History
-       */
 
       await Promise.all([
         loadFamilyCredits(),
         loadFamilyBookingRecords(),
       ]);
 
-      window.alert(
-        "Make-up booking cancelled successfully."
-      );
+      setNotice({
+        title: "Booking Cancelled",
+        message:
+          "Make-up booking cancelled successfully.",
+      });
     } catch (error: any) {
       console.error(
         "MAKEUP BOOKING CANCEL ERROR:",
         error
       );
 
-      window.alert(
-        error?.message ||
-          "Unable to cancel the make-up booking."
-      );
+      setNotice({
+        title: "Unable to Cancel Booking",
+        message:
+          error?.message ||
+          "Unable to cancel the make-up booking.",
+      });
 
       /*
        * Refresh anyway.
        *
-       * This protects the UI if another
-       * process changed the booking state.
+       * Protects the UI if another process
+       * changed the booking state.
        */
-
       await Promise.all([
         loadFamilyCredits(),
         loadFamilyBookingRecords(),
       ]);
     }
   }
-
   /*
    * ============================================================
    * Form Cancel
@@ -820,7 +879,7 @@ end_time:
           "
         >
           Book an eligible make-up
-          lesson for your child.
+          lesson for my child.
         </p>
       </div>
 
@@ -845,6 +904,436 @@ end_time:
   }
   actionLabel="Cancel"
 />
+
+{notice && (
+  <div
+    className="
+      fixed
+      inset-0
+      z-50
+      flex
+      items-center
+      justify-center
+      bg-[#071A2F]/65
+      px-4
+      backdrop-blur-[2px]
+    "
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="notice-title"
+  >
+    <div
+      className="
+        relative
+        w-full
+        max-w-md
+        overflow-hidden
+        rounded-2xl
+        border
+        border-[#D4AF37]/30
+        bg-[#FFFDF8]
+        text-[#10213A]
+        shadow-2xl
+      "
+    >
+      {/* Gold tapered accent */}
+      <div
+        aria-hidden="true"
+        className="
+          pointer-events-none
+          absolute
+          left-0
+          right-0
+          top-0
+          h-[6px]
+          bg-gradient-to-r
+          from-[#F7D968]
+          via-[#D4AF37]/75
+          to-transparent
+        "
+        style={{
+          clipPath:
+            "polygon(0 0, 100% 42%, 100% 58%, 0 100%)",
+        }}
+      />
+
+      <div className="p-6 sm:p-7">
+        <p
+          className="
+            text-[11px]
+            font-semibold
+            uppercase
+            tracking-[0.2em]
+            text-[#B28A22]
+          "
+        >
+          {notice.title}
+        </p>
+
+        <h2
+          id="notice-title"
+          className="
+            mt-2
+            text-xl
+            font-semibold
+            text-[#10213A]
+          "
+        >
+          {notice.message}
+        </h2>
+
+        <div className="mt-6 flex justify-end">
+          <button
+            type="button"
+            onClick={() => setNotice(null)}
+            className="
+              inline-flex
+              min-h-[44px]
+              items-center
+              justify-center
+              rounded-xl
+              border
+              border-[#D4AF37]
+              bg-[#D4AF37]
+              px-6
+              py-2.5
+              text-sm
+              font-semibold
+              text-[#10213A]
+              shadow-sm
+              transition-all
+              duration-200
+              hover:bg-[#F4D35E]
+              active:scale-[0.98]
+              focus:outline-none
+              focus:ring-2
+              focus:ring-[#D4AF37]/30
+            "
+          >
+            OK
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+
+{confirmBooking && (
+  <div
+    className="
+      fixed
+      inset-0
+      z-50
+      flex
+      items-center
+      justify-center
+      bg-[#071A2F]/65
+      px-4
+      backdrop-blur-[2px]
+    "
+    role="dialog"
+    aria-modal="true"
+  >
+    <div
+      className="
+        relative
+        w-full
+        max-w-lg
+        overflow-hidden
+        rounded-2xl
+        border
+        border-[#D4AF37]/30
+        bg-[#FFFDF8]
+        text-[#10213A]
+        shadow-2xl
+      "
+    >
+      <div
+        aria-hidden="true"
+        className="
+          pointer-events-none
+          absolute
+          left-0
+          right-0
+          top-0
+          h-[6px]
+          bg-gradient-to-r
+          from-[#F7D968]
+          via-[#D4AF37]/75
+          to-transparent
+        "
+        style={{
+          clipPath:
+            "polygon(0 0, 100% 42%, 100% 58%, 0 100%)",
+        }}
+      />
+
+      <div className="p-6 sm:p-7">
+        <p
+          className="
+            text-[11px]
+            font-semibold
+            uppercase
+            tracking-[0.2em]
+            text-[#B28A22]
+          "
+        >
+          MAKE-UP BOOKING
+        </p>
+
+        <h2 className="mt-2 text-2xl font-semibold">
+          Confirm Make-up Booking
+        </h2>
+
+        <p className="mt-4 text-sm leading-6 text-[#64748B]">
+          Are you sure{" "}
+          <span className="font-semibold text-[#10213A]">
+            {confirmBooking.credit.student_name}
+          </span>{" "}
+          can attend this make-up lesson?
+        </p>
+
+        <div
+          className="
+            mt-5
+            rounded-xl
+            border
+            border-[#D9E3ED]
+            bg-[#F5F9FD]
+            p-4
+          "
+        >
+          <p className="text-sm font-semibold text-[#10213A]">
+            {confirmBooking.lesson.campus_name}
+            {" | "}
+            {confirmBooking.lesson.level}
+          </p>
+
+          <p className="mt-1 text-sm text-[#64748B]">
+            {confirmBooking.lesson.lesson_date}
+          </p>
+
+          <p className="mt-1 text-sm text-[#64748B]">
+            {formatLessonTime(
+              confirmBooking.lesson.start_time,
+              confirmBooking.lesson.end_time
+            )}
+          </p>
+        </div>
+
+        <div
+          className="
+            mt-6
+            flex
+            flex-col-reverse
+            gap-3
+            sm:flex-row
+            sm:justify-end
+          "
+        >
+          <button
+            type="button"
+            onClick={() =>
+              setConfirmBooking(null)
+            }
+            className="
+              inline-flex
+              min-h-[44px]
+              items-center
+              justify-center
+              rounded-xl
+              border
+              border-[#D9E0E8]
+              bg-white
+              px-5
+              py-2.5
+              text-sm
+              font-medium
+              text-[#10213A]
+              shadow-sm
+              transition-all
+              hover:bg-[#F8FAFC]
+            "
+          >
+            No
+          </button>
+
+          <button
+            type="button"
+            onClick={handleConfirmBooking}
+            className="
+              inline-flex
+              min-h-[44px]
+              items-center
+              justify-center
+              rounded-xl
+              border
+              border-[#D4AF37]
+              bg-[#D4AF37]
+              px-6
+              py-2.5
+              text-sm
+              font-semibold
+              text-[#10213A]
+              shadow-sm
+              transition-all
+              hover:bg-[#F4D35E]
+            "
+          >
+            Yes, Book Lesson
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+
+{confirmCancel && (
+  <div
+    className="
+      fixed
+      inset-0
+      z-50
+      flex
+      items-center
+      justify-center
+      bg-[#071A2F]/65
+      px-4
+      backdrop-blur-[2px]
+    "
+    role="dialog"
+    aria-modal="true"
+  >
+    <div
+      className="
+        relative
+        w-full
+        max-w-md
+        overflow-hidden
+        rounded-2xl
+        border
+        border-[#D4AF37]/30
+        bg-[#FFFDF8]
+        text-[#10213A]
+        shadow-2xl
+      "
+    >
+      <div
+        aria-hidden="true"
+        className="
+          pointer-events-none
+          absolute
+          left-0
+          right-0
+          top-0
+          h-[6px]
+          bg-gradient-to-r
+          from-[#F7D968]
+          via-[#D4AF37]/75
+          to-transparent
+        "
+        style={{
+          clipPath:
+            "polygon(0 0, 100% 42%, 100% 58%, 0 100%)",
+        }}
+      />
+
+      <div className="p-6 sm:p-7">
+        <p
+          className="
+            text-[11px]
+            font-semibold
+            uppercase
+            tracking-[0.2em]
+            text-[#B28A22]
+          "
+        >
+          MAKE-UP BOOKING
+        </p>
+
+        <h2 className="mt-2 text-2xl font-semibold">
+          Cancel this make-up booking?
+        </h2>
+
+        <p
+          className="
+            mt-4
+            text-sm
+            leading-6
+            text-[#64748B]
+          "
+        >
+          The make-up credit will be returned
+          because the lesson has not started.
+        </p>
+
+        <div
+          className="
+            mt-6
+            flex
+            flex-col-reverse
+            gap-3
+            sm:flex-row
+            sm:justify-end
+          "
+        >
+          <button
+            type="button"
+            onClick={() =>
+              setConfirmCancel(null)
+            }
+            className="
+              inline-flex
+              min-h-[44px]
+              items-center
+              justify-center
+              rounded-xl
+              border
+              border-[#D9E0E8]
+              bg-white
+              px-5
+              py-2.5
+              text-sm
+              font-medium
+              text-[#10213A]
+              shadow-sm
+              transition-all
+              hover:bg-[#F8FAFC]
+            "
+          >
+            Keep Booking
+          </button>
+
+          <button
+            type="button"
+            onClick={handleConfirmCancel}
+            className="
+              inline-flex
+              min-h-[44px]
+              items-center
+              justify-center
+              rounded-xl
+              border
+              border-[#D4AF37]
+              bg-[#D4AF37]
+              px-6
+              py-2.5
+              text-sm
+              font-semibold
+              text-[#10213A]
+              shadow-sm
+              transition-all
+              hover:bg-[#F4D35E]
+            "
+          >
+            Yes, Cancel Booking
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+
       </div>
     </div>
   );

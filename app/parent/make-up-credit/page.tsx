@@ -356,6 +356,15 @@ export default function ParentMakeupCreditPage() {
     );
   }
 
+  const studentsWithCredits = useMemo(
+  () =>
+    familyStudents.filter(
+      (student) =>
+        getCreditsForStudent(student.student.id).length > 0
+    ),
+  [familyStudents, credits]
+);
+
   // ==========================================================
   // Family Credit Summary
   // ==========================================================
@@ -401,52 +410,22 @@ export default function ParentMakeupCreditPage() {
     );
 
   // ==========================================================
-  // Loading
-  // ==========================================================
+// Loading
+// ==========================================================
 
-  if (loading) {
-    return (
-      <main
-        className="
-          min-h-screen
-          bg-[#0B2342]
-          bg-[linear-gradient(45deg,rgba(255,255,255,0.025)_25%,transparent_25%,transparent_75%,rgba(255,255,255,0.025)_75%),linear-gradient(45deg,rgba(255,255,255,0.025)_25%,transparent_25%,transparent_75%,rgba(255,255,255,0.025)_75%)]
-          bg-[length:48px_48px]
-          bg-[position:0_0,24px_24px]
-        "
-      >
-        <div
-  className="
-    mx-auto
-    w-full
-    max-w-[1500px]
-    px-4
-    py-5
-    sm:px-6
-    sm:py-8
-    lg:px-8
-  "
->
-          <div
-            className="
-              rounded-2xl
-              border
-              border-[#D9E0E8]
-              bg-[#FFFDF8]
-              p-6
-              shadow-sm
-              sm:p-7
-            "
-          >
-            <p className="text-sm text-[#64748B]">
-              Loading Make-up Credits...
-            </p>
-          </div>
-        </div>
-      </main>
-    );
-  }
-
+if (loading) {
+  return (
+    <main
+      className="
+        min-h-screen
+        bg-[#0B2342]
+        bg-[linear-gradient(45deg,rgba(255,255,255,0.025)_25%,transparent_25%,transparent_75%,rgba(255,255,255,0.025)_75%),linear-gradient(45deg,rgba(255,255,255,0.025)_25%,transparent_25%,transparent_75%,rgba(255,255,255,0.025)_75%)]
+        bg-[length:48px_48px]
+        bg-[position:0_0,24px_24px]
+      "
+    />
+  );
+}
   // ==========================================================
   // Error
   // ==========================================================
@@ -605,7 +584,7 @@ export default function ParentMakeupCreditPage() {
       sm:text-base
     "
   >
-    View your family's available and used make-up credits.
+    View my family's available and used make-up credits.
   </p>
 
 </header>
@@ -820,16 +799,16 @@ export default function ParentMakeupCreditPage() {
                 FAMILY
               </p>
 
-            <h2 
-  className=" 
-    mt-1 
-    text-xl 
-    font-bold 
-    text-white 
-    sm:text-2xl 
-  " 
-> 
-  {familyStudents.length === 1
+            <h2
+  className="
+    mt-1
+    text-xl
+    font-bold
+    text-white
+    sm:text-2xl
+  "
+>
+  {studentsWithCredits.length === 1
     ? "My Child"
     : "My Children"}
 </h2>
@@ -843,10 +822,10 @@ export default function ParentMakeupCreditPage() {
                 sm:text-sm
               "
             >
-              {familyStudents.length}{" "}
-              {familyStudents.length === 1
-                ? "child"
-                : "children"}
+              {studentsWithCredits.length}{" "}
+{studentsWithCredits.length === 1
+  ? "child"
+  : "children"}
             </p>
 
           </div>
@@ -854,7 +833,7 @@ export default function ParentMakeupCreditPage() {
 
           <div className="space-y-5">
 
-            {familyStudents.map(
+            {studentsWithCredits.map(
   (
     {
       student,
@@ -922,74 +901,76 @@ export default function ParentMakeupCreditPage() {
                       "
                     >
 
-                      {/* Child Header */}
-                      <div
-                        className="
-                          flex
-                          flex-col
-                          gap-2
-                          sm:flex-row
-                          sm:items-center
-                          sm:justify-between
-                        "
-                      >
-
-                        <div>
-
-                          <p
+{/* Child Header */}
+<div
   className="
-    text-[11px]
-    font-semibold
-    uppercase
-    tracking-[0.18em]
-    text-[#B28A22]
+    flex
+    flex-col
+    gap-3
+    sm:flex-row
+    sm:items-center
+    sm:justify-between
   "
 >
-  {familyStudents.length === 1
-  ? "CHILD"
-  : `CHILD ${index + 1}`}
-</p>
+  <div
+    className="
+      flex
+      min-w-0
+      items-baseline
+      gap-3
+    "
+  >
+    <p
+      className="
+        shrink-0
+        text-xs
+        font-semibold
+        uppercase
+        tracking-[0.18em]
+        text-[#B28A22]
+        sm:text-sm
+      "
+    >
+      {studentsWithCredits.length === 1
+        ? "CHILD"
+        : `CHILD ${index + 1}`}
+    </p>
 
-                          <h3
-                            className="
-                              mt-1
-                              text-xl
-                              font-bold
-                              text-[#10213A]
-                              sm:text-2xl
-                            "
-                          >
-                            {getStudentName(
-                              student
-                            )}
-                          </h3>
+    <h3
+      className="
+        min-w-0
+        truncate
+        text-lg
+        font-bold
+        text-[#10213A]
+        sm:text-xl
+      "
+    >
+      {getStudentName(student)}
+    </h3>
+  </div>
 
-                        </div>
+  <div
+    className="
+      inline-flex
+      w-fit
+      items-center
+      rounded-full
+      border
+      border-[#D4AF37]/40
+      bg-[#FFF8DC]
+      px-3
+      py-1
+      text-xs
+      font-semibold
+      text-[#8F6B18]
+    "
+  >
+    {availableCredits.length} Available
+  </div>
+</div>
 
-                        <div
-                          className="
-                            inline-flex
-                            w-fit
-                            items-center
-                            rounded-full
-                            border
-                            border-[#D4AF37]/40
-                            bg-[#FFF8DC]
-                            px-3
-                            py-1
-                            text-xs
-                            font-semibold
-                            text-[#8F6B18]
-                          "
-                        >
-                          {availableCredits.length}{" "}
-                          Available
-                        </div>
-
-                      </div>
-
-
-                      {/* Credit List */}
+{/* Credit List */}
                       <div className="mt-6">
 
                         {studentCredits.length ===
