@@ -514,7 +514,11 @@ async function loadBookings() {
           level,
           class_suffix,
           start_time,
-          end_time
+          end_time,
+          campus:campus_id(
+            campus_name,
+            short_name
+          )
         )
       )
     `)
@@ -541,6 +545,14 @@ async function loadBookings() {
           : "",
 
       lesson_id: item.lesson_id,
+
+      lesson_date:
+        item.lessons?.lesson_date ?? "",
+
+      campus_name:
+        item.lessons?.classes?.campus?.short_name ||
+        item.lessons?.classes?.campus?.campus_name ||
+        "",
 
       lesson_name:
         item.lessons

@@ -956,9 +956,9 @@ export default function TrialManagementPage() {
               {/* ================================================= */}
 
               <div className="hidden overflow-x-auto lg:block">
-  <div className="max-h-[420px] overflow-y-auto">
+  <div className="h-[540px] overflow-y-auto">
     <table className="w-full min-w-[950px]">
-                  <thead>
+                  <thead className="sticky top-0 z-20 bg-[#F4F8FC]">
                     <tr
                       className="
                         bg-[#F4F8FC]
@@ -1011,7 +1011,7 @@ export default function TrialManagementPage() {
               {/* MOBILE / TABLET CARDS                             */}
               {/* ================================================= */}
 
-              <div className="divide-y divide-[#D9E3ED] lg:hidden">
+              <div className="max-h-[600px] overflow-y-auto divide-y divide-[#D9E3ED] lg:hidden">
                 {filteredStudents.map(
                   (student) => (
                     <TrialMobileCard

@@ -44,9 +44,15 @@ type TrialDetails = {
 
   feedbackExists: boolean;
 
+  feedbackComments: string | null;
+  recommendedClassId: string | null;
+  recommendedClassName: string | null;
+  feedbackCreatedAt: string | null;
+  
   trialStatus:
     | "Scheduled"
     | "Feedback Pending"
+    | "Feedback Completed"
     | "Absent";
 };
 
@@ -305,27 +311,88 @@ export default function ManageTrialPage({
        */
 
       let feedbackExists = false;
+let feedbackComments: string | null = null;
+let recommendedClassId: string | null = null;
+let feedbackCreatedAt: string | null = null;
 
-      if (attendance?.id) {
-        const {
-          data: feedback,
-          error: feedbackError,
-        } = await supabase
-          .from("trial_feedback")
-          .select("id")
-          .eq(
-            "attendance_id",
-            attendance.id
-          )
-          .maybeSingle();
+if (attendance?.id) {
+  const {
+    data: feedback,
+    error: feedbackError,
+  } = await supabase
+    .from("trial_feedback")
+    .select(`
+      id,
+      attendance_id,
+      recommended_class_id,
+      comments,
+      created_at
+    `)
+    .eq(
+      "attendance_id",
+      attendance.id
+    )
+    .maybeSingle();
 
-        if (feedbackError) {
-          throw feedbackError;
-        }
+  if (feedbackError) {
+    throw feedbackError;
+  }
 
-        feedbackExists = !!feedback;
-      }
+  if (feedback) {
+    feedbackExists = true;
+    feedbackComments =
+      feedback.comments ?? null;
+    recommendedClassId =
+      feedback.recommended_class_id ?? null;
+    feedbackCreatedAt =
+      feedback.created_at ?? null;
+  }
+}
 
+/**
+ * ------------------------------------------------------
+ * 5A. Resolve Recommended Class
+ *
+ * trial_feedback stores recommended_class_id.
+ * Admin displays the human-readable class label.
+ * ------------------------------------------------------
+ */
+let recommendedClassName: string | null = null;
+
+if (recommendedClassId) {
+  const {
+    data: recommendedClass,
+    error: recommendedClassError,
+  } = await supabase
+    .from("classes")
+    .select(`
+      id,
+      day,
+      class_suffix,
+      level,
+      campuses:campus_id (
+        campus_name
+      )
+    `)
+    .eq("id", recommendedClassId)
+    .maybeSingle();
+
+  if (recommendedClassError) {
+    throw recommendedClassError;
+  }
+
+  const recommendedCampus =
+    (recommendedClass?.campuses as any) ?? null;
+
+  recommendedClassName = [
+    recommendedCampus?.campus_name,
+    recommendedClass?.day,
+    recommendedClass?.level,
+    recommendedClass?.class_suffix,
+  ]
+    .filter(Boolean)
+    .join(" | ");
+}
       /**
        * ------------------------------------------------------
        * 6. Current Trial Status
@@ -337,16 +404,17 @@ export default function ManageTrialPage({
        */
 
       let trialStatus:
-        | "Scheduled"
-        | "Feedback Pending"
-        | "Absent" = "Scheduled";
+  | "Scheduled"
+  | "Feedback Pending"
+  | "Feedback Completed"
+  | "Absent" = "Scheduled";
 
       if (
         attendance?.attendance_status ===
         "Present"
       ) {
         trialStatus = feedbackExists
-          ? "Feedback Pending"
+          ? "Feedback Completed"
           : "Feedback Pending";
       } else if (
         attendance?.attendance_status ===
@@ -434,8 +502,12 @@ export default function ManageTrialPage({
           lesson?.lesson_date ?? null,
 
         feedbackExists,
+feedbackComments,
+recommendedClassId,
+recommendedClassName,
+feedbackCreatedAt,
 
-        trialStatus,
+trialStatus,
       });
     } catch (err: any) {
       console.error(
@@ -978,43 +1050,195 @@ export default function ManageTrialPage({
         {/* ACTION AREA — RESERVED FOR NEXT STEP               */}
         {/* ================================================== */}
 
-        <section
+
+{/* =================================================
+    TRIAL FEEDBACK
+    ================================================= */}
+
+<section
+  className="
+    mt-6
+    overflow-hidden
+    rounded-2xl
+    border
+    border-[#D4AF37]/35
+    bg-[#FFFDF8]
+    shadow-sm
+  "
+>
+  <div
+    className="
+      border-b
+      border-[#D9E0E8]
+      bg-[#F4F8FC]
+      px-5
+      py-4
+      sm:px-6
+    "
+  >
+    <h2
+      className="
+        text-sm
+        font-bold
+        uppercase
+        tracking-[0.12em]
+        text-[#10213A]
+      "
+    >
+      Trial Feedback
+    </h2>
+  </div>
+
+  <div className="p-5 sm:p-6">
+  {details.feedbackExists ? (
+    <div className="space-y-5">
+      <div>
+        <p
           className="
-            mt-6
-            rounded-2xl
-            border
-            border-[#D4AF37]/25
-            bg-[#102B4D]
-            p-5
-            sm:p-6
+            text-[10px]
+            font-semibold
+            uppercase
+            tracking-[0.12em]
+            text-[#64748B]
           "
         >
+          COACH COMMENTS
+        </p>
+
+        <p
+          className="
+            mt-2
+            whitespace-pre-wrap
+            text-sm
+            leading-6
+            text-[#334155]
+          "
+        >
+          {details.feedbackComments || "—"}
+        </p>
+      </div>
+
+      {details.recommendedClassId && (
+        <div>
           <p
             className="
               text-[10px]
               font-semibold
               uppercase
-              tracking-[0.16em]
-              text-[#D4AF37]
+              tracking-[0.12em]
+              text-[#64748B]
             "
           >
-            TRIAL ACTION
+            RECOMMENDED CLASS
           </p>
 
           <p
             className="
-              mt-2
+              mt-1
               text-sm
-              leading-6
-              text-[#B8C6D8]
+              font-medium
+              text-[#10213A]
             "
           >
-            Trial decision and follow-up
-            actions will be available here
-            after the current Trial details
-            workflow is verified.
+            {details.recommendedClassName ||
+              details.recommendedClassId}
           </p>
-        </section>
+        </div>
+      )}
+
+      {details.feedbackCreatedAt && (
+        <div>
+          <p
+            className="
+              text-[10px]
+              font-semibold
+              uppercase
+              tracking-[0.12em]
+              text-[#64748B]
+            "
+          >
+            SUBMITTED
+          </p>
+
+          <p
+            className="
+              mt-1
+              text-sm
+              text-[#334155]
+            "
+          >
+            {new Date(
+              details.feedbackCreatedAt
+            ).toLocaleString("en-AU", {
+              timeZone: "Australia/Brisbane",
+              dateStyle: "medium",
+              timeStyle: "short",
+            })}
+          </p>
+        </div>
+      )}
+    </div>
+  ) : (
+    <div
+      className="
+        rounded-xl
+        border
+        border-[#D9E0E8]
+        bg-white
+        px-5
+        py-5
+      "
+    >
+      <p className="text-sm text-[#64748B]">
+        No feedback submitted yet.
+      </p>
+    </div>
+  )}
+</div>
+</section>
+
+       {/* =================================================
+    TRIAL ACTION
+    ================================================= */}
+
+<section
+  className="
+    mt-6
+    rounded-2xl
+    border
+    border-[#D4AF37]/35
+    bg-[#102F54]
+    px-5
+    py-5
+    shadow-sm
+    sm:px-6
+    sm:py-6
+  "
+>
+  <p
+    className="
+      text-xs
+      font-semibold
+      uppercase
+      tracking-[0.12em]
+      text-[#D4AF37]
+    "
+  >
+    Trial Action
+  </p>
+
+  <p
+    className="
+      mt-2
+      text-sm
+      leading-6
+      text-[#D9E6F2]
+    "
+  >
+    Trial decision and follow-up actions will be available here after
+    the current Trial details workflow is verified.
+  </p>
+</section>
       </div>
     </main>
   );
@@ -1165,6 +1389,7 @@ function StatusBadge({
   status:
     | "Scheduled"
     | "Feedback Pending"
+    | "Feedback Completed"
     | "Absent";
 }) {
   if (status === "Absent") {
@@ -1185,6 +1410,28 @@ function StatusBadge({
         "
       >
         × Absent
+      </span>
+    );
+  }
+
+  if (status === "Feedback Completed") {
+    return (
+      <span
+        className="
+          inline-flex
+          items-center
+          rounded-full
+          border
+          border-emerald-200
+          bg-emerald-50
+          px-3
+          py-1.5
+          text-xs
+          font-semibold
+          text-emerald-700
+        "
+      >
+        ✓ Feedback Completed
       </span>
     );
   }

@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## CHANGELOG — 2026-08-31
+
+Trial Management / Trial Feedback
+
+Completed Coach Trial Feedback workflow UAT.
+Added lesson-start time gating for Trial Feedback.
+Locked Feedback actions before the Trial lesson starts.
+Enabled Feedback entry at lesson start time.
+Preserved Feedback editing for existing completed Feedback.
+Added DEV/UAT Trial Test Clock for controlled time simulation.
+Verified Brisbane lesson-time handling.
+Corrected Recommended Class display from class UUID to human-readable class name.
+Verified Trial Feedback layout on desktop and mobile.
+Verified Admin Trial Detail displays Coach Feedback and Recommended Class correctly.
+Verified Admin Trial Management list and mobile layout.
+Fixed Trial status TypeScript union to support Feedback Completed.
+Resolved unrelated MakeupBooking TypeScript build error.
+npm run build verified successfully after fixes.
+Frozen Coach/Admin Trial responsibility boundary preserved.
+Admin Trial Decision / Follow-up remains the next implementation stage.
+
 ## 2026-08-31 — Parent Portal UI & Make-up Booking Checkpoint
 
 ### UI / Visual Cleanup
