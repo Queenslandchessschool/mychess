@@ -2,13 +2,23 @@
 
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { synchroniseStudentStage } from "@/lib/studentSynchronisation";
 
 /**
  * ============================================================
  * Types
  * ============================================================
  */
+
+type EnrolmentClass = {
+  id: string;
+  day: string;
+  classSuffix: string;
+  level: string;
+  campusName: string;
+};
 
 type TrialDetails = {
   enrollmentId: string;
@@ -120,9 +130,29 @@ export default function ManageTrialPage({
     useState(true);
 
   const [error, setError] =
-    useState("");
+  useState("");
 
-  const { enrollmentId } = use(params);
+  const [showEnrolmentConfirmation, setShowEnrolmentConfirmation] =
+  useState(false);
+
+const [enrolmentStartDate, setEnrolmentStartDate] =
+  useState("");
+
+const [enrolmentClassId, setEnrolmentClassId] =
+  useState("");
+
+const [enrolmentClasses, setEnrolmentClasses] =
+  useState<EnrolmentClass[]>([]);
+
+const [enrolmentClassesLoading, setEnrolmentClassesLoading] =
+  useState(false);
+
+const [actionLoading, setActionLoading] =
+  useState(false);
+
+const { enrollmentId } = use(params);
+
+const router = useRouter();
 
   /**
    * ==========================================================
@@ -153,8 +183,9 @@ export default function ManageTrialPage({
           academic_year,
           term,
           join_date,
-          is_trial,
-          status,
+is_trial,
+trial_status,
+status,
 
           students:student_id (
             id,
@@ -526,6 +557,69 @@ trialStatus,
 
   /**
    * ==========================================================
+   * Load Classes for Formal Enrolment
+   * ==========================================================
+   *
+   * The Coach recommended class is selected by default, but
+   * Admin may choose another current class when confirming
+   * the student's regular enrolment.
+   * ==========================================================
+   */
+
+  async function loadEnrolmentClasses() {
+    setEnrolmentClassesLoading(true);
+
+    try {
+      const {
+        data: classes,
+        error: classesError,
+      } = await supabase
+        .from("classes")
+        .select(`
+          id,
+          day,
+          class_suffix,
+          level,
+
+          campuses:campus_id (
+            campus_name
+          )
+        `)
+        .order("day", {
+          ascending: true,
+        });
+
+      if (classesError) {
+        throw classesError;
+      }
+
+      const result: EnrolmentClass[] =
+        (classes ?? []).map((classRow: any) => ({
+          id: classRow.id,
+          day: classRow.day ?? "",
+          classSuffix: classRow.class_suffix ?? "",
+          level: classRow.level ?? "",
+          campusName: classRow.campuses?.campus_name ?? "",
+        }));
+
+      setEnrolmentClasses(result);
+    } catch (err: any) {
+      console.error(
+        "FORMAL ENROLMENT CLASS LOAD ERROR:",
+        err
+      );
+
+      setError(
+        err?.message ??
+          "Unable to load classes."
+      );
+    } finally {
+      setEnrolmentClassesLoading(false);
+    }
+  }
+
+  /**
+   * ==========================================================
    * Initial Load
    * ==========================================================
    */
@@ -533,6 +627,310 @@ trialStatus,
   useEffect(() => {
     loadTrial();
  }, [enrollmentId]);
+
+   /**
+   * ==========================================================
+   * Confirm Formal Enrolment
+   * ==========================================================
+   *
+   * IMPORTANT FROZEN RULE:
+   *
+   * A Trial Enrolment is a historical record and MUST NOT be
+   * converted into a Regular Enrolment.
+   *
+   * When a Trial student is enrolled:
+   * 1. Keep the original Trial Enrolment.
+   * 2. Mark that Trial record as trial_status = "Enrolled".
+   * 3. Create a NEW Regular Enrolment with is_trial = false.
+   * 4. Use the confirmed class and formal start date for the
+   *    new Regular Enrolment.
+   *
+   * This preserves the Trial history and allows the Trial List
+   * to continue showing the student as an Enrolled Trial.
+   * Historical Trial Attendance / Feedback are untouched.
+   * ==========================================================
+   */
+
+  async function handleConfirmEnrolment() {
+    if (!details || actionLoading) {
+      return;
+    }
+
+    if (!enrolmentClassId) {
+      setError("Please select a class.");
+      return;
+    }
+
+    if (!enrolmentStartDate) {
+      setError("Please select a formal start date.");
+      return;
+    }
+
+    setActionLoading(true);
+    setError("");
+
+    let newRegularEnrollmentId: string | null = null;
+
+    try {
+      /**
+       * --------------------------------------------------------
+       * 1. Guard against duplicate Regular Enrolments
+       * --------------------------------------------------------
+       *
+       * The Trial record remains separate from the Regular
+       * record. Do not create a second Active Regular record
+       * for the same student / academic year / term.
+       * --------------------------------------------------------
+       */
+      const {
+        data: existingRegularEnrollment,
+        error: existingRegularError,
+      } = await supabase
+        .from("student_enrolments")
+        .select("id")
+        .eq("student_id", details.studentId)
+        .eq("academic_year", details.academicYear)
+        .eq("term", details.term)
+        .eq("is_trial", false)
+        .eq("status", "Active")
+        .maybeSingle();
+
+      if (existingRegularError) {
+        throw existingRegularError;
+      }
+
+      if (existingRegularEnrollment?.id) {
+        throw new Error(
+          "An active regular enrolment already exists for this student and term."
+        );
+      }
+
+      /**
+       * --------------------------------------------------------
+       * 2. Create NEW Regular Enrolment
+       * --------------------------------------------------------
+       *
+       * DO NOT update details.enrollmentId here.
+       * details.enrollmentId is the original Trial Enrolment.
+       *
+       * join_date on this new Regular record is the formal
+       * enrolment start date. The original Trial join_date stays
+       * unchanged as the historical Trial date.
+       * --------------------------------------------------------
+       */
+      const {
+        data: newRegularEnrollment,
+        error: insertError,
+      } = await supabase
+        .from("student_enrolments")
+        .insert({
+          student_id: details.studentId,
+          class_id: enrolmentClassId,
+          academic_year: details.academicYear,
+          term: details.term,
+          status: "Active",
+          start_date: enrolmentStartDate,
+          join_date: enrolmentStartDate,
+          is_trial: false,
+          trial_status: null,
+          payment_status: "Pending",
+          payment_amount: null,
+        })
+        .select("id")
+        .single();
+
+      if (insertError) {
+        throw insertError;
+      }
+
+      newRegularEnrollmentId =
+        newRegularEnrollment.id;
+
+      /**
+       * --------------------------------------------------------
+       * 3. Preserve Trial History
+       * --------------------------------------------------------
+       *
+       * Only the Trial status changes.
+       * is_trial remains TRUE.
+       * join_date remains the original Trial date.
+       * --------------------------------------------------------
+       */
+      const {
+        error: trialUpdateError,
+      } = await supabase
+        .from("student_enrolments")
+        .update({
+          trial_status: "Enrolled",
+        })
+        .eq("id", details.enrollmentId)
+        .eq("is_trial", true);
+
+      if (trialUpdateError) {
+        throw trialUpdateError;
+      }
+
+      /**
+       * --------------------------------------------------------
+       * 4. Synchronise Student Stage
+       * --------------------------------------------------------
+       *
+       * The new Active Regular Enrolment is now the current
+       * enrolment source for Student stage synchronisation.
+       * --------------------------------------------------------
+       */
+      await synchroniseStudentStage(
+        details.studentId,
+        details.academicYear,
+        details.term
+      );
+
+      setShowEnrolmentConfirmation(false);
+
+      router.push("/admin/trials");
+      router.refresh();
+    } catch (err: any) {
+      /**
+       * --------------------------------------------------------
+       * Best-effort rollback
+       * --------------------------------------------------------
+       *
+       * If the new Regular Enrolment was created but a later
+       * step failed, remove only that newly-created Regular
+       * record. The original Trial record is never deleted or
+       * converted.
+       * --------------------------------------------------------
+       */
+      if (newRegularEnrollmentId) {
+        const { error: rollbackError } =
+          await supabase
+            .from("student_enrolments")
+            .delete()
+            .eq("id", newRegularEnrollmentId)
+            .eq("is_trial", false);
+
+        if (rollbackError) {
+          console.error(
+            "FORMAL ENROLMENT ROLLBACK ERROR:",
+            rollbackError
+          );
+        }
+      }
+
+      console.error(
+        "FORMAL ENROLMENT ERROR:",
+        err
+      );
+
+      setError(
+        err?.message ??
+          "Unable to confirm formal enrolment."
+      );
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  /**
+   * ==========================================================
+   * Trial Action
+   * ==========================================================
+   *
+   * Not Interested:
+   * - trial_status = Lost
+   * - Student remains Trial
+   *
+   * Follow-up:
+   * - trial_status = Pending
+   * - Student remains Trial
+   *
+   * Enrolled is handled separately by the Formal Enrolment
+   * confirmation flow above.
+   *
+   * Historical Attendance / Feedback are untouched.
+   * ==========================================================
+   */
+
+  async function handleTrialAction(
+    action:
+      | "Not Interested"
+      | "Follow-up"
+  ) {
+    if (!details || actionLoading) {
+      return;
+    }
+
+    setActionLoading(true);
+    setError("");
+
+    try {
+      /**
+       * --------------------------------------------------------
+       * 1. Not Interested
+       * --------------------------------------------------------
+       */
+
+      if (action === "Not Interested") {
+        const {
+          error: updateError,
+        } = await supabase
+          .from("student_enrolments")
+          .update({
+            trial_status: "Lost",
+          })
+          .eq("id", details.enrollmentId);
+
+        if (updateError) {
+          throw updateError;
+        }
+      }
+
+      /**
+       * --------------------------------------------------------
+       * 2. Follow-up
+       * --------------------------------------------------------
+       */
+
+      if (action === "Follow-up") {
+        const {
+          error: updateError,
+        } = await supabase
+          .from("student_enrolments")
+          .update({
+            trial_status: "Pending",
+          })
+          .eq("id", details.enrollmentId);
+
+        if (updateError) {
+          throw updateError;
+        }
+      }
+
+      /**
+       * --------------------------------------------------------
+       * 3. Return to Trial Management
+       * --------------------------------------------------------
+       *
+       * The Trial list will now reflect the updated state.
+       */
+
+      router.push("/admin/trials");
+      router.refresh();
+
+    } catch (err: any) {
+      console.error(
+        "TRIAL ACTION ERROR:",
+        err
+      );
+
+      setError(
+        err?.message ??
+          "Unable to complete Trial action."
+      );
+    } finally {
+      setActionLoading(false);
+    }
+  }
 
   /**
    * ==========================================================
@@ -1227,18 +1625,381 @@ trialStatus,
     Trial Action
   </p>
 
-  <p
+  <div className="mt-4 space-y-3">
+
+  <p className="text-sm text-[#D9E6F2]">
+    Select the trial outcome:
+  </p>
+
+  <div className="grid gap-3 sm:grid-cols-3">
+
+    <button
+  type="button"
+  disabled={actionLoading}
+  onClick={async () => {
+    if (!details) return;
+
+    setEnrolmentClassId(
+      details.recommendedClassId ??
+      details.classId
+    );
+
+    setEnrolmentStartDate("");
+    setShowEnrolmentConfirmation(true);
+
+    await loadEnrolmentClasses();
+  }}
+  className="
+    rounded-xl
+    border
+    border-[#D4AF37]/50
+    bg-white
+    px-4
+    py-3
+    text-sm
+    font-semibold
+    text-[#102F54]
+    shadow-sm
+    hover:bg-[#F7F3E8]
+    disabled:cursor-not-allowed
+    disabled:opacity-60
+  "
+>
+  {actionLoading ? "Saving..." : "Enrolled"}
+</button>
+
+    <button
+  type="button"
+  disabled={actionLoading}
+  onClick={() =>
+    handleTrialAction("Not Interested")
+  }
+  className="
+    rounded-xl
+    border
+    border-[#D4AF37]/50
+    bg-white
+    px-4
+    py-3
+    text-sm
+    font-semibold
+    text-[#102F54]
+    shadow-sm
+    hover:bg-[#F7F3E8]
+    disabled:cursor-not-allowed
+    disabled:opacity-60
+  "
+>
+  {actionLoading ? "Saving..." : "Not Interested"}
+</button>
+
+    <button
+  type="button"
+  disabled={actionLoading}
+  onClick={() =>
+    handleTrialAction("Follow-up")
+  }
+  className="
+    rounded-xl
+    border
+    border-[#D4AF37]/50
+    bg-white
+    px-4
+    py-3
+    text-sm
+    font-semibold
+    text-[#102F54]
+    shadow-sm
+    hover:bg-[#F7F3E8]
+    disabled:cursor-not-allowed
+    disabled:opacity-60
+  "
+>
+  {actionLoading ? "Saving..." : "Follow-up"}
+</button>
+
+  </div>
+
+</div>
+</section>
+
+{showEnrolmentConfirmation && details && (
+  <div
     className="
-      mt-2
-      text-sm
-      leading-6
-      text-[#D9E6F2]
+      fixed
+      inset-0
+      z-50
+      flex
+      items-center
+      justify-center
+      bg-black/50
+      p-4
     "
   >
-    Trial decision and follow-up actions will be available here after
-    the current Trial details workflow is verified.
-  </p>
-</section>
+    <div
+      className="
+        w-full
+        max-w-lg
+        rounded-2xl
+        border
+        border-[#D4AF37]/45
+        bg-[#FFFDF8]
+        p-6
+        shadow-2xl
+      "
+    >
+      <div>
+        <p
+          className="
+            text-xs
+            font-semibold
+            uppercase
+            tracking-[0.12em]
+            text-[#D4AF37]
+          "
+        >
+          Formal Enrolment
+        </p>
+
+        <h2
+          className="
+            mt-2
+            text-xl
+            font-bold
+            text-[#10213A]
+          "
+        >
+          Confirm Enrolment
+        </h2>
+
+        <p
+          className="
+            mt-2
+            text-sm
+            leading-6
+            text-[#64748B]
+          "
+        >
+          Confirm the class and start date for the student&apos;s
+          regular enrolment.
+        </p>
+      </div>
+
+      <div className="mt-6 space-y-5">
+
+        {/* Enrolment Class */}
+
+        <div>
+          <label
+            htmlFor="enrolment-class"
+            className="
+              block
+              text-[10px]
+              font-semibold
+              uppercase
+              tracking-[0.12em]
+              text-[#64748B]
+            "
+          >
+            Enrolment Class
+          </label>
+
+          <select
+            id="enrolment-class"
+            value={enrolmentClassId}
+            onChange={(event) =>
+              setEnrolmentClassId(event.target.value)
+            }
+            disabled={enrolmentClassesLoading}
+            className="
+              mt-2
+              w-full
+              rounded-xl
+              border
+              border-[#CBD5E1]
+              bg-white
+              px-4
+              py-3
+              text-sm
+              text-[#10213A]
+              outline-none
+              focus:border-[#D4AF37]
+              focus:ring-2
+              focus:ring-[#D4AF37]/20
+              disabled:cursor-not-allowed
+              disabled:opacity-60
+            "
+          >
+            {enrolmentClassesLoading ? (
+              <option value="">
+                Loading classes...
+              </option>
+            ) : (
+              <>
+                <option value="">
+                  Select a class
+                </option>
+
+                {enrolmentClasses.map((classItem) => (
+                  <option
+                    key={classItem.id}
+                    value={classItem.id}
+                  >
+                    {[
+                      classItem.campusName,
+                      classItem.day,
+                      classItem.level,
+                      classItem.classSuffix,
+                    ]
+                      .filter(Boolean)
+                      .join(" | ")}
+                    {classItem.id === details.recommendedClassId
+                      ? " (Recommended)"
+                      : ""}
+                  </option>
+                ))}
+              </>
+            )}
+          </select>
+
+          <p
+            className="
+              mt-2
+              text-xs
+              leading-5
+              text-[#64748B]
+            "
+          >
+            The Coach recommended class is selected by default.
+            Admin may choose another suitable class if required.
+          </p>
+        </div>
+
+        {/* Formal Start Date */}
+
+        <div>
+          <label
+            htmlFor="enrolment-start-date"
+            className="
+              block
+              text-[10px]
+              font-semibold
+              uppercase
+              tracking-[0.12em]
+              text-[#64748B]
+            "
+          >
+            Formal Start Date
+          </label>
+
+          <input
+            id="enrolment-start-date"
+            type="date"
+            value={enrolmentStartDate}
+            onChange={(event) =>
+              setEnrolmentStartDate(
+                event.target.value
+              )
+            }
+            className="
+              mt-2
+              w-full
+              rounded-xl
+              border
+              border-[#CBD5E1]
+              bg-white
+              px-4
+              py-3
+              text-sm
+              text-[#10213A]
+              outline-none
+              focus:border-[#D4AF37]
+              focus:ring-2
+              focus:ring-[#D4AF37]/20
+            "
+          />
+
+          <p
+            className="
+              mt-2
+              text-xs
+              leading-5
+              text-[#64748B]
+            "
+          >
+            This is the date the student will begin
+            regular lessons. It may be different from
+            the Trial date.
+          </p>
+        </div>
+
+      </div>
+
+      {/* Actions */}
+
+      <div
+        className="
+          mt-7
+          flex
+          flex-col-reverse
+          gap-3
+          sm:flex-row
+          sm:justify-end
+        "
+      >
+        <button
+          type="button"
+          onClick={() =>
+            setShowEnrolmentConfirmation(false)
+          }
+          className="
+            rounded-xl
+            border
+            border-[#CBD5E1]
+            bg-white
+            px-5
+            py-3
+            text-sm
+            font-semibold
+            text-[#475569]
+            hover:bg-[#F8FAFC]
+          "
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          disabled={
+            !enrolmentStartDate ||
+            !enrolmentClassId ||
+            actionLoading ||
+            enrolmentClassesLoading
+          }
+          onClick={handleConfirmEnrolment}
+          className="
+            rounded-xl
+            bg-[#D4AF37]
+            px-5
+            py-3
+            text-sm
+            font-semibold
+            text-[#10213A]
+            shadow-sm
+            hover:bg-[#F4D35E]
+            disabled:cursor-not-allowed
+            disabled:opacity-50
+          "
+        >
+          {actionLoading
+            ? "Saving..."
+            : "Confirm Enrolment"}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
       </div>
     </main>
   );

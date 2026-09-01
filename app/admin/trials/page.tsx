@@ -27,6 +27,7 @@ type TrialStudent = {
   academic_year: number;
   term: number;
   join_date: string | null;
+  trial_status: string | null;
 
   attendance_id: string | null;
   attendance_status: string | null;
@@ -127,6 +128,7 @@ export default function TrialManagementPage() {
           join_date,
           class_id,
           is_trial,
+          trial_status,
           status,
 
           students:student_id (
@@ -398,10 +400,13 @@ export default function TrialManagementPage() {
               enrollment.term,
 
             join_date:
-              enrollment.join_date ?? null,
+  enrollment.join_date ?? null,
 
-            attendance_id:
-              attendance?.id ?? null,
+trial_status:
+  enrollment.trial_status ?? null,
+
+attendance_id:
+  attendance?.id ?? null,
 
             attendance_status:
               attendance?.attendance_status ??
@@ -981,6 +986,10 @@ export default function TrialManagementPage() {
                         Attendance
                       </th>
 
+                      <th className="px-5 py-4 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#64748B]">
+  Status
+</th>
+
                       <th className="px-5 py-4 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#64748B]">
                         Feedback
                       </th>
@@ -1185,6 +1194,26 @@ function TrialTableRow({
       </td>
 
       <td className="px-5 py-4">
+  <span
+    className="
+      inline-flex
+      items-center
+      rounded-full
+      border
+      border-green-200
+      bg-green-50
+      px-2.5
+      py-1
+      text-[10px]
+      font-semibold
+      text-green-700
+    "
+  >
+    {student.trial_status || "Pending"}
+  </span>
+</td>
+
+      <td className="px-5 py-4">
         <FeedbackBadge
           status={
             student.feedback_status
@@ -1316,6 +1345,10 @@ function TrialMobileCard({
             student.class_level || "—"
           }
         />
+        <InfoItem
+  label="STATUS"
+  value={student.trial_status || "Pending"}
+/>
       </div>
 
       <div

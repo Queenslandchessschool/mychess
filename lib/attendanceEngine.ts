@@ -17,6 +17,7 @@
 // ======================================================
 
 import { supabase } from "@/lib/supabase";
+
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 
@@ -56,6 +57,14 @@ export interface AttendanceReconciliationResult {
 // - Existing Attendance always has priority.
 // - A Booked Make-up Booking is linked to the
 //   Attendance record through attendance_id.
+//
+// Trial Attendance rule:
+// - Regular enrolments enter normally.
+// - Trial enrolments only enter on their Trial Date.
+// - Trial Date = student_enrolments.join_date.
+// - A Trial already marked Enrolled is treated as
+//   Regular for future Attendance.
+// - Historical Trial Attendance remains untouched.
 // ======================================================
 
 export async function reconcileAttendance(
@@ -73,11 +82,12 @@ export async function reconcileAttendance(
   } = await db
     .from("lessons")
     .select(`
-      id,
-      class_id,
-      academic_year,
-      term
-    `)
+  id,
+  class_id,
+  academic_year,
+  term,
+  lesson_date
+`)
     .eq("id", lessonId)
     .single();
 
@@ -97,6 +107,31 @@ export async function reconcileAttendance(
   //
   // This remains the authoritative source for the
   // current Regular / Trial enrolment roster.
+  //
+  // Trial rules are applied below using:
+  // - is_trial
+  // - trial_status
+  // - join_date
+  //
+  // Frozen business rule:
+  //
+  // Regular:
+  //   is_trial = false
+  //   -> enters normally
+  //
+  // Trial, not yet Enrolled:
+  //   is_trial = true
+  //   AND trial_status != "Enrolled"
+  //   -> enters ONLY when:
+  //      join_date = lesson.lesson_date
+  //
+  // Trial already Enrolled:
+  //   is_trial = true
+  //   AND trial_status = "Enrolled"
+  //   -> treated as Regular
+  //
+  // Trial with no join_date:
+  //   -> does not enter Attendance
   // ======================================================
 
   const {
@@ -106,7 +141,9 @@ export async function reconcileAttendance(
     .from("student_enrolments")
     .select(`
       student_id,
-      is_trial
+      is_trial,
+      trial_status,
+      join_date
     `)
     .eq("class_id", lesson.class_id)
     .eq("academic_year", lesson.academic_year)
@@ -117,8 +154,65 @@ export async function reconcileAttendance(
     throw enrolmentError;
   }
 
+
+  // ======================================================
+  // 2B. Filter enrolments eligible for this lesson
+  //
+  // IMPORTANT:
+  //
+  // We intentionally keep the existing Active
+  // Enrolment source and only add the Trial-specific
+  // eligibility rule here.
+  //
+  // This prevents a Trial student from appearing in
+  // every future Attendance lesson after their Trial.
+  // ======================================================
+
   const eligibleEnrolments =
-    enrolments ?? [];
+    (enrolments ?? []).filter(
+      (enrolment: any) => {
+
+        // --------------------------------------------------
+        // Regular enrolment
+        // --------------------------------------------------
+        if (enrolment.is_trial !== true) {
+          return true;
+        }
+
+
+        // --------------------------------------------------
+        // Trial already converted to Regular
+        //
+        // Historical Trial Attendance remains untouched.
+        // Future Attendance is Regular.
+        // --------------------------------------------------
+        if (
+          enrolment.trial_status ===
+          "Enrolled"
+        ) {
+          return true;
+        }
+
+
+        // --------------------------------------------------
+        // Trial not yet Enrolled
+        //
+        // Trial Date is student_enrolments.join_date.
+        //
+        // A Trial student may enter Attendance ONLY
+        // for the lesson on that Trial Date.
+        // --------------------------------------------------
+        if (!enrolment.join_date) {
+          return false;
+        }
+
+
+        return (
+          String(enrolment.join_date) ===
+          String(lesson.lesson_date)
+        );
+      }
+    );
 
 
   // ======================================================
@@ -157,6 +251,7 @@ export async function reconcileAttendance(
     throw makeupBookingError;
   }
 
+
   const bookedMakeupBookings =
     makeupBookings ?? [];
 
@@ -183,6 +278,7 @@ export async function reconcileAttendance(
   if (attendanceError) {
     throw attendanceError;
   }
+
 
   const existingRows =
     existingAttendance ?? [];
@@ -250,6 +346,9 @@ export async function reconcileAttendance(
   // Trial:
   //   attendance_type = "Trial"
   //
+  // Enrolled Trial:
+  //   attendance_type = "Regular"
+  //
   // Regular:
   //   attendance_type = "Regular"
   //
@@ -277,6 +376,7 @@ export async function reconcileAttendance(
       )
       .map(
         (enrolment: any) => ({
+
           lesson_id:
             lessonId,
 
@@ -287,7 +387,9 @@ export async function reconcileAttendance(
             "Present",
 
           attendance_type:
-            enrolment.is_trial === true
+            enrolment.is_trial === true &&
+            enrolment.trial_status !==
+              "Enrolled"
               ? "Trial"
               : "Regular",
 
@@ -327,6 +429,7 @@ export async function reconcileAttendance(
   const makeupAttendanceRows =
     missingMakeupBookings.map(
       (booking: any) => ({
+
         lesson_id:
           lessonId,
 
@@ -366,8 +469,11 @@ export async function reconcileAttendance(
     const {
       error: insertError,
     } = await db
-      .from("attendance")
-      .insert(attendanceRows);
+  .from("attendance")
+  .upsert(attendanceRows, {
+    onConflict: "lesson_id,student_id",
+    ignoreDuplicates: true,
+  });
 
     if (insertError) {
       throw insertError;
@@ -421,6 +527,7 @@ export async function reconcileAttendance(
           row.student_id
         )
       ) {
+
         attendanceByStudent.set(
           row.student_id,
           row
@@ -509,6 +616,7 @@ export async function reconcileAttendance(
   // ======================================================
 
   return {
+
     lessonId,
 
     existingCount:
