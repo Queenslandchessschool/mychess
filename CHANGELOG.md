@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+### CHANGELOG — 2026-09-03
+
+Tuition Configuration — PASS
+
+Added Tuition Configuration management by Academic Year + Term + Class.
+Added Single Lesson Fee, Total Lessons, Calculated Tuition and Standard Tuition.
+Calculated Tuition is automatically derived from Single Lesson Fee × Total Lessons.
+Standard Tuition defaults to Calculated Tuition and supports Admin override.
+Added Tuition Configuration database structure, constraints and Admin RLS policy.
+Added responsive desktop/mobile UI with fixed table header and vertical-only scrolling.
+Tuition Configuration is ready as the common tuition source for future Enrolment, Re-enrolment and Tuition Calculation modules.
 ### CHANGELOG — 2026-09-02
 ## Trial Action & Trial Declined Email — PASS
 
