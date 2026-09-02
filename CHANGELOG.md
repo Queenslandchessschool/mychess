@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+### CHANGELOG — 2026-09-02
+Trial → Formal Enrolment Flow: PASS
+Trial → Reschedule Flow: PASS
+
 /**
  * ============================================================
  * CHANGELOG

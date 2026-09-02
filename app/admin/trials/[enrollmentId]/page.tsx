@@ -150,6 +150,12 @@ const [enrolmentClassesLoading, setEnrolmentClassesLoading] =
 const [actionLoading, setActionLoading] =
   useState(false);
 
+const [showRescheduleModal, setShowRescheduleModal] =
+  useState(false);
+
+const [rescheduleDate, setRescheduleDate] =
+  useState("");
+
 const { enrollmentId } = use(params);
 
 const router = useRouter();
@@ -300,19 +306,21 @@ status,
             };
           })
           .filter(
-            ({ lesson }) =>
-              lesson &&
-              lesson.class_id ===
-                enrollment.class_id &&
-              Number(
-                lesson.academic_year
-              ) ===
-                Number(
-                  enrollment.academic_year
-                ) &&
-              Number(lesson.term) ===
-                Number(enrollment.term)
-          )
+  ({ lesson }) =>
+    lesson &&
+    lesson.class_id ===
+      enrollment.class_id &&
+    Number(
+      lesson.academic_year
+    ) ===
+      Number(
+        enrollment.academic_year
+      ) &&
+    Number(lesson.term) ===
+      Number(enrollment.term) &&
+    String(lesson.lesson_date) ===
+      String(enrollment.join_date)
+)
           .sort((a, b) => {
             const dateA =
               String(
@@ -938,6 +946,78 @@ if (trialUpdateError) {
     }
   }
 
+  /**
+ * ==========================================================
+ * Reschedule Trial
+ * ==========================================================
+ *
+ * Frozen Rule:
+ *
+ * Absent Trial
+ *   ↓
+ * Admin Reschedule
+ *   ↓
+ * New Trial Date
+ *   ↓
+ * Scheduled
+ *
+ * The original Attendance record is historical and is never
+ * deleted or overwritten.
+ *
+ * The Trial join_date becomes the new scheduled Trial date.
+ * This allows the Attendance Engine to create Attendance only
+ * for the newly scheduled Trial lesson.
+ * ==========================================================
+ */
+async function handleRescheduleTrial() {
+  if (!details || actionLoading) {
+    return;
+  }
+
+  if (!rescheduleDate) {
+    setError("Please select a new Trial date.");
+    return;
+  }
+
+  setActionLoading(true);
+  setError("");
+
+  try {
+    const {
+      error: updateError,
+    } = await supabase
+      .from("student_enrolments")
+      .update({
+        join_date: rescheduleDate,
+        trial_status: "Scheduled",
+      })
+      .eq("id", details.enrollmentId)
+      .eq("is_trial", true)
+      .eq("status", "Active");
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    setShowRescheduleModal(false);
+    setRescheduleDate("");
+
+    router.push("/admin/trials");
+    router.refresh();
+  } catch (err: any) {
+    console.error(
+      "TRIAL RESCHEDULE ERROR:",
+      err
+    );
+
+    setError(
+      err?.message ??
+        "Unable to reschedule Trial."
+    );
+  } finally {
+    setActionLoading(false);
+  }
+}
   /**
    * ==========================================================
    * Loading
@@ -1724,6 +1804,33 @@ if (trialUpdateError) {
   {actionLoading ? "Saving..." : "Follow-up"}
 </button>
 
+<button
+  type="button"
+  disabled={actionLoading}
+  onClick={() => {
+    setRescheduleDate("");
+    setError("");
+    setShowRescheduleModal(true);
+  }}
+  className="
+    rounded-xl
+    border
+    border-[#D4AF37]/50
+    bg-white
+    px-4
+    py-3
+    text-sm
+    font-semibold
+    text-[#102F54]
+    shadow-sm
+    hover:bg-[#F7F3E8]
+    disabled:cursor-not-allowed
+    disabled:opacity-60
+  "
+>
+  {actionLoading ? "Saving..." : "Reschedule"}
+</button>
+
   </div>
 
 </div>
@@ -2000,6 +2107,172 @@ if (trialUpdateError) {
           {actionLoading
             ? "Saving..."
             : "Confirm Enrolment"}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+{showRescheduleModal && details && (
+  <div
+    className="
+      fixed
+      inset-0
+      z-50
+      flex
+      items-center
+      justify-center
+      bg-black/50
+      p-4
+    "
+  >
+    <div
+      className="
+        w-full
+        max-w-lg
+        rounded-2xl
+        border
+        border-[#D4AF37]/45
+        bg-[#FFFDF8]
+        p-6
+        shadow-2xl
+      "
+    >
+      <div>
+        <p
+          className="
+            text-xs
+            font-semibold
+            uppercase
+            tracking-[0.12em]
+            text-[#D4AF37]
+          "
+        >
+          Reschedule Trial
+        </p>
+
+        <h2
+          className="
+            mt-2
+            text-xl
+            font-bold
+            text-[#10213A]
+          "
+        >
+          Select a New Trial Date
+        </h2>
+
+        <p
+          className="
+            mt-2
+            text-sm
+            leading-6
+            text-[#64748B]
+          "
+        >
+          The previous Trial Attendance will remain
+          in history. The new date will become the
+          scheduled Trial date.
+        </p>
+      </div>
+
+      <div className="mt-6">
+        <label
+          htmlFor="reschedule-date"
+          className="
+            block
+            text-[10px]
+            font-semibold
+            uppercase
+            tracking-[0.12em]
+            text-[#64748B]
+          "
+        >
+          New Trial Date
+        </label>
+
+        <input
+          id="reschedule-date"
+          type="date"
+          value={rescheduleDate}
+          onChange={(event) =>
+            setRescheduleDate(event.target.value)
+          }
+          className="
+            mt-2
+            w-full
+            rounded-xl
+            border
+            border-[#CBD5E1]
+            bg-white
+            px-4
+            py-3
+            text-sm
+            text-[#10213A]
+            outline-none
+            focus:border-[#D4AF37]
+            focus:ring-2
+            focus:ring-[#D4AF37]/20
+          "
+        />
+      </div>
+
+      <div
+        className="
+          mt-7
+          flex
+          flex-col-reverse
+          gap-3
+          sm:flex-row
+          sm:justify-end
+        "
+      >
+        <button
+          type="button"
+          onClick={() => {
+            setShowRescheduleModal(false);
+            setRescheduleDate("");
+          }}
+          className="
+            rounded-xl
+            border
+            border-[#CBD5E1]
+            bg-white
+            px-5
+            py-3
+            text-sm
+            font-semibold
+            text-[#475569]
+            hover:bg-[#F8FAFC]
+          "
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          disabled={
+            !rescheduleDate ||
+            actionLoading
+          }
+          onClick={handleRescheduleTrial}
+          className="
+            rounded-xl
+            bg-[#D4AF37]
+            px-5
+            py-3
+            text-sm
+            font-semibold
+            text-[#10213A]
+            shadow-sm
+            hover:bg-[#F4D35E]
+            disabled:cursor-not-allowed
+            disabled:opacity-50
+          "
+        >
+          {actionLoading
+            ? "Saving..."
+            : "Confirm Reschedule"}
         </button>
       </div>
     </div>
