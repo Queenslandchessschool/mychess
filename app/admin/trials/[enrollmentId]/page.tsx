@@ -747,44 +747,50 @@ trialStatus,
         newRegularEnrollment.id;
 
       /**
-       * --------------------------------------------------------
-       * 3. Preserve Trial History
-       * --------------------------------------------------------
-       *
-       * Only the Trial status changes.
-       * is_trial remains TRUE.
-       * join_date remains the original Trial date.
-       * --------------------------------------------------------
-       */
-      const {
-        error: trialUpdateError,
-      } = await supabase
-        .from("student_enrolments")
-        .update({
-          trial_status: "Enrolled",
-        })
-        .eq("id", details.enrollmentId)
-        .eq("is_trial", true);
+ * --------------------------------------------------------
+ * 3. Synchronise Student Stage
+ * --------------------------------------------------------
+ *
+ * The new Active Regular Enrolment is now the current
+ * enrolment source for Student stage synchronisation.
+ *
+ * This must succeed before the original Trial is marked
+ * as Enrolled.
+ * --------------------------------------------------------
+ */
+await synchroniseStudentStage(
+  details.studentId,
+  details.academicYear,
+  details.term
+);
 
-      if (trialUpdateError) {
-        throw trialUpdateError;
-      }
+/**
+ * --------------------------------------------------------
+ * 4. Preserve Trial History
+ * --------------------------------------------------------
+ *
+ * Only the Trial status changes.
+ * is_trial remains TRUE.
+ * join_date remains the original Trial date.
+ *
+ * This is intentionally performed only after the new
+ * Regular Enrolment and Student Stage synchronisation
+ * have both succeeded.
+ * --------------------------------------------------------
+ */
+const {
+  error: trialUpdateError,
+} = await supabase
+  .from("student_enrolments")
+  .update({
+    trial_status: "Enrolled",
+  })
+  .eq("id", details.enrollmentId)
+  .eq("is_trial", true);
 
-      /**
-       * --------------------------------------------------------
-       * 4. Synchronise Student Stage
-       * --------------------------------------------------------
-       *
-       * The new Active Regular Enrolment is now the current
-       * enrolment source for Student stage synchronisation.
-       * --------------------------------------------------------
-       */
-      await synchroniseStudentStage(
-        details.studentId,
-        details.academicYear,
-        details.term
-      );
-
+if (trialUpdateError) {
+  throw trialUpdateError;
+}
       setShowEnrolmentConfirmation(false);
 
       router.push("/admin/trials");

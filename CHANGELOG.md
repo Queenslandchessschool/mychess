@@ -4,6 +4,122 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+/**
+ * ============================================================
+ * CHANGELOG
+ * ============================================================
+ *
+ * 2026-09-02
+ *
+ * Trial → Formal Enrolment
+ *
+ * - Trial join_date remains the original Trial Lesson Date.
+ *
+ * - Formal Start Date is entered manually by Admin.
+ *
+ * - Enrolling a Trial must preserve the original Trial history.
+ *
+ * - The Trial record must not be deleted as part of the
+ *   Enrolment process.
+ *
+ * - A Regular enrolment is created for the formal enrolment
+ *   period.
+ *
+ * - The original Trial record is marked as Enrolled.
+ *
+ * - Future Attendance must be treated as Regular and must not
+ *   display the Trial marker.
+ *
+ * IMPORTANT:
+ * - Do not automatically replace the Trial join_date with the
+ *   Formal Start Date.
+ * - Do not remove historical Trial records.
+ *
+ * Remaining UAT:
+ * - Complete Trial → Enrolled flow using STU0138.
+ * - Verify Trial remains visible with status "Enrolled".
+ * - Verify Regular Attendance is generated from the Formal Start
+ *   Date without a Trial marker.
+ *
+ * ============================================================
+ */
+
+/**
+ * ============================================================
+ * CHANGELOG
+ * ============================================================
+ *
+ * 2026-09-02
+ *
+ * Trial Management
+ *
+ * - Trial records must remain visible in Trial Management after
+ *   the Trial has been marked as Enrolled.
+ *
+ * - trial_status is used to represent the Trial outcome.
+ *
+ * - Enrolled is a Trial outcome/history state and must not cause
+ *   the original Trial record to be deleted.
+ *
+ * - Historical Trial records must remain available for review.
+ *
+ * UAT STATUS:
+ * - Trial List: PASS
+ * - Trial Status Display: PASS
+ *
+ * Remaining UAT:
+ * - Confirm that an Enrolled Trial remains visible in the list
+ *   after Formal Enrolment is completed.
+ *
+ * ============================================================
+ */
+
+/**
+ * ============================================================
+ * CHANGELOG
+ * ============================================================
+ *
+ * 2026-09-02
+ *
+ * Trial Attendance & Reconciliation Stabilisation
+ *
+ * - Confirmed Trial join_date represents the Trial Lesson Date.
+ *
+ * - Trial students with:
+ *     is_trial = true
+ *     AND trial_status != "Enrolled"
+ *   are eligible for Attendance only on their join_date lesson.
+ *
+ * - Once a Trial is Enrolled, future Attendance is treated as
+ *   Regular and must not display the Trial marker.
+ *
+ * - Existing Trial Attendance and historical records must be
+ *   preserved.
+ *
+ * - Preserved the database uniqueness rule:
+ *     UNIQUE (lesson_id, student_id)
+ *   for Attendance records.
+ *
+ * - Changed Attendance reconciliation from a plain INSERT to a
+ *   conflict-safe UPSERT with ignoreDuplicates.
+ *
+ * - This prevents duplicate-key errors when Admin, Coach, or
+ *   automated reconciliation processes run concurrently.
+ *
+ * - Existing Attendance records are never overwritten.
+ *
+ * UAT STATUS:
+ * - Admin Attendance: PASS
+ * - Coach Attendance: PASS
+ *
+ * Remaining UAT:
+ * - Trial → Enrolled lifecycle
+ * - Trial Management retention after Enrolled
+ * - Regular Attendance after Formal Start Date
+ *
+ * ============================================================
+ */
+
 ## CHANGELOG — 2026-08-31
 
 Trial Management / Trial Feedback
