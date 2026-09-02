@@ -156,6 +156,9 @@ const [showRescheduleModal, setShowRescheduleModal] =
 const [rescheduleDate, setRescheduleDate] =
   useState("");
 
+const [showAbsentActionModal, setShowAbsentActionModal] =
+  useState(false);
+
 const { enrollmentId } = use(params);
 
 const router = useRouter();
@@ -885,19 +888,92 @@ if (trialUpdateError) {
        */
 
       if (action === "Not Interested") {
-        const {
-          error: updateError,
-        } = await supabase
-          .from("student_enrolments")
-          .update({
-            trial_status: "Lost",
-          })
-          .eq("id", details.enrollmentId);
+  const {
+    error: updateError,
+  } = await supabase
+    .from("student_enrolments")
+    .update({
+      trial_status: "Lost",
+    })
+    .eq("id", details.enrollmentId);
 
-        if (updateError) {
-          throw updateError;
-        }
-      }
+  if (updateError) {
+    throw updateError;
+  }
+
+  /**
+   * --------------------------------------------------------
+   * Trial Declined Email
+   * --------------------------------------------------------
+   *
+   * The Trial status must be successfully changed to Lost
+   * before the email is sent.
+   *
+   * Email notification never controls business state.
+   * --------------------------------------------------------
+   */
+
+  const {
+    data: parent,
+    error: parentError,
+  } = await supabase
+    .from("parents")
+    .select(`
+      parent1_name,
+      email
+    `)
+    .eq("student_id", details.studentId)
+    .maybeSingle();
+
+  if (parentError) {
+    throw parentError;
+  }
+
+  if (!parent?.email) {
+    throw new Error(
+      "Parent email address could not be found."
+    );
+  }
+
+  const parentName =
+    parent.parent1_name?.trim() ||
+    "Parent";
+
+  const studentName =
+    getDisplayedStudentName({
+      firstName: details.firstName,
+      preferredName: details.preferredName,
+      lastName: details.lastName,
+    });
+
+  const emailResponse = await fetch(
+    "/api/email/trial-declined",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        parentName,
+        parentEmail: parent.email,
+        studentName,
+      }),
+    }
+  );
+
+  if (!emailResponse.ok) {
+    const emailError =
+      await emailResponse.json().catch(() => null);
+
+    throw new Error(
+      emailError?.error
+        ? typeof emailError.error === "string"
+          ? emailError.error
+          : "Trial Declined email could not be sent."
+        : "Trial Declined email could not be sent."
+    );
+  }
+}
 
       /**
        * --------------------------------------------------------
@@ -1013,6 +1089,47 @@ async function handleRescheduleTrial() {
     setError(
       err?.message ??
         "Unable to reschedule Trial."
+    );
+  } finally {
+    setActionLoading(false);
+  }
+}
+
+async function handleMarkTrialLost() {
+  if (!details || actionLoading) {
+    return;
+  }
+
+  setActionLoading(true);
+  setError("");
+
+  try {
+    const { error: updateError } = await supabase
+      .from("student_enrolments")
+      .update({
+        trial_status: "Lost",
+      })
+      .eq("id", details.enrollmentId)
+      .eq("is_trial", true)
+      .eq("status", "Active");
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    setShowAbsentActionModal(false);
+
+    router.push("/admin/trials");
+    router.refresh();
+  } catch (err: any) {
+    console.error(
+      "TRIAL MARK LOST ERROR:",
+      err
+    );
+
+    setError(
+      err?.message ??
+        "Unable to mark Trial as Lost."
     );
   } finally {
     setActionLoading(false);
@@ -1717,7 +1834,7 @@ async function handleRescheduleTrial() {
     Select the trial outcome:
   </p>
 
-  <div className="grid gap-3 sm:grid-cols-3">
+  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
 
     <button
   type="button"
@@ -1808,9 +1925,8 @@ async function handleRescheduleTrial() {
   type="button"
   disabled={actionLoading}
   onClick={() => {
-    setRescheduleDate("");
     setError("");
-    setShowRescheduleModal(true);
+    setShowAbsentActionModal(true);
   }}
   className="
     rounded-xl
@@ -1828,7 +1944,7 @@ async function handleRescheduleTrial() {
     disabled:opacity-60
   "
 >
-  {actionLoading ? "Saving..." : "Reschedule"}
+  {actionLoading ? "Saving..." : "Absent"}
 </button>
 
   </div>
@@ -2273,6 +2389,158 @@ async function handleRescheduleTrial() {
           {actionLoading
             ? "Saving..."
             : "Confirm Reschedule"}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+{showAbsentActionModal && details && (
+  <div
+    className="
+      fixed
+      inset-0
+      z-50
+      flex
+      items-center
+      justify-center
+      bg-black/50
+      p-4
+    "
+  >
+    <div
+      className="
+        w-full
+        max-w-lg
+        rounded-2xl
+        border
+        border-[#D4AF37]/45
+        bg-[#FFFDF8]
+        p-6
+        shadow-2xl
+      "
+    >
+      <div>
+        <p
+          className="
+            text-xs
+            font-semibold
+            uppercase
+            tracking-[0.12em]
+            text-[#D4AF37]
+          "
+        >
+          Trial Action
+        </p>
+
+        <h2
+          className="
+            mt-2
+            text-xl
+            font-bold
+            text-[#10213A]
+          "
+        >
+          Trial marked Absent
+        </h2>
+
+        <p
+          className="
+            mt-2
+            text-sm
+            leading-6
+            text-[#64748B]
+          "
+        >
+          What would you like to do next?
+        </p>
+      </div>
+
+      <div
+        className="
+          mt-6
+          grid
+          grid-cols-1
+          gap-3
+          sm:grid-cols-2
+        "
+      >
+        <button
+          type="button"
+          disabled={actionLoading}
+          onClick={() => {
+            setShowAbsentActionModal(false);
+            setRescheduleDate("");
+            setError("");
+            setShowRescheduleModal(true);
+          }}
+          className="
+            rounded-xl
+            border
+            border-[#D4AF37]/60
+            bg-white
+            px-5
+            py-3
+            text-sm
+            font-semibold
+            text-[#102F54]
+            shadow-sm
+            hover:bg-[#F7F3E8]
+            disabled:cursor-not-allowed
+            disabled:opacity-60
+          "
+        >
+          Reschedule
+        </button>
+
+        <button
+          type="button"
+          disabled={actionLoading}
+          onClick={handleMarkTrialLost}
+          className="
+            rounded-xl
+            border
+            border-[#D4AF37]/60
+            bg-white
+            px-5
+            py-3
+            text-sm
+            font-semibold
+            text-[#102F54]
+            shadow-sm
+            hover:bg-[#F7F3E8]
+            disabled:cursor-not-allowed
+            disabled:opacity-60
+          "
+        >
+          {actionLoading ? "Saving..." : "Mark as Lost"}
+        </button>
+      </div>
+
+      <div className="mt-4 flex justify-end">
+        <button
+          type="button"
+          disabled={actionLoading}
+          onClick={() => {
+            setShowAbsentActionModal(false);
+            setError("");
+          }}
+          className="
+            rounded-xl
+            border
+            border-[#CBD5E1]
+            bg-white
+            px-5
+            py-3
+            text-sm
+            font-semibold
+            text-[#475569]
+            hover:bg-[#F8FAFC]
+            disabled:cursor-not-allowed
+            disabled:opacity-60
+          "
+        >
+          Cancel
         </button>
       </div>
     </div>

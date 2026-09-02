@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 ---
 
 ### CHANGELOG — 2026-09-02
+## Trial Action & Trial Declined Email — PASS
+
+- Trial Reschedule action completed.
+- Absent Trial action modal completed with Reschedule / Mark as Lost options.
+- Historical Trial Attendance is preserved when a Trial is rescheduled.
+- Trial Declined Email implemented through Resend.
+- Trial Declined Email template and standard footer implemented.
+- Fresh Trial UAT completed successfully.
+- Production build passed.
 Trial → Formal Enrolment Flow: PASS
 Trial → Reschedule Flow: PASS
 
