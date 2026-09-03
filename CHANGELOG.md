@@ -4,6 +4,62 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+---
+
+### CHANGELOG — 2026-09-04
+
+## Special Arrangement — PASS
+
+- Completed Admin Special Arrangement management for formal Active Enrolments.
+- Trial Enrolments are excluded from Special Arrangement selection.
+- Added Special Arrangement affected-lesson mapping for future lessons.
+- Added Active Special Arrangement overlap protection.
+- Added conflict protection between Special Arrangement and Submitted Parent Leave.
+- Parent Leave correctly displays Special Arrangement protection for the affected child and lesson.
+- Special Arrangement lessons are presented as Holiday in Attendance.
+- Special Arrangement remains separate from normal Parent Leave.
+- Cancelled Special Arrangements remain available as historical records.
+- Admin Special Arrangement UI follows the established MyCHESS visual language.
+- Existing Arrangements list uses controlled vertical scrolling.
+- Custom MyCHESS confirmation popup is used instead of browser-native confirmation.
+- Desktop and mobile presentation verified.
+- Production build passed.
+
+### Re-enrolment — Recommended Class — PASS
+
+- Added Admin Re-enrolment Recommendation management.
+- Added target Academic Year and Term selection.
+- Recommendations are stored separately from completed `student_enrolments`.
+- Current active formal class is used as the default recommendation.
+- Trial Enrolments are excluded from the Admin recommendation workflow.
+- Admin can change and save the Recommended Class.
+- Existing recommendations can be searched and edited.
+- Recommendation data persists after page refresh.
+- Recommended Class is displayed separately from Current Class.
+- Parent-facing Re-enrolment page displays the Recommended Class when a recommendation exists.
+- Recommended Class selection uses a searchable dropdown.
+- Existing Recommendations uses controlled vertical scrolling with a sticky table header.
+- Horizontal scrolling is avoided in the recommendation list.
+- Desktop and mobile presentation verified.
+- Production build passed.
+
+### Scope Boundary
+
+- Re-enrolment Parent submission workflow is not yet complete.
+- Payment verification is not yet implemented as part of this checkpoint.
+- Tuition calculation / payment completion integration remains pending.
+- Make-up Credit rollover remains pending.
+- Admin Complete / final `student_enrolments` creation remains pending.
+- Re-enrolment email workflow remains pending.
+
+### Status
+
+- Special Arrangement Admin: PASS
+- Special Arrangement / Parent Leave protection: PASS
+- Re-enrolment Recommended Class Admin: PASS
+- Re-enrolment Parent UI foundation: PASS
+- Full Re-enrolment workflow: IN PROGRESS
+
 ### CHANGELOG — 2026-09-03
 
 Tuition Configuration — PASS

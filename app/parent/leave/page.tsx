@@ -54,6 +54,7 @@ type Student = {
 };
 
 type Enrollment = {
+  id: string;
   student_id: string;
   class_id: string;
   academic_year: number | string;
@@ -93,6 +94,7 @@ type LessonRow = {
   student: Student;
   enrollment: Enrollment;
   leaveRecord?: LeaveRecord;
+  specialArrangement?: boolean;
 };
 
 type LeaveReason = "Sick" | "Holiday" | "Family" | "Other";
@@ -499,6 +501,7 @@ export default function ParentLeavePage() {
       } = await supabase
         .from("student_enrolments")
         .select(`
+          id,
           student_id,
           class_id,
           academic_year,
@@ -759,6 +762,113 @@ export default function ParentLeavePage() {
         }
       }
 
+      // ------------------------------------------------------
+      // 12. Load Active Special Arrangements
+      //
+      // Special Arrangement is mutually exclusive with Parent
+      // Leave for the same Student + Lesson.
+      // ------------------------------------------------------
+
+      const activeEnrollmentIds =
+        Array.from(
+          new Set(
+            activeEnrollments.map(
+              (enrollment) =>
+                enrollment.id
+            )
+          )
+        );
+
+      let specialArrangementLessonKeys =
+        new Set<string>();
+
+      if (
+        activeEnrollmentIds.length > 0
+      ) {
+        const {
+          data: arrangementData,
+          error: arrangementError,
+        } = await supabase
+          .from("special_arrangements")
+          .select(`
+            id,
+            student_enrolment_id
+          `)
+          .in(
+            "student_enrolment_id",
+            activeEnrollmentIds
+          )
+          .eq(
+            "status",
+            "Active"
+          );
+
+        if (arrangementError) {
+          throw arrangementError;
+        }
+
+        const arrangementIds =
+          (arrangementData ?? []).map(
+            (item: any) =>
+              item.id
+          );
+
+        if (
+          arrangementIds.length > 0
+        ) {
+          const {
+            data: arrangementLessons,
+            error: arrangementLessonError,
+          } = await supabase
+            .from(
+              "special_arrangement_lessons"
+            )
+            .select(`
+              lesson_id,
+              special_arrangement_id
+            `)
+            .in(
+              "special_arrangement_id",
+              arrangementIds
+            );
+
+          if (
+            arrangementLessonError
+          ) {
+            throw arrangementLessonError;
+          }
+
+          const arrangementEnrollmentMap =
+            new Map<string, string>();
+
+          for (
+            const arrangement of
+              arrangementData ?? []
+          ) {
+            arrangementEnrollmentMap.set(
+              arrangement.id,
+              arrangement.student_enrolment_id
+            );
+          }
+
+          for (
+            const row of
+              arrangementLessons ?? []
+          ) {
+            const enrollmentId =
+              arrangementEnrollmentMap.get(
+                row.special_arrangement_id
+              );
+
+            if (enrollmentId) {
+              specialArrangementLessonKeys.add(
+                `${enrollmentId}:${row.lesson_id}`
+              );
+            }
+          }
+        }
+      }
+
       const rowsWithLeave =
         finalRows.map(
           (row) => {
@@ -769,6 +879,10 @@ export default function ParentLeavePage() {
               ...row,
               leaveRecord:
                 leaveMap.get(key),
+              specialArrangement:
+                specialArrangementLessonKeys.has(
+                  `${row.enrollment.id}:${row.lesson.id}`
+                ),
             };
           }
         );
@@ -1037,7 +1151,139 @@ if (row.leaveRecord?.status !== "Submitted") {
       }
 
       // ------------------------------------------------------
-      // 3. Business deadline check
+      // 3. Special Arrangement conflict check
+      //
+      // Re-check immediately before writing Leave records.
+      // This protects against an Admin creating a Special
+      // Arrangement after the Parent page was loaded.
+      // ------------------------------------------------------
+
+      const selectedEnrollmentIds =
+        Array.from(
+          new Set(
+            selectedRows.map(
+              (row) =>
+                row.enrollment.id
+            )
+          )
+        );
+
+      const selectedLessonIds =
+        selectedRows.map(
+          (row) => row.lesson.id
+        );
+
+      const {
+        data: activeArrangements,
+        error: activeArrangementError,
+      } = await supabase
+        .from("special_arrangements")
+        .select(`
+          id,
+          student_enrolment_id
+        `)
+        .in(
+          "student_enrolment_id",
+          selectedEnrollmentIds
+        )
+        .eq(
+          "status",
+          "Active"
+        );
+
+      if (activeArrangementError) {
+        throw activeArrangementError;
+      }
+
+      const activeArrangementIds =
+        (activeArrangements ?? []).map(
+          (item: any) => item.id
+        );
+
+      if (
+        activeArrangementIds.length > 0
+      ) {
+        const {
+          data: conflictMappings,
+          error: conflictMappingError,
+        } = await supabase
+          .from(
+            "special_arrangement_lessons"
+          )
+          .select(`
+            lesson_id,
+            special_arrangement_id
+          `)
+          .in(
+            "special_arrangement_id",
+            activeArrangementIds
+          )
+          .in(
+            "lesson_id",
+            selectedLessonIds
+          );
+
+        if (conflictMappingError) {
+          throw conflictMappingError;
+        }
+
+        if (
+          conflictMappings &&
+          conflictMappings.length > 0
+        ) {
+          const conflictArrangementIds =
+            new Set(
+              conflictMappings.map(
+                (item: any) =>
+                  item.special_arrangement_id
+              )
+            );
+
+          const conflictEnrollmentIds =
+            new Set(
+              (activeArrangements ?? [])
+                .filter(
+                  (item: any) =>
+                    conflictArrangementIds.has(
+                      item.id
+                    )
+                )
+                .map(
+                  (item: any) =>
+                    item.student_enrolment_id
+                )
+            );
+
+          const conflictRow =
+            selectedRows.find(
+              (row) =>
+                conflictEnrollmentIds.has(
+                  row.enrollment.id
+                ) &&
+                conflictMappings.some(
+                  (mapping: any) =>
+                    mapping.lesson_id ===
+                      row.lesson.id &&
+                    conflictArrangementIds.has(
+                      mapping.special_arrangement_id
+                    )
+                )
+            );
+
+          if (conflictRow) {
+            throw new Error(
+              `A Special Arrangement already covers ${getStudentDisplayName(
+                conflictRow.student
+              )} on ${formatDate(
+                conflictRow.lesson.lesson_date
+              )}. Parent Leave cannot be submitted for this lesson.`
+            );
+          }
+        }
+      }
+
+      // ------------------------------------------------------
+      // 4. Business deadline check
       //
       // Parent Leave must be submitted before
       // scheduled Lesson Start.
@@ -1587,7 +1833,8 @@ if (loading) {
                 const selectableRows =
                   rows.filter(
                     (row) =>
-                      !row.leaveRecord
+                      !row.leaveRecord &&
+                      !row.specialArrangement
                   );
 
                 const selectedCount =
@@ -1680,11 +1927,15 @@ if (loading) {
                           const isAlreadySubmitted =
   leaveRecord?.status === "Submitted";
 
+                          const hasSpecialArrangement =
+                            row.specialArrangement === true;
+
                           return (
                             <label
                               key={lesson.id}
                               className={`block px-5 py-5 transition ${
-                                isAlreadySubmitted
+                                isAlreadySubmitted ||
+                                hasSpecialArrangement
                                   ? "cursor-default bg-[#F5F9FD]"
                                   : "cursor-pointer hover:bg-[#F5F9FD]"
                               }`}
@@ -1702,6 +1953,7 @@ if (loading) {
                                     }
                                     disabled={
                                       isAlreadySubmitted ||
+                                      hasSpecialArrangement ||
                                       submitting
                                     }
                                     onChange={() =>
@@ -1751,6 +2003,17 @@ if (loading) {
                                     </div>
 
                                   </div>
+
+                                  {hasSpecialArrangement && (
+                                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                                      <span className="inline-flex items-center rounded-full border border-[#E8D49A] bg-[#FFF8DD] px-3 py-1 text-xs font-semibold text-[#8F6B18]">
+                                        Special Arrangement
+                                      </span>
+                                      <span className="text-xs text-[#64748B]">
+                                        Leave cannot be submitted for this lesson.
+                                      </span>
+                                    </div>
+                                  )}
 
                                   {/* Existing Leave */}
 

@@ -87,6 +87,11 @@ const navigationGroups = [
         href: "/admin/leave",
         icon: "◴",
       },
+          {
+      label: "Special Arrangements",
+      href: "/admin/special-arrangements",
+      icon: "◇",
+    },
       {
         label: "Make-up",
         href: "/admin/makeup",
