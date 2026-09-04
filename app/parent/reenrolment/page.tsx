@@ -29,6 +29,7 @@ type Student = {
   last_name: string | null;
   school_year: string | null;
   school_class: string | null;
+  medical_information: string | null;
 };
 
 type Enrollment = {
@@ -179,6 +180,20 @@ export default function ParentReenrolmentPage() {
 
   const [schoolYear, setSchoolYear] = useState("");
   const [schoolClass, setSchoolClass] = useState("");
+  const [medicalInformation, setMedicalInformation] = useState("");
+
+  const [tuitionConfig, setTuitionConfig] = useState<{
+    single_lesson_fee: number;
+    total_lessons: number;
+    standard_tuition: number;
+  } | null>(null);
+  const [currentClassSingleLessonFee, setCurrentClassSingleLessonFee] = useState(0);
+  const [availableMakeupCredits, setAvailableMakeupCredits] = useState(0);
+  const [financialLoading, setFinancialLoading] = useState(false);
+  const [declarationConfirmed, setDeclarationConfirmed] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [submissionId, setSubmissionId] = useState<string | null>(null);
 
   async function loadFamily() {
     setLoading(true);
@@ -303,7 +318,8 @@ export default function ParentReenrolmentPage() {
           preferred_name,
           last_name,
           school_year,
-          school_class
+          school_class,
+          medical_information
         `)
         .in("id", studentIds)
         .order("student_code");
@@ -556,6 +572,193 @@ export default function ParentReenrolmentPage() {
     }
   }
 
+  async function loadReenrolmentFinancials() {
+    if (!selectedStudentId || !targetAcademicYear || !targetTerm || !selectedClassId) {
+      setTuitionConfig(null);
+      setCurrentClassSingleLessonFee(0);
+      setAvailableMakeupCredits(0);
+      return;
+    }
+
+    setFinancialLoading(true);
+
+    try {
+      const { data: tuitionData, error: tuitionError } = await supabase
+        .from("tuition_configurations")
+        .select(`
+          class_id,
+          single_lesson_fee,
+          total_lessons,
+          standard_tuition
+        `)
+        .eq("academic_year", targetAcademicYear)
+        .eq("term", targetTerm)
+        .in("class_id", Array.from(new Set([
+          selectedClassId,
+          selectedStudent?.classInfo?.id ?? selectedStudent?.enrollment?.class_id ?? "",
+        ].filter(Boolean))))
+        .eq("status", "Active");
+
+      if (tuitionError) {
+        throw tuitionError;
+      }
+
+      const selectedTuitionData =
+        (tuitionData ?? []).find((row) => row.class_id === selectedClassId) ?? null;
+      const currentClassId =
+        selectedStudent?.classInfo?.id ?? selectedStudent?.enrollment?.class_id ?? "";
+      const currentTuitionData =
+        (tuitionData ?? []).find((row) => row.class_id === currentClassId) ?? null;
+
+      setTuitionConfig(
+        selectedTuitionData
+          ? {
+              single_lesson_fee: Number(selectedTuitionData.single_lesson_fee ?? 0),
+              total_lessons: Number(selectedTuitionData.total_lessons ?? 0),
+              standard_tuition: Number(selectedTuitionData.standard_tuition ?? 0),
+            }
+          : null
+      );
+      setCurrentClassSingleLessonFee(Number(currentTuitionData?.single_lesson_fee ?? 0));
+
+      const { data: creditData, error: creditError } = await supabase
+        .from("makeup_credits")
+        .select("credits")
+        .eq("student_id", selectedStudentId)
+        .eq("status", "Available")
+        .gt("credits", 0);
+
+      if (creditError) {
+        throw creditError;
+      }
+
+      const totalCredits = (creditData ?? []).reduce(
+        (sum, row) => sum + Number(row.credits ?? 0),
+        0
+      );
+
+      setAvailableMakeupCredits(totalCredits);
+    } catch (financialError: any) {
+      console.error("RE-ENROLMENT FINANCIAL LOAD ERROR:", financialError);
+      setTuitionConfig(null);
+      setCurrentClassSingleLessonFee(0);
+      setAvailableMakeupCredits(0);
+    } finally {
+      setFinancialLoading(false);
+    }
+  }
+
+  const redeemCreditsAvailable = Math.min(availableMakeupCredits, 2);
+  const redeemAmount = redeemCreditsAvailable * currentClassSingleLessonFee;
+  const amountPayable = tuitionConfig
+    ? Math.max(0, tuitionConfig.standard_tuition - redeemAmount)
+    : 0;
+
+  async function handleSubmit() {
+    setError(null);
+
+    if (!selectedStudent) {
+      setError("Please select a student.");
+      return;
+    }
+
+    if (!selectedClassId) {
+      setError("Please select a class.");
+      return;
+    }
+
+    if (isSchoolProgram && targetTerm === 1) {
+      if (!schoolYear.trim()) {
+        setError("Please provide the School Year.");
+        return;
+      }
+      if (!schoolClass.trim()) {
+        setError("Please provide the School Class.");
+        return;
+      }
+    }
+
+    if (!tuitionConfig) {
+      setError("Tuition configuration is not available for the selected class and term.");
+      return;
+    }
+
+    if (!declarationConfirmed) {
+      setError("Please confirm that the above information is correct.");
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const { data: existingSubmission, error: existingError } = await supabase
+        .from("re_enrolment_submissions")
+        .select("id, status")
+        .eq("student_id", selectedStudent.student.id)
+        .eq("academic_year", targetAcademicYear)
+        .eq("term", targetTerm)
+        .in("status", ["Draft", "Submitted", "Completed"])
+        .limit(1)
+        .maybeSingle();
+
+      if (existingError) {
+        throw existingError;
+      }
+
+      if (existingSubmission) {
+        setError("A Re-enrolment submission already exists for this student and term.");
+        setSubmitting(false);
+        return;
+      }
+
+      const specialRequestSnapshot = {
+        ...specialRequest,
+        school_year:
+          isSchoolProgram && targetTerm === 1 ? schoolYear.trim() : null,
+        school_class:
+          isSchoolProgram && targetTerm === 1 ? schoolClass.trim() : null,
+      };
+
+      const makeupCreditSnapshot = {
+        available_credits: availableMakeupCredits,
+        redeem_credits: redeemCreditsAvailable,
+        redeem_amount: Number(redeemAmount.toFixed(2)),
+      };
+
+      const medicalSnapshot = medicalInformation.trim() || null;
+
+      const { data: insertedSubmission, error: submissionError } = await supabase
+        .from("re_enrolment_submissions")
+        .insert({
+          student_id: selectedStudent.student.id,
+          selected_class_id: selectedClassId,
+          academic_year: targetAcademicYear,
+          term: targetTerm,
+          status: "Submitted",
+          payment_status: "Pending",
+          payment_amount: Number(amountPayable.toFixed(2)),
+          medical_snapshot: medicalSnapshot,
+          special_request_snapshot: specialRequestSnapshot,
+          makeup_credit_snapshot: makeupCreditSnapshot,
+          parent_note: null,
+        })
+        .select("id")
+        .single();
+
+      if (submissionError) {
+        throw submissionError;
+      }
+
+      setSubmissionId(insertedSubmission?.id ?? null);
+      setSubmitted(true);
+    } catch (submitError: any) {
+      console.error("RE-ENROLMENT SUBMIT ERROR:", submitError);
+      setError(submitError?.message ?? "Unable to submit Re-enrolment.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   function updateSpecialRequest(
     field: keyof SpecialRequest,
     value: boolean
@@ -643,6 +846,7 @@ export default function ParentReenrolmentPage() {
     setSelectedClassId(currentClassId);
     setSchoolYear(selectedStudent?.student.school_year ?? "");
     setSchoolClass(selectedStudent?.student.school_class ?? "");
+    setMedicalInformation(selectedStudent?.student.medical_information ?? "");
   }, [selectedStudent]);
 
   useEffect(() => {
@@ -657,6 +861,10 @@ export default function ParentReenrolmentPage() {
   useEffect(() => {
     loadRecommendation();
   }, [selectedStudentId, targetAcademicYear, targetTerm]);
+
+  useEffect(() => {
+    loadReenrolmentFinancials();
+  }, [selectedStudentId, targetAcademicYear, targetTerm, selectedClassId]);
 
   if (loading) {
     return <main className="min-h-screen" />;
@@ -980,7 +1188,9 @@ export default function ParentReenrolmentPage() {
                     </h2>
 
                     <p className="mt-2 text-sm leading-6 text-[#64748B]">
-                      Choose whether to continue with the current class or follow the recommended class for the new term.
+                      {recommendation && recommendedClassInfo
+                        ? "Choose whether to continue with your current class or select the recommended class."
+                        : "Current class is recommended for the next term. Our coach continuously assesses each student’s progress and will recommend a higher-level class when they are ready."}
                     </p>
                   </div>
 
@@ -1077,20 +1287,6 @@ export default function ParentReenrolmentPage() {
                     </div>
                   )}
 
-                  <div className="mt-5 rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] px-4 py-4">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748B]">
-                      Selected Class
-                    </div>
-                    <div className="mt-1 text-lg font-semibold text-[#10213A]">
-                      {selectedClassId === recommendation?.recommended_class_id &&
-                      recommendedClassInfo
-                        ? getClassDisplayName(recommendedClassInfo)
-                        : getClassDisplayName(selectedStudent.classInfo)}
-                    </div>
-                    <p className="mt-2 text-sm text-[#64748B]">
-                      Your selection will be saved with the Re-enrolment submission.
-                    </p>
-                  </div>
                 </div>
               </section>
             )}
@@ -1268,6 +1464,179 @@ export default function ParentReenrolmentPage() {
                       Your selection will be saved with the Re-enrolment submission.
                     </p>
                   </div>
+                </div>
+              </section>
+            )}
+
+            {/* Step 4 — Medical Snapshot */}
+            {selectedStudent?.enrollment && (
+              <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
+                <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
+                <div className="p-6 sm:p-8">
+                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A78312]">
+                    Step 4
+                  </div>
+                  <h2 className="mt-2 text-2xl font-semibold text-[#10213A]">
+                    Medical Information
+                  </h2>
+                  <div className="mt-6">
+                    <textarea
+                      value={medicalInformation}
+                      onChange={(event) => setMedicalInformation(event.target.value)}
+                      rows={5}
+                      placeholder="Optional"
+                      className="w-full rounded-xl border border-[#D3E0EC] bg-white px-3.5 py-3 text-sm leading-6 text-[#10213A] outline-none transition focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/15"
+                    />
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* Step 5 — Tuition & Make-up Credit */}
+            {selectedStudent?.enrollment && (
+              <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
+                <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
+                <div className="p-6 sm:p-8">
+                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A78312]">
+                    Step 5
+                  </div>
+                  <h2 className="mt-2 text-2xl font-semibold text-[#10213A]">
+                    Tuition & Make-up Credit
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-[#64748B]">
+                    Tuition is based on the selected class. Make-up Credit redemption is based on the current class, with up to two available Make-up Credits redeemable toward the next term.
+                  </p>
+
+                  {financialLoading ? (
+                    <div className="mt-6 rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] px-4 py-5 text-sm text-[#64748B]">
+                      Loading tuition and Make-up Credit information…
+                    </div>
+                  ) : tuitionConfig ? (
+                    <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                      <InfoField label="Recommended / Selected Class" value={getClassDisplayName(selectedClassInfo)} />
+                      <InfoField label="Standard Tuition (incl. GST)" value={`$${tuitionConfig.standard_tuition.toFixed(2)}`} />
+                      <InfoField label="Available Make-up Credits" value={String(availableMakeupCredits)} />
+                      <InfoField label="Redeem Credits" value={String(redeemCreditsAvailable)} />
+                      {redeemCreditsAvailable > 0 && (
+                        <InfoField label="Redeem Amount" value={`-$${redeemAmount.toFixed(2)}`} />
+                      )}
+                      <InfoField label="Amount Payable (incl. GST)" value={`$${amountPayable.toFixed(2)}`} />
+                    </div>
+                  ) : (
+                    <div className="mt-6 rounded-xl border border-[#D4AF37]/40 bg-[#FFF8DC] px-4 py-5 text-sm text-[#64748B]">
+                      Tuition configuration is not available for the selected class and term.
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {/* Step 6 — Review & Declaration */}
+            {selectedStudent?.enrollment && (
+              <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
+                <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
+                <div className="p-6 sm:p-8">
+                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A78312]">
+                    Step 6
+                  </div>
+                  <h2 className="mt-2 text-2xl font-semibold text-[#10213A]">
+                    Review & Declaration
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-[#64748B]">
+                    Please review your selections before submitting the Re-enrolment.
+                  </p>
+
+                  <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                    <InfoField label="Student" value={getStudentDisplayName(selectedStudent.student)} />
+                    <InfoField label="Target Term" value={`${targetAcademicYear} Term ${targetTerm}`} />
+                    <InfoField label="Selected Class" value={getClassDisplayName(selectedClassInfo)} />
+                    <InfoField
+                      label="Special Request"
+                      value={[
+                        specialRequest.classroom_pickup ? "Classroom Pick-up" : null,
+                        specialRequest.ymca_dropoff ? "YMCA Drop-off" : null,
+                        specialRequest.walk_home ? "Walk Home" : null,
+                      ].filter(Boolean).join(" + ") || "None of them"}
+                    />
+                    {isSchoolProgram && targetTerm === 1 && (
+                      <>
+                        <InfoField label="School Year" value={schoolYear.trim() || "—"} />
+                        <InfoField label="School Class" value={schoolClass.trim() || "—"} />
+                      </>
+                    )}
+                    <InfoField label="Amount Payable (incl. GST)" value={tuitionConfig ? `$${amountPayable.toFixed(2)}` : "—"} />
+                  </div>
+
+                  <label className="mt-6 flex items-start gap-3 rounded-xl border border-[#D3E0EC] bg-[#EEF5FB] px-4 py-4 text-sm text-[#31445B]">
+                    <input
+                      type="checkbox"
+                      checked={declarationConfirmed}
+                      onChange={(event) => setDeclarationConfirmed(event.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-[#D4AF37]"
+                    />
+                    <span>I confirm that the above information is correct.</span>
+                  </label>
+                </div>
+              </section>
+            )}
+
+            {/* Step 7 — Submission */}
+            {selectedStudent?.enrollment && (
+              <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
+                <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
+                <div className="p-6 sm:p-8">
+                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A78312]">
+                    Step 7
+                  </div>
+                  <h2 className="mt-2 text-2xl font-semibold text-[#10213A]">
+                    Payment & Enrolment
+                  </h2>
+
+                  {submitted ? (
+                    <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-5">
+                      <div className="text-lg font-semibold text-emerald-900">
+                        Re-enrolment Submitted
+                      </div>
+                      <p className="mt-2 text-sm leading-6 text-emerald-800">
+                        Your Re-enrolment has been submitted successfully and is now pending payment verification.
+                      </p>
+                      {submissionId && (
+                        <p className="mt-2 text-xs text-emerald-700">
+                          Submission ID: {submissionId}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      <p className="mt-2 text-sm leading-6 text-[#64748B]">
+                        Your place will be secured once payment is received. Please make payment to:
+                      </p>
+
+                      <div className="mt-5 rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] px-4 py-4 text-sm leading-6 text-[#31445B]">
+                        <div><span className="font-semibold">Account Name:</span> [YOUR ACCOUNT NAME]</div>
+                        <div><span className="font-semibold">BSB:</span> [YOUR BSB]</div>
+                        <div><span className="font-semibold">Account Number:</span> [YOUR ACCOUNT NUMBER]</div>
+                        <div><span className="font-semibold">Reference:</span> Student Name</div>
+                      </div>
+
+                      {error && (
+                        <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">
+                          {error}
+                        </div>
+                      )}
+
+                      <div className="mt-6 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={handleSubmit}
+                          disabled={submitting || financialLoading || !tuitionConfig || !declarationConfirmed}
+                          className="rounded-xl bg-[#10213A] px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-[#173456] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {submitting ? "Submitting…" : "Submit Re-enrolment"}
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </section>
             )}

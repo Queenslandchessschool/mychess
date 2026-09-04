@@ -8,6 +8,58 @@ All notable changes to this project will be documented in this file.
 
 ### CHANGELOG — 2026-09-04
 
+## Parent Re-enrolment UI & Tuition — PASS
+
+- Completed the Parent Re-enrolment step-by-step UI flow.
+
+- Step 2 Class Selection displays the Current Class and Recommended Class appropriately.
+
+- When no Recommended Class is available, the Current Class is presented as the recommended class for the next term, with coach assessment and progression guidance.
+
+- Removed redundant Selected Class presentation from the Parent Re-enrolment UI.
+
+- Completed editable Medical Information step with optional input.
+
+- Medical Information is saved as part of the Re-enrolment medical snapshot without modifying Student Master medical information.
+
+- Step 5 Tuition & Make-up Credit displays the full financial breakdown.
+
+- Standard Tuition is calculated from the selected / recommended class.
+
+- Make-up Credit redemption is calculated from the Current Class single lesson fee.
+
+- A maximum of two available Make-up Credits can be redeemed.
+
+- Step 6 Review & Declaration displays only the final Amount Payable.
+
+- Step 7 Payment & Enrolment provides the reserved Bank Transfer payment information area.
+
+- Submit Re-enrolment action is positioned consistently within the final payment step.
+
+- Production build passed.
+
+- Parent Re-enrolment UAT passed.
+
+### Frozen Boundary
+
+- Central Payment Settings remains a separate future implementation and is not hard-coded into the Parent Re-enrolment page.
+
+- Individual student-level discounts / adjustments remain a separate future implementation.
+
+- Existing class-level Tuition Configuration and Manual Override remain unchanged.
+
+- Parent Re-enrolment submission continues to follow the existing frozen lifecycle and does not create the final student_enrolments record.
+
+### Status
+
+- Parent Re-enrolment UI: PASS
+
+- Parent Re-enrolment Tuition & Make-up Credit calculation: PASS
+
+- Parent Re-enrolment Payment Step UI: PASS
+
+- Full Re-enrolment workflow: IN PROGRESS
+
 ## Re-enrolment & Registration School Information — PASS
 
 - Admin Re-enrolment Recommended Class must be different from the Current Class.
@@ -73,7 +125,7 @@ All notable changes to this project will be documented in this file.
 - Special Arrangement Admin: PASS
 - Special Arrangement / Parent Leave protection: PASS
 - Re-enrolment Recommended Class Admin: PASS
-- Re-enrolment Parent UI foundation: PASS
+- Parent Re-enrolment UI & Tuition: PASS
 - Full Re-enrolment workflow: IN PROGRESS
 
 ### CHANGELOG — 2026-09-03
