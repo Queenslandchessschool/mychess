@@ -8,6 +8,7 @@ export interface RegistrationStudent {
 
   school?: string;
   school_year?: string;
+  school_class?: string;
 
   medical_information?: string;
   emergency_contact?: string;

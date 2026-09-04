@@ -27,6 +27,8 @@ type Student = {
   first_name: string | null;
   preferred_name: string | null;
   last_name: string | null;
+  school_year: string | null;
+  school_class: string | null;
 };
 
 type Enrollment = {
@@ -67,6 +69,20 @@ type FamilyStudent = {
   student: Student;
   enrollment: Enrollment | null;
   classInfo: ClassInfo | null;
+};
+
+type Recommendation = {
+  id: string;
+  student_id: string;
+  academic_year: number;
+  term: number;
+  recommended_class_id: string;
+};
+
+type SpecialRequest = {
+  classroom_pickup: boolean;
+  ymca_dropoff: boolean;
+  walk_home: boolean;
 };
 
 function getStudentDisplayName(student: Student): string {
@@ -125,6 +141,12 @@ function getCampusType(classInfo: ClassInfo | null): string | null {
   return campus?.type ?? null;
 }
 
+function isClassroomPickupAllowed(schoolYear: string | null | undefined): boolean {
+  const normalized = schoolYear?.trim().toLowerCase() ?? "";
+
+  return normalized === "prep" || normalized === "year 1";
+}
+
 export default function ParentReenrolmentPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -140,6 +162,23 @@ export default function ParentReenrolmentPage() {
   );
 
   const [targetTerm, setTargetTerm] = useState<number>(4);
+
+  const [recommendation, setRecommendation] =
+    useState<Recommendation | null>(null);
+  const [recommendedClassInfo, setRecommendedClassInfo] =
+    useState<ClassInfo | null>(null);
+  const [recommendationLoading, setRecommendationLoading] =
+    useState(false);
+  const [selectedClassId, setSelectedClassId] = useState<string>("");
+
+  const [specialRequest, setSpecialRequest] = useState<SpecialRequest>({
+    classroom_pickup: false,
+    ymca_dropoff: false,
+    walk_home: false,
+  });
+
+  const [schoolYear, setSchoolYear] = useState("");
+  const [schoolClass, setSchoolClass] = useState("");
 
   async function loadFamily() {
     setLoading(true);
@@ -262,7 +301,9 @@ export default function ParentReenrolmentPage() {
           id,
           first_name,
           preferred_name,
-          last_name
+          last_name,
+          school_year,
+          school_class
         `)
         .in("id", studentIds)
         .order("student_code");
@@ -438,9 +479,115 @@ export default function ParentReenrolmentPage() {
     }
   }
 
-  useEffect(() => {
-    loadFamily();
-  }, []);
+  async function loadRecommendation() {
+    if (!selectedStudentId || !targetAcademicYear || !targetTerm) {
+      setRecommendation(null);
+      setRecommendedClassInfo(null);
+      return;
+    }
+
+    setRecommendationLoading(true);
+
+    try {
+      const { data, error: recommendationError } = await supabase
+        .from("re_enrolment_recommendations")
+        .select(
+          `
+          id,
+          student_id,
+          academic_year,
+          term,
+          recommended_class_id
+        `
+        )
+        .eq("student_id", selectedStudentId)
+        .eq("academic_year", targetAcademicYear)
+        .eq("term", targetTerm)
+        .maybeSingle();
+
+      if (recommendationError) {
+        throw recommendationError;
+      }
+
+      const nextRecommendation = (data ?? null) as Recommendation | null;
+      setRecommendation(nextRecommendation);
+
+      if (!nextRecommendation) {
+        setRecommendedClassInfo(null);
+        return;
+      }
+
+      const { data: classData, error: classError } = await supabase
+        .from("classes")
+        .select(`
+          id,
+          campus_id,
+          day,
+          start_time,
+          end_time,
+          level,
+          class_suffix,
+          campuses:campus_id (
+            campus_code,
+            short_name,
+            campus_name,
+            type
+          )
+        `)
+        .eq("id", nextRecommendation.recommended_class_id)
+        .maybeSingle();
+
+      if (classError) {
+        throw classError;
+      }
+
+      setRecommendedClassInfo(
+        classData ? (classData as unknown as ClassInfo) : null
+      );
+    } catch (recommendationError: any) {
+      console.error(
+        "RE-ENROLMENT RECOMMENDATION LOAD ERROR:",
+        recommendationError
+      );
+      setRecommendation(null);
+      setRecommendedClassInfo(null);
+    } finally {
+      setRecommendationLoading(false);
+    }
+  }
+
+  function updateSpecialRequest(
+    field: keyof SpecialRequest,
+    value: boolean
+  ) {
+    setSpecialRequest((previous) => {
+      const request = {
+        ...previous,
+        [field]: value,
+      };
+
+      // Same logic as Registration.
+      if (field === "walk_home" && value) {
+        request.classroom_pickup = false;
+        request.ymca_dropoff = false;
+      }
+
+      if (field === "classroom_pickup" && value) {
+        if (!isClassroomPickupAllowed(effectiveSchoolYear)) {
+          request.classroom_pickup = false;
+          return request;
+        }
+
+        request.walk_home = false;
+      }
+
+      if (field === "ymca_dropoff" && value) {
+        request.walk_home = false;
+      }
+
+      return request;
+    });
+  }
 
   const selectedStudent = useMemo(
     () =>
@@ -449,6 +596,67 @@ export default function ParentReenrolmentPage() {
       ) ?? null,
     [familyStudents, selectedStudentId]
   );
+
+  const selectedClassInfo = useMemo(() => {
+    if (!selectedStudent) return null;
+
+    const currentClassId =
+      selectedStudent.classInfo?.id ??
+      selectedStudent.enrollment?.class_id ??
+      "";
+
+    if (
+      recommendation &&
+      recommendedClassInfo &&
+      selectedClassId === recommendation.recommended_class_id
+    ) {
+      return recommendedClassInfo;
+    }
+
+    if (selectedClassId === currentClassId) {
+      return selectedStudent.classInfo;
+    }
+
+    return recommendedClassInfo ?? selectedStudent.classInfo;
+  }, [
+    selectedStudent,
+    selectedClassId,
+    recommendation,
+    recommendedClassInfo,
+  ]);
+
+  const isSchoolProgram =
+    getCampusType(selectedClassInfo) === "School Program";
+
+  const effectiveSchoolYear =
+    schoolYear.trim() || selectedStudent?.student.school_year?.trim() || "";
+
+  const isClassroomPickupEligible =
+    isSchoolProgram && isClassroomPickupAllowed(effectiveSchoolYear);
+
+  useEffect(() => {
+    loadFamily();
+  }, []);
+
+  useEffect(() => {
+    const currentClassId = selectedStudent?.classInfo?.id ?? "";
+    setSelectedClassId(currentClassId);
+    setSchoolYear(selectedStudent?.student.school_year ?? "");
+    setSchoolClass(selectedStudent?.student.school_class ?? "");
+  }, [selectedStudent]);
+
+  useEffect(() => {
+    if (!isClassroomPickupEligible && specialRequest.classroom_pickup) {
+      setSpecialRequest((previous) => ({
+        ...previous,
+        classroom_pickup: false,
+      }));
+    }
+  }, [isClassroomPickupEligible, specialRequest.classroom_pickup]);
+
+  useEffect(() => {
+    loadRecommendation();
+  }, [selectedStudentId, targetAcademicYear, targetTerm]);
 
   if (loading) {
     return <main className="min-h-screen" />;
@@ -750,6 +958,314 @@ export default function ParentReenrolmentPage() {
 
                     <p className="mt-2 text-sm text-[#64748B]">
                       No submission has been created yet.
+                    </p>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* Class Selection */}
+            {selectedStudent?.enrollment && (
+              <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
+                <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
+
+                <div className="p-5 sm:p-7">
+                  <div className="mb-6">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A78312]">
+                      Step 2
+                    </div>
+
+                    <h2 className="mt-2 text-2xl font-semibold text-[#10213A]">
+                      Class Selection
+                    </h2>
+
+                    <p className="mt-2 text-sm leading-6 text-[#64748B]">
+                      Choose whether to continue with the current class or follow the recommended class for the new term.
+                    </p>
+                  </div>
+
+                  {recommendationLoading ? (
+                    <div className="rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] px-4 py-5 text-sm text-[#64748B]">
+                      Checking recommended class...
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSelectedClassId(
+                            selectedStudent.classInfo?.id ??
+                              selectedStudent.enrollment?.class_id ??
+                              ""
+                          )
+                        }
+                        className={`rounded-xl border p-5 text-left transition ${
+                          selectedClassId ===
+                          (selectedStudent.classInfo?.id ??
+                            selectedStudent.enrollment?.class_id ??
+                            "")
+                            ? "border-[#D4AF37] bg-[#FFF8DC] shadow-sm"
+                            : "border-[#D9E3ED] bg-[#F5F9FD] hover:border-[#D4AF37]/60"
+                        }`}
+                      >
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#A78312]">
+                          Current Class
+                        </div>
+                        <div className="mt-2 text-lg font-semibold text-[#10213A]">
+                          {getClassDisplayName(selectedStudent.classInfo)}
+                        </div>
+                        <div className="mt-2 text-sm text-[#64748B]">
+                          {getCampusDisplayName(selectedStudent.classInfo)}
+                          {selectedStudent.classInfo?.day
+                            ? ` · ${selectedStudent.classInfo.day}`
+                            : ""}
+                          {selectedStudent.classInfo?.start_time
+                            ? ` · ${selectedStudent.classInfo.start_time.slice(0, 5)}`
+                            : ""}
+                          {selectedStudent.classInfo?.end_time
+                            ? ` – ${selectedStudent.classInfo.end_time.slice(0, 5)}`
+                            : ""}
+                        </div>
+                        <div className="mt-4 text-sm font-semibold text-[#A78312]">
+                          Continue Current Class
+                        </div>
+                      </button>
+
+                      {recommendation &&
+                      recommendedClassInfo &&
+                      recommendation.recommended_class_id !==
+                        (selectedStudent.classInfo?.id ??
+                          selectedStudent.enrollment?.class_id ??
+                          "") ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSelectedClassId(
+                              recommendation.recommended_class_id
+                            )
+                          }
+                          className={`rounded-xl border p-5 text-left transition ${
+                            selectedClassId ===
+                            recommendation.recommended_class_id
+                              ? "border-[#D4AF37] bg-[#FFF8DC] shadow-sm"
+                              : "border-[#D9E3ED] bg-[#F5F9FD] hover:border-[#D4AF37]/60"
+                          }`}
+                        >
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#A78312]">
+                            ⭐ Recommended Class
+                          </div>
+                          <div className="mt-2 text-lg font-semibold text-[#10213A]">
+                            {getClassDisplayName(recommendedClassInfo)}
+                          </div>
+                          <div className="mt-2 text-sm text-[#64748B]">
+                            {getCampusDisplayName(recommendedClassInfo)}
+                            {recommendedClassInfo.day
+                              ? ` · ${recommendedClassInfo.day}`
+                              : ""}
+                            {recommendedClassInfo.start_time
+                              ? ` · ${recommendedClassInfo.start_time.slice(0, 5)}`
+                              : ""}
+                            {recommendedClassInfo.end_time
+                              ? ` – ${recommendedClassInfo.end_time.slice(0, 5)}`
+                              : ""}
+                          </div>
+                          <div className="mt-4 text-sm font-semibold text-[#A78312]">
+                            Select Recommended Class
+                          </div>
+                        </button>
+                      ) : null}
+                    </div>
+                  )}
+
+                  <div className="mt-5 rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] px-4 py-4">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748B]">
+                      Selected Class
+                    </div>
+                    <div className="mt-1 text-lg font-semibold text-[#10213A]">
+                      {selectedClassId === recommendation?.recommended_class_id &&
+                      recommendedClassInfo
+                        ? getClassDisplayName(recommendedClassInfo)
+                        : getClassDisplayName(selectedStudent.classInfo)}
+                    </div>
+                    <p className="mt-2 text-sm text-[#64748B]">
+                      Your selection will be saved with the Re-enrolment submission.
+                    </p>
+                  </div>
+                </div>
+              </section>
+            )}
+
+
+            {/* Special Request */}
+            {selectedStudent?.enrollment && (
+              <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
+                <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
+
+                <div className="p-5 sm:p-7">
+                  <div className="mb-6">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A78312]">
+                      Step 3
+                    </div>
+
+                    <h2 className="mt-2 text-2xl font-semibold text-[#10213A]">
+                      Special Request
+                    </h2>
+
+                    <p className="mt-2 text-sm leading-6 text-[#64748B]">
+                      Select any applicable arrangements.
+                    </p>
+                  </div>
+
+                  {isSchoolProgram && targetTerm === 1 && (
+                    <div className="mb-6 border-b border-[#D4AF37]/20 pb-6">
+                      <h3 className="text-sm font-semibold text-[#10213A]">
+                        School Information
+                      </h3>
+
+                      <p className="mt-1 mb-4 text-xs text-[#61778F]">
+                        Please provide the school year and school class for the new school year.
+                      </p>
+
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div>
+                          <label className="mb-1.5 block text-sm font-medium text-[#31445B]">
+                            School Year
+                          </label>
+                          <input
+                            type="text"
+                            value={schoolYear}
+                            onChange={(event) =>
+                              setSchoolYear(event.target.value)
+                            }
+                            placeholder="e.g. Year 3"
+                            className="h-11 w-full rounded-xl border border-[#D3E0EC] bg-white px-3.5 text-sm text-[#10213A] outline-none transition focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/15"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="mb-1.5 block text-sm font-medium text-[#31445B]">
+                            School Class
+                          </label>
+                          <input
+                            type="text"
+                            value={schoolClass}
+                            onChange={(event) =>
+                              setSchoolClass(event.target.value)
+                            }
+                            placeholder="e.g. 3A"
+                            className="h-11 w-full rounded-xl border border-[#D3E0EC] bg-white px-3.5 text-sm text-[#10213A] outline-none transition focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/15"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    {isSchoolProgram && (
+                      <>
+                        <label className="flex min-h-10 items-center rounded-xl border border-[#D3E0EC] bg-[#EEF5FB] px-3.5 text-sm text-[#31445B] transition hover:border-[#D4AF37]/60 hover:bg-[#F7FBFF]">
+                          <input
+                            type="checkbox"
+                            checked={
+                              !specialRequest.classroom_pickup &&
+                              !specialRequest.ymca_dropoff &&
+                              !specialRequest.walk_home
+                            }
+                            onChange={(event) => {
+                              if (event.target.checked) {
+                                setSpecialRequest({
+                                  classroom_pickup: false,
+                                  ymca_dropoff: false,
+                                  walk_home: false,
+                                });
+                              }
+                            }}
+                            className="mr-3 h-4 w-4 rounded border-slate-300"
+                          />
+                          None of them
+                        </label>
+
+                        <label
+                          className={`flex min-h-10 items-center rounded-xl border px-3.5 text-sm transition ${
+                            isClassroomPickupEligible
+                              ? "border-[#D3E0EC] bg-[#EEF5FB] text-[#31445B] hover:border-[#D4AF37]/60 hover:bg-[#F7FBFF]"
+                              : "cursor-not-allowed border-[#D9E3ED] bg-[#F1F4F7] text-[#94A3B8]"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={
+                              isClassroomPickupEligible &&
+                              specialRequest.classroom_pickup
+                            }
+                            disabled={!isClassroomPickupEligible}
+                            onChange={(event) =>
+                              updateSpecialRequest(
+                                "classroom_pickup",
+                                event.target.checked
+                              )
+                            }
+                            className="mr-3 h-4 w-4 rounded border-slate-300 accent-[#D4AF37]"
+                          />
+                          Classroom Pick-up (Prep or Year 1 ONLY)
+                        </label>
+
+                        <label className="flex min-h-10 items-center rounded-xl border border-[#D3E0EC] bg-[#EEF5FB] px-3.5 text-sm text-[#31445B] transition hover:border-[#D4AF37]/60 hover:bg-[#F7FBFF]">
+                          <input
+                            type="checkbox"
+                            checked={specialRequest.ymca_dropoff}
+                            onChange={(event) =>
+                              updateSpecialRequest(
+                                "ymca_dropoff",
+                                event.target.checked
+                              )
+                            }
+                            className="mr-3 h-4 w-4 rounded border-slate-300"
+                          />
+                          YMCA Drop-off
+                        </label>
+                      </>
+                    )}
+
+                    <label className="flex min-h-10 items-center rounded-xl border border-[#D3E0EC] bg-[#EEF5FB] px-3.5 text-sm text-[#31445B] transition hover:border-[#D4AF37]/60 hover:bg-[#F7FBFF]">
+                      <input
+                        type="checkbox"
+                        checked={specialRequest.walk_home}
+                        onChange={(event) =>
+                          updateSpecialRequest(
+                            "walk_home",
+                            event.target.checked
+                          )
+                        }
+                        className="mr-3 h-4 w-4 rounded border-slate-300"
+                      />
+                      Walk Home
+                    </label>
+                  </div>
+
+                  <div className="mt-5 rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] px-4 py-4">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748B]">
+                      Selected Request
+                    </div>
+
+                    <div className="mt-1 text-sm font-semibold text-[#10213A]">
+                      {[
+                        specialRequest.classroom_pickup
+                          ? "Classroom Pick-up"
+                          : null,
+                        specialRequest.ymca_dropoff
+                          ? "YMCA Drop-off"
+                          : null,
+                        specialRequest.walk_home
+                          ? "Walk Home"
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" + ") || "None of them"}
+                    </div>
+
+                    <p className="mt-2 text-sm text-[#64748B]">
+                      Your selection will be saved with the Re-enrolment submission.
                     </p>
                   </div>
                 </div>

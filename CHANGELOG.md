@@ -8,6 +8,22 @@ All notable changes to this project will be documented in this file.
 
 ### CHANGELOG — 2026-09-04
 
+## Re-enrolment & Registration School Information — PASS
+
+- Admin Re-enrolment Recommended Class must be different from the Current Class.
+- New recommendations require an explicit Recommended Class selection.
+- When editing an existing recommendation, `— / No Recommendation` removes the recommendation.
+- Parent Re-enrolment uses `students.school_year` to determine Classroom Pick-up eligibility.
+- Classroom Pick-up is allowed only for School Program students in Prep or Year 1.
+- Parent Re-enrolment School Year and School Class are maintained during Term 1 for School Program students.
+- Parent Special Request logic preserves the Registration rules:
+  - Classroom Pick-up + YMCA Drop-off may both be selected.
+  - Walk Home is mutually exclusive with Classroom Pick-up and YMCA Drop-off.
+- Admin Registration now includes optional `School Class` in Student Information.
+- `school_class` is stored in `students.school_class`.
+- `school_class` is a Student Master field and is not itself a Special Request.
+- Production build passed and the updated pages were verified.
+
 ## Special Arrangement — PASS
 
 - Completed Admin Special Arrangement management for formal Active Enrolments.

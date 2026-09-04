@@ -138,7 +138,8 @@ export async function createStudent(
       date_of_birth: data.student.dob || null,
 
       school: data.student.school,
-      school_year: data.student.school_year,
+school_year: data.student.school_year,
+school_class: data.student.school_class,
 
       medical_information:
         data.student.medical_information,

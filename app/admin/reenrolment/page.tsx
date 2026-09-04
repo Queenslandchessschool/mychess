@@ -395,6 +395,7 @@ export default function ReenrolmentPage() {
 
     return classes
       .filter((item) => item.status === "Active")
+      .filter((item) => !selectedStudent || item.id !== selectedStudent.class_id)
       .filter((item) => {
         if (!query) return true;
 
@@ -411,7 +412,7 @@ export default function ReenrolmentPage() {
           buildClassName(b, campusMap)
         )
       );
-  }, [classes, campusMap, targetSearchTerm]);
+  }, [classes, campusMap, selectedStudent, targetSearchTerm]);
 
   const filteredStudents = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
@@ -458,7 +459,7 @@ export default function ReenrolmentPage() {
     setForm((previous) => ({
       ...previous,
       student_id: studentId,
-      recommended_class_id: student?.class_id ?? "",
+      recommended_class_id: "",
     }));
 
     setStudentPickerOpen(false);
@@ -481,11 +482,16 @@ export default function ReenrolmentPage() {
     if (!form.academic_year) return "Please select Academic Year.";
     if (!form.term) return "Please select Term.";
     if (!form.student_id) return "Please select a student.";
-    if (!form.recommended_class_id)
+    if (!form.recommended_class_id && !editingRecommendation) {
       return "Please select a Recommended Class.";
+    }
 
     if (!selectedStudent) {
       return "The selected formal student is no longer available.";
+    }
+
+    if (form.recommended_class_id === selectedStudent.class_id) {
+      return "The Recommended Class must be different from the Current Class.";
     }
 
     const duplicate = recommendations.find(
@@ -527,57 +533,76 @@ export default function ReenrolmentPage() {
       const term = Number(form.term);
 
       if (editingRecommendation) {
-        const { data, error } = await supabase
-          .from("re_enrolment_recommendations")
-          .update({
-            academic_year: academicYear,
-            term,
-            recommended_class_id: form.recommended_class_id,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", editingRecommendation.id)
-          .select(`
-            id,
-            student_id,
-            academic_year,
-            term,
-            recommended_class_id,
-            students:student_id (
-              first_name,
-              last_name
-            )
-          `)
-          .single();
+        if (!form.recommended_class_id) {
+          const { error } = await supabase
+            .from("re_enrolment_recommendations")
+            .delete()
+            .eq("id", editingRecommendation.id);
 
-        if (error) throw error;
+          if (error) throw error;
 
-        const current = activeFormalStudents.find(
-          (item) => item.student_id === data.student_id
-        );
+          setRecommendations((previous) =>
+            previous.filter((item) => item.id !== editingRecommendation.id)
+          );
 
-        const updated: Recommendation = {
-          id: data.id,
-          student_id: data.student_id,
-          academic_year: data.academic_year,
-          term: data.term,
-          recommended_class_id: data.recommended_class_id,
-          student_name: current?.student_name || "Student",
-          current_class_name: current?.class_name ?? "—",
-          recommended_class_name: buildClassName(
-            classMap.get(data.recommended_class_id),
-            campusMap
-          ),
-        };
+          showPopup(
+            "Updated Successfully",
+            "The Re-enrolment recommendation has been removed.",
+            "success"
+          );
+        } else {
+          const { data, error } = await supabase
+            .from("re_enrolment_recommendations")
+            .update({
+              academic_year: academicYear,
+              term,
+              recommended_class_id: form.recommended_class_id,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", editingRecommendation.id)
+            .select(`
+              id,
+              student_id,
+              academic_year,
+              term,
+              recommended_class_id,
+              students:student_id (
+                first_name,
+                last_name
+              )
+            `)
+            .single();
 
-        setRecommendations((previous) =>
-          previous.map((item) => (item.id === updated.id ? updated : item))
-        );
+          if (error) throw error;
 
-        showPopup(
-          "Updated Successfully",
-          "The Re-enrolment recommendation has been updated.",
-          "success"
-        );
+          const current = activeFormalStudents.find(
+            (item) => item.student_id === data.student_id
+          );
+
+          const updated: Recommendation = {
+            id: data.id,
+            student_id: data.student_id,
+            academic_year: data.academic_year,
+            term: data.term,
+            recommended_class_id: data.recommended_class_id,
+            student_name: current?.student_name || "Student",
+            current_class_name: current?.class_name ?? "—",
+            recommended_class_name: buildClassName(
+              classMap.get(data.recommended_class_id),
+              campusMap
+            ),
+          };
+
+          setRecommendations((previous) =>
+            previous.map((item) => (item.id === updated.id ? updated : item))
+          );
+
+          showPopup(
+            "Updated Successfully",
+            "The Re-enrolment recommendation has been updated.",
+            "success"
+          );
+        }
       } else {
         const { data, error } = await supabase
           .from("re_enrolment_recommendations")
@@ -875,6 +900,30 @@ export default function ReenrolmentPage() {
                         </div>
 
                         <div className="max-h-64 overflow-y-auto">
+                          {editingRecommendation && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setForm((previous) => ({
+                                  ...previous,
+                                  recommended_class_id: "",
+                                }));
+                                setTargetSearchTerm("");
+                                setTargetPickerOpen(false);
+                              }}
+                              className={`block w-full border-b border-[#F0F2F5] px-4 py-3 text-left hover:bg-[#FFFDF5] ${
+                                !form.recommended_class_id ? "bg-[#FFF8DD]" : ""
+                              }`}
+                            >
+                              <div className="text-sm font-semibold text-[#10213A]">
+                                —
+                              </div>
+                              <div className="mt-1 text-xs text-[#64748B]">
+                                No Recommendation
+                              </div>
+                            </button>
+                          )}
+
                           {targetClassOptions.length === 0 ? (
                             <p className="p-4 text-sm text-[#64748B]">
                               No active classes found.
@@ -914,8 +963,9 @@ export default function ReenrolmentPage() {
                     )}
 
                     <p className="mt-2 text-xs leading-5 text-[#64748B]">
-                      The current class is used as the default recommendation.
-                      Admin may change it before Parent submission.
+                      Select a different class when a class change is recommended.
+                      When editing an existing recommendation, select "—" to remove
+                      the recommendation.
                     </p>
                   </div>
 

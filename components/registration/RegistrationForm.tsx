@@ -22,6 +22,7 @@ const initialFormData: RegistrationData = {
     dob: "",
     school: "",
     school_year: "",
+    school_class: "",
     medical_information: "",
     emergency_contact: "",
     notes: "",
@@ -464,6 +465,18 @@ export default function RegistrationForm({
                 onChange={(e) =>
                   updateStudent(
                     "school",
+                    e.target.value
+                  )
+                }
+                className="col-span-2 h-11 w-full rounded-xl border border-[#CBDCEA] bg-[#EEF5FB] px-3.5 text-sm text-[#10213A] outline-none transition placeholder:text-[#7890A8] focus:border-[#D4AF37] focus:bg-[#F7FBFF] focus:ring-2 focus:ring-[#D4AF37]/15"
+              />
+
+              <input
+                placeholder="School Class"
+                value={formData.student.school_class ?? ""}
+                onChange={(e) =>
+                  updateStudent(
+                    "school_class",
                     e.target.value
                   )
                 }
