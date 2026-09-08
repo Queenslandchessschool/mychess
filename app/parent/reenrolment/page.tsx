@@ -2,6 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { synchroniseStudentStage } from "@/lib/studentSynchronisation";
+
+import {
+  getBusinessTime,
+  setTestClock,
+  clearTestClock,
+  isTestClockEnabled,
+  getTestClockValue,
+} from "@/lib/businessTime";
 
 /**
  * ============================================================
@@ -80,6 +89,32 @@ type Recommendation = {
   recommended_class_id: string;
 };
 
+type ReenrolmentSubmission = {
+  id: string;
+  student_id: string;
+  academic_year: number;
+  term: number;
+  status: string;
+  payment_status: string;
+  submitted_at: string | null;
+};
+
+type ClassSchedule = {
+  class_id: string;
+  academic_year: number;
+  term: number;
+  first_lesson: string | null;
+  final_lesson: string | null;
+  status: string | null;
+};
+
+type ReenrolmentDisplayState =
+  | "NOT_OPEN"
+  | "OPEN"
+  | "PENDING"
+  | "SUBMITTED"
+  | "ENROLLED";
+
 type SpecialRequest = {
   classroom_pickup: boolean;
   ymca_dropoff: boolean;
@@ -148,6 +183,122 @@ function isClassroomPickupAllowed(schoolYear: string | null | undefined): boolea
   return normalized === "prep" || normalized === "year 1";
 }
 
+function addOneCalendarDay(dateKey: string): string | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+  if (!match) return null;
+
+  let year = Number(match[1]);
+  let month = Number(match[2]);
+  let day = Number(match[3]) + 1;
+
+  const daysInMonth = (y: number, m: number) => {
+    if (m === 2) {
+      return y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0) ? 29 : 28;
+    }
+    return [4, 6, 9, 11].includes(m) ? 30 : 31;
+  };
+
+  if (day > daysInMonth(year, month)) {
+    day = 1;
+    month += 1;
+    if (month > 12) {
+      month = 1;
+      year += 1;
+    }
+  }
+
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function getSimulatedBrisbaneNowParts(raw: string): {
+  dateKey: string;
+  hour: number;
+  minute: number;
+} | null {
+  if (!raw) return null;
+
+  // The test value represents Brisbane wall-clock time.
+  // Example: 2026-09-16T08:00
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(raw);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31 ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59
+  ) {
+    return null;
+  }
+
+  return {
+    dateKey: `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+    hour,
+    minute,
+  };
+}
+
+function getBrisbaneNowParts(simulatedRaw?: string): {
+  dateKey: string;
+  hour: number;
+  minute: number;
+} {
+  const now = getBusinessTime();
+
+  return {
+    dateKey: now.dateKey,
+    hour: now.hour,
+    minute: now.minute,
+  };
+}
+
+function isOpeningReached(
+  finalLesson: string | null,
+  now: { dateKey: string; hour: number; minute: number }
+): boolean {
+  if (!finalLesson) return false;
+
+  const openingDate = addOneCalendarDay(finalLesson.slice(0, 10));
+  if (!openingDate) return false;
+
+  if (now.dateKey > openingDate) return true;
+  if (now.dateKey < openingDate) return false;
+
+  return now.hour >= 8;
+}
+
+function isFirstLessonTomorrow(
+  firstLesson: string | null,
+  nowDateKey: string
+): boolean {
+  if (!firstLesson) return false;
+  return addOneCalendarDay(nowDateKey) === firstLesson.slice(0, 10);
+}
+
+function isFirstLessonPendingPeriod(
+  firstLesson: string | null,
+  nowDateKey: string
+): boolean {
+  if (!firstLesson) return false;
+
+  const firstLessonDate = firstLesson.slice(0, 10);
+
+  return (
+    nowDateKey >= firstLessonDate ||
+    addOneCalendarDay(nowDateKey) === firstLessonDate
+  );
+}
+
 export default function ParentReenrolmentPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -183,10 +334,11 @@ export default function ParentReenrolmentPage() {
   const [medicalInformation, setMedicalInformation] = useState("");
 
   const [tuitionConfig, setTuitionConfig] = useState<{
-    single_lesson_fee: number;
-    total_lessons: number;
-    standard_tuition: number;
-  } | null>(null);
+  id: string;
+  single_lesson_fee: number;
+  total_lessons: number;
+  standard_tuition: number;
+} | null>(null);
   const [currentClassSingleLessonFee, setCurrentClassSingleLessonFee] = useState(0);
   const [availableMakeupCredits, setAvailableMakeupCredits] = useState(0);
   const [financialLoading, setFinancialLoading] = useState(false);
@@ -194,6 +346,29 @@ export default function ParentReenrolmentPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submissionId, setSubmissionId] = useState<string | null>(null);
+  const [reenrolmentSubmissions, setReenrolmentSubmissions] = useState<
+    ReenrolmentSubmission[]
+  >([]);
+
+  const [currentClassSchedule, setCurrentClassSchedule] =
+    useState<ClassSchedule | null>(null);
+  const [targetClassSchedule, setTargetClassSchedule] =
+    useState<ClassSchedule | null>(null);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [statusTick, setStatusTick] = useState(0);
+  const [testClockEnabled, setTestClockEnabled] = useState(false);
+  const [testClockValue, setTestClockValue] = useState("");
+  useEffect(() => {
+  const enabled = isTestClockEnabled();
+  const value = getTestClockValue();
+
+  setTestClockEnabled(enabled);
+  setTestClockValue(value);
+}, []);
+  
+  const [familyDisplayStates, setFamilyDisplayStates] = useState<
+    Record<string, ReenrolmentDisplayState>
+  >({});
 
   async function loadFamily() {
     setLoading(true);
@@ -298,8 +473,45 @@ export default function ParentReenrolmentPage() {
 
       if (studentIds.length === 0) {
         setFamilyStudents([]);
+        setReenrolmentSubmissions([]);
         return;
       }
+
+      /**
+       * ------------------------------------------------------
+       * Existing Re-enrolment Submissions
+       * ------------------------------------------------------
+       *
+       * Load all non-cancelled submissions for this Family so
+       * each child keeps an independent Re-enrolment state.
+       */
+      const {
+        data: submissionData,
+        error: submissionLoadError,
+      } = await supabase
+        .from("re_enrolment_submissions")
+        .select(
+          `
+          id,
+          student_id,
+          academic_year,
+          term,
+          status,
+          payment_status,
+          submitted_at
+        `
+        )
+        .in("student_id", studentIds)
+        .in("status", ["Draft", "Submitted", "Completed"])
+        .order("submitted_at", { ascending: false });
+
+      if (submissionLoadError) {
+        throw submissionLoadError;
+      }
+
+      setReenrolmentSubmissions(
+        (submissionData ?? []) as ReenrolmentSubmission[]
+      );
 
       /**
        * ------------------------------------------------------
@@ -443,43 +655,6 @@ export default function ParentReenrolmentPage() {
         setSelectedStudentId(result[0].student.id);
       }
 
-      /**
-       * ------------------------------------------------------
-       * 8. Default Target Term
-       * ------------------------------------------------------
-       *
-       * If a current formal enrolment exists,
-       * default to the next term.
-       *
-       * Term 4 rolls into next academic year Term 1.
-       */
-
-      const firstEnrolment = result.find(
-        (item) => item.enrollment
-      )?.enrollment;
-
-      if (firstEnrolment) {
-        const currentYear = Number(
-          firstEnrolment.academic_year
-        );
-
-        const currentTerm = Number(
-          firstEnrolment.term
-        );
-
-        if (
-          Number.isFinite(currentYear) &&
-          Number.isFinite(currentTerm)
-        ) {
-          if (currentTerm >= 4) {
-            setTargetAcademicYear(currentYear + 1);
-            setTargetTerm(1);
-          } else {
-            setTargetAcademicYear(currentYear);
-            setTargetTerm(currentTerm + 1);
-          }
-        }
-      }
     } catch (loadError: any) {
       console.error(
         "RE-ENROLMENT LOAD ERROR:",
@@ -492,6 +667,237 @@ export default function ParentReenrolmentPage() {
       );
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadReenrolmentSchedules() {
+    if (
+      !selectedStudent?.enrollment?.class_id ||
+      !selectedStudent.enrollment.academic_year ||
+      !selectedStudent.enrollment.term ||
+      !selectedClassId ||
+      !targetAcademicYear ||
+      !targetTerm
+    ) {
+      setCurrentClassSchedule(null);
+      setTargetClassSchedule(null);
+      return;
+    }
+
+    setScheduleLoading(true);
+
+    try {
+      const currentClassId =
+        selectedStudent.classInfo?.id ?? selectedStudent.enrollment.class_id;
+
+      const [currentResult, targetResult] = await Promise.all([
+        supabase
+          .from("class_schedule")
+          .select("class_id, academic_year, term, first_lesson, final_lesson, status")
+          .eq("class_id", currentClassId)
+          .eq("academic_year", Number(selectedStudent.enrollment.academic_year))
+          .eq("term", Number(selectedStudent.enrollment.term))
+          .eq("status", "Active")
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from("class_schedule")
+          .select("class_id, academic_year, term, first_lesson, final_lesson, status")
+          .eq("class_id", selectedClassId)
+          .eq("academic_year", targetAcademicYear)
+          .eq("term", targetTerm)
+          .eq("status", "Active")
+          .limit(1)
+          .maybeSingle(),
+      ]);
+
+      if (currentResult.error) throw currentResult.error;
+      if (targetResult.error) throw targetResult.error;
+
+      setCurrentClassSchedule((currentResult.data ?? null) as ClassSchedule | null);
+      setTargetClassSchedule((targetResult.data ?? null) as ClassSchedule | null);
+    } catch (scheduleError: any) {
+      console.error("RE-ENROLMENT SCHEDULE LOAD ERROR:", scheduleError);
+      setCurrentClassSchedule(null);
+      setTargetClassSchedule(null);
+    } finally {
+      setScheduleLoading(false);
+    }
+  }
+
+  async function loadFamilyDisplayStates() {
+    if (
+      familyStudents.length === 0 ||
+      !targetAcademicYear ||
+      !targetTerm
+    ) {
+      setFamilyDisplayStates({});
+      return;
+    }
+
+    try {
+      const studentIds = familyStudents.map((item) => item.student.id);
+
+      const { data: targetEnrollments, error: targetEnrollmentError } =
+        await supabase
+          .from("student_enrolments")
+          .select("student_id, academic_year, term, status, is_trial")
+          .in("student_id", studentIds)
+          .eq("academic_year", Number(targetAcademicYear))
+          .eq("term", Number(targetTerm))
+          .eq("status", "Active")
+          .eq("is_trial", false);
+
+      if (targetEnrollmentError) throw targetEnrollmentError;
+
+      const { data: recommendations, error: recommendationError } =
+        await supabase
+          .from("re_enrolment_recommendations")
+          .select("student_id, recommended_class_id")
+          .in("student_id", studentIds)
+          .eq("academic_year", Number(targetAcademicYear))
+          .eq("term", Number(targetTerm));
+
+      if (recommendationError) throw recommendationError;
+
+      const recommendationMap = new Map<string, string>();
+      for (const item of recommendations ?? []) {
+        if (item.student_id && item.recommended_class_id) {
+          recommendationMap.set(item.student_id, item.recommended_class_id);
+        }
+      }
+
+      const currentScheduleKeys = Array.from(
+        new Set(
+          familyStudents
+            .filter((item) => item.enrollment?.class_id)
+            .map(
+              (item) =>
+                `${item.enrollment!.class_id}|${Number(item.enrollment!.academic_year)}|${Number(item.enrollment!.term)}`
+            )
+        )
+      );
+
+      const currentScheduleResults = await Promise.all(
+        currentScheduleKeys.map(async (key) => {
+          const [classId, academicYear, term] = key.split("|");
+          const { data, error } = await supabase
+            .from("class_schedule")
+            .select("class_id, academic_year, term, first_lesson, final_lesson, status")
+            .eq("class_id", classId)
+            .eq("academic_year", Number(academicYear))
+            .eq("term", Number(term))
+            .eq("status", "Active")
+            .limit(1)
+            .maybeSingle();
+          if (error) throw error;
+          return data as ClassSchedule | null;
+        })
+      );
+
+      const currentScheduleMap = new Map<string, ClassSchedule>();
+      for (const schedule of currentScheduleResults) {
+        if (schedule) {
+          currentScheduleMap.set(
+            `${schedule.class_id}|${schedule.academic_year}|${schedule.term}`,
+            schedule
+          );
+        }
+      }
+
+      const targetClassIds = Array.from(
+        new Set(
+          familyStudents
+            .map((item) =>
+              recommendationMap.get(item.student.id) ?? item.enrollment?.class_id ?? ""
+            )
+            .filter(Boolean)
+        )
+      );
+
+      const { data: targetSchedules, error: targetScheduleError } =
+        targetClassIds.length > 0
+          ? await supabase
+              .from("class_schedule")
+              .select("class_id, academic_year, term, first_lesson, final_lesson, status")
+              .in("class_id", targetClassIds)
+              .eq("academic_year", Number(targetAcademicYear))
+              .eq("term", Number(targetTerm))
+              .eq("status", "Active")
+          : { data: [], error: null };
+
+      if (targetScheduleError) throw targetScheduleError;
+
+      const targetScheduleMap = new Map<string, ClassSchedule>();
+      for (const schedule of targetSchedules ?? []) {
+        targetScheduleMap.set(schedule.class_id, schedule as ClassSchedule);
+      }
+
+      const now = getBrisbaneNowParts(testClockEnabled ? testClockValue : undefined);
+      const nextStates: Record<string, ReenrolmentDisplayState> = {};
+
+      for (const item of familyStudents) {
+        const studentId = item.student.id;
+        const submission = reenrolmentSubmissions.find(
+          (entry) =>
+            entry.student_id === studentId &&
+            entry.academic_year === Number(targetAcademicYear) &&
+            entry.term === Number(targetTerm) &&
+            entry.status !== "Cancelled"
+        );
+
+        const targetEnrollment = (targetEnrollments ?? []).find(
+          (entry) => entry.student_id === studentId
+        );
+
+        if (!item.enrollment) {
+          nextStates[studentId] = "NOT_OPEN";
+          continue;
+        }
+
+        if (submission?.status === "Completed") {
+  nextStates[studentId] = "ENROLLED";
+  continue;
+}
+
+if (submission?.status === "Submitted") {
+  nextStates[studentId] = "SUBMITTED";
+  continue;
+}
+
+if (targetEnrollment) {
+  nextStates[studentId] = "ENROLLED";
+  continue;
+}
+
+        const currentClassId = item.enrollment.class_id;
+        const currentSchedule = currentClassId
+          ? currentScheduleMap.get(
+              `${currentClassId}|${Number(item.enrollment.academic_year)}|${Number(item.enrollment.term)}`
+            )
+          : null;
+
+        if (!isOpeningReached(currentSchedule?.final_lesson ?? null, now)) {
+          nextStates[studentId] = "NOT_OPEN";
+          continue;
+        }
+
+        const targetClassId =
+          recommendationMap.get(studentId) ?? currentClassId ?? "";
+        const targetSchedule = targetScheduleMap.get(targetClassId) ?? null;
+
+        nextStates[studentId] = isFirstLessonPendingPeriod(
+  targetSchedule?.first_lesson ?? null,
+  now.dateKey
+)
+  ? "PENDING"
+  : "OPEN";
+      }
+
+      setFamilyDisplayStates(nextStates);
+    } catch (stateError) {
+      console.error("RE-ENROLMENT FAMILY STATUS LOAD ERROR:", stateError);
+      setFamilyDisplayStates({});
     }
   }
 
@@ -586,11 +992,12 @@ export default function ParentReenrolmentPage() {
       const { data: tuitionData, error: tuitionError } = await supabase
         .from("tuition_configurations")
         .select(`
-          class_id,
-          single_lesson_fee,
-          total_lessons,
-          standard_tuition
-        `)
+  id,
+  class_id,
+  single_lesson_fee,
+  total_lessons,
+  standard_tuition
+`)
         .eq("academic_year", targetAcademicYear)
         .eq("term", targetTerm)
         .in("class_id", Array.from(new Set([
@@ -611,14 +1018,15 @@ export default function ParentReenrolmentPage() {
         (tuitionData ?? []).find((row) => row.class_id === currentClassId) ?? null;
 
       setTuitionConfig(
-        selectedTuitionData
-          ? {
-              single_lesson_fee: Number(selectedTuitionData.single_lesson_fee ?? 0),
-              total_lessons: Number(selectedTuitionData.total_lessons ?? 0),
-              standard_tuition: Number(selectedTuitionData.standard_tuition ?? 0),
-            }
-          : null
-      );
+  selectedTuitionData
+    ? {
+        id: selectedTuitionData.id,
+        single_lesson_fee: Number(selectedTuitionData.single_lesson_fee ?? 0),
+        total_lessons: Number(selectedTuitionData.total_lessons ?? 0),
+        standard_tuition: Number(selectedTuitionData.standard_tuition ?? 0),
+      }
+    : null
+);
       setCurrentClassSingleLessonFee(Number(currentTuitionData?.single_lesson_fee ?? 0));
 
       const { data: creditData, error: creditError } = await supabase
@@ -654,11 +1062,26 @@ export default function ParentReenrolmentPage() {
     ? Math.max(0, tuitionConfig.standard_tuition - redeemAmount)
     : 0;
 
-  async function handleSubmit() {
+    async function handleSubmit() {
     setError(null);
 
     if (!selectedStudent) {
       setError("Please select a student.");
+      return;
+    }
+
+    if (!canStartReenrolment) {
+      setError("Re-enrolment is not currently open for this child.");
+      return;
+    }
+
+    const currentClassId =
+      selectedStudent.classInfo?.id ??
+      selectedStudent.enrollment?.class_id ??
+      "";
+
+    if (!currentClassId) {
+      setError("Current class information is not available.");
       return;
     }
 
@@ -672,6 +1095,7 @@ export default function ParentReenrolmentPage() {
         setError("Please provide the School Year.");
         return;
       }
+
       if (!schoolClass.trim()) {
         setError("Please provide the School Class.");
         return;
@@ -679,7 +1103,9 @@ export default function ParentReenrolmentPage() {
     }
 
     if (!tuitionConfig) {
-      setError("Tuition configuration is not available for the selected class and term.");
+      setError(
+        "Tuition configuration is not available for the selected class and term."
+      );
       return;
     }
 
@@ -690,8 +1116,19 @@ export default function ParentReenrolmentPage() {
 
     setSubmitting(true);
 
+    let createdEnrollmentId: string | null = null;
+
     try {
-      const { data: existingSubmission, error: existingError } = await supabase
+      /*
+       * ----------------------------------------------------------
+       * 1. Prevent duplicate Re-enrolment Submission
+       * ----------------------------------------------------------
+       */
+
+      const {
+        data: existingSubmission,
+        error: existingError,
+      } = await supabase
         .from("re_enrolment_submissions")
         .select("id, status")
         .eq("student_id", selectedStudent.student.id)
@@ -706,54 +1143,226 @@ export default function ParentReenrolmentPage() {
       }
 
       if (existingSubmission) {
-        setError("A Re-enrolment submission already exists for this student and term.");
-        setSubmitting(false);
+        setError(
+          "A Re-enrolment submission already exists for this student and term."
+        );
         return;
       }
+
+      /*
+       * ----------------------------------------------------------
+       * 2. Prepare snapshots
+       * ----------------------------------------------------------
+       */
+
+      const recommendedClassId =
+        recommendation?.recommended_class_id ?? currentClassId;
 
       const specialRequestSnapshot = {
         ...specialRequest,
         school_year:
-          isSchoolProgram && targetTerm === 1 ? schoolYear.trim() : null,
+          isSchoolProgram && targetTerm === 1
+            ? schoolYear.trim()
+            : null,
         school_class:
-          isSchoolProgram && targetTerm === 1 ? schoolClass.trim() : null,
+          isSchoolProgram && targetTerm === 1
+            ? schoolClass.trim()
+            : null,
       };
 
-      const makeupCreditSnapshot = {
-        available_credits: availableMakeupCredits,
-        redeem_credits: redeemCreditsAvailable,
-        redeem_amount: Number(redeemAmount.toFixed(2)),
-      };
+      const medicalSnapshot =
+        medicalInformation.trim() || null;
 
-      const medicalSnapshot = medicalInformation.trim() || null;
+      /*
+       * ----------------------------------------------------------
+       * 3. Prevent duplicate formal Enrollment
+       * ----------------------------------------------------------
+       */
 
-      const { data: insertedSubmission, error: submissionError } = await supabase
+      const {
+        data: existingEnrollment,
+        error: existingEnrollmentError,
+      } = await supabase
+        .from("student_enrolments")
+        .select("id")
+        .eq("student_id", selectedStudent.student.id)
+        .eq("academic_year", targetAcademicYear)
+        .eq("term", targetTerm)
+        .eq("class_id", selectedClassId)
+        .eq("is_trial", false)
+        .maybeSingle();
+
+      if (existingEnrollmentError) {
+        throw existingEnrollmentError;
+      }
+
+      if (existingEnrollment?.id) {
+        throw new Error(
+          "An enrolment already exists for this student, class and term."
+        );
+      }
+
+      /*
+       * ----------------------------------------------------------
+       * 4. Create formal Enrollment FIRST
+       *
+       * New frozen rule:
+       * Parent Submit immediately creates the new Enrollment.
+       *
+       * Payment remains Pending.
+       * Enrollment and Payment Verification are independent.
+       * ----------------------------------------------------------
+       */
+
+      const {
+        data: newEnrollment,
+        error: enrollmentError,
+      } = await supabase
+        .from("student_enrolments")
+        .insert({
+          student_id: selectedStudent.student.id,
+          class_id: selectedClassId,
+          academic_year: targetAcademicYear,
+          term: targetTerm,
+          status: "Active",
+          is_trial: false,
+          trial_status: null,
+          payment_status: "Pending",
+          payment_amount: Number(amountPayable.toFixed(2)),
+          tuition_configuration_id: tuitionConfig.id,
+          pricing_method: "Calculated",
+          standard_tuition: Number(
+            tuitionConfig.standard_tuition.toFixed(2)
+          ),
+          redeem_amount: Number(redeemAmount.toFixed(2)),
+          amount_payable: Number(amountPayable.toFixed(2)),
+          medical_snapshot: medicalSnapshot,
+          special_request_snapshot: specialRequestSnapshot,
+        })
+        .select("id")
+        .single();
+
+      if (enrollmentError) {
+        throw enrollmentError;
+      }
+
+      createdEnrollmentId = newEnrollment?.id ?? null;
+
+      if (!createdEnrollmentId) {
+        throw new Error(
+          "The new enrolment was created but its ID could not be confirmed."
+        );
+      }
+
+      /*
+       * ----------------------------------------------------------
+       * 5. Create Re-enrolment Submission
+       *
+       * Submission is Submitted + Payment Pending.
+       * ----------------------------------------------------------
+       */
+
+      const submittedAt = new Date().toISOString();
+
+      const {
+        data: insertedSubmission,
+        error: submissionError,
+      } = await supabase
         .from("re_enrolment_submissions")
         .insert({
           student_id: selectedStudent.student.id,
+          current_class_id: currentClassId,
+          recommended_class_id: recommendedClassId,
           selected_class_id: selectedClassId,
           academic_year: targetAcademicYear,
           term: targetTerm,
-          status: "Submitted",
-          payment_status: "Pending",
-          payment_amount: Number(amountPayable.toFixed(2)),
           medical_snapshot: medicalSnapshot,
           special_request_snapshot: specialRequestSnapshot,
-          makeup_credit_snapshot: makeupCreditSnapshot,
-          parent_note: null,
+          available_makeup_credits: Number(availableMakeupCredits),
+          redeem_amount: Number(redeemAmount.toFixed(2)),
+          standard_tuition: Number(
+            tuitionConfig.standard_tuition.toFixed(2)
+          ),
+          amount_payable: Number(amountPayable.toFixed(2)),
+          payment_status: "Pending",
+          status: "Submitted",
+          submitted_at: submittedAt,
         })
         .select("id")
         .single();
 
       if (submissionError) {
+        /*
+         * Parent cannot DELETE submissions under current RLS.
+         * Therefore rollback the Enrollment instead.
+         */
+        const { error: rollbackError } = await supabase
+          .from("student_enrolments")
+          .delete()
+          .eq("id", createdEnrollmentId);
+
+        if (rollbackError) {
+          console.error(
+            "RE-ENROLMENT ENROLLMENT ROLLBACK ERROR:",
+            rollbackError
+          );
+        }
+
         throw submissionError;
       }
 
-      setSubmissionId(insertedSubmission?.id ?? null);
+      /*
+       * ----------------------------------------------------------
+       * 6. Synchronise Student Stage
+       * ----------------------------------------------------------
+       */
+
+      await synchroniseStudentStage(
+        selectedStudent.student.id,
+        targetAcademicYear,
+        targetTerm
+      );
+
+      /*
+       * ----------------------------------------------------------
+       * 7. Update local UI state
+       * ----------------------------------------------------------
+       */
+
+      const newSubmission: ReenrolmentSubmission = {
+        id: insertedSubmission.id,
+        student_id: selectedStudent.student.id,
+        academic_year: targetAcademicYear,
+        term: targetTerm,
+        status: "Submitted",
+        payment_status: "Pending",
+        submitted_at: submittedAt,
+      };
+
+      setReenrolmentSubmissions((previous) => [
+        newSubmission,
+        ...previous.filter(
+          (item) =>
+            !(
+              item.student_id === newSubmission.student_id &&
+              item.academic_year === newSubmission.academic_year &&
+              item.term === newSubmission.term
+            )
+        ),
+      ]);
+
+      setSubmissionId(insertedSubmission.id);
       setSubmitted(true);
     } catch (submitError: any) {
-      console.error("RE-ENROLMENT SUBMIT ERROR:", submitError);
-      setError(submitError?.message ?? "Unable to submit Re-enrolment.");
+      console.error(
+        "RE-ENROLMENT SUBMIT ERROR:",
+        submitError
+      );
+
+      setError(
+        submitError?.message ??
+          "Unable to submit Re-enrolment."
+      );
     } finally {
       setSubmitting(false);
     }
@@ -800,6 +1409,62 @@ export default function ParentReenrolmentPage() {
     [familyStudents, selectedStudentId]
   );
 
+  const currentSubmission = useMemo(
+    () =>
+      reenrolmentSubmissions.find(
+        (item) =>
+          item.student_id === selectedStudentId &&
+          item.academic_year === targetAcademicYear &&
+          item.term === targetTerm
+      ) ?? null,
+    [
+      reenrolmentSubmissions,
+      selectedStudentId,
+      targetAcademicYear,
+      targetTerm,
+    ]
+  );
+
+  const reenrolmentDisplayState = useMemo((): ReenrolmentDisplayState => {
+    if (!selectedStudent?.enrollment) return "NOT_OPEN";
+
+    if (currentSubmission?.status === "Completed") return "ENROLLED";
+    if (currentSubmission?.status === "Submitted") return "SUBMITTED";
+
+    if (scheduleLoading) return "NOT_OPEN";
+
+    const now = getBrisbaneNowParts(testClockEnabled ? testClockValue : undefined);
+    const openingReached = isOpeningReached(
+      currentClassSchedule?.final_lesson ?? null,
+      now
+    );
+
+    if (!openingReached) return "NOT_OPEN";
+
+    if (
+  isFirstLessonPendingPeriod(
+    targetClassSchedule?.first_lesson ?? null,
+    now.dateKey
+  )
+) {
+  return "PENDING";
+}
+
+return "OPEN";
+  }, [
+    selectedStudent,
+    currentSubmission,
+    currentClassSchedule,
+    targetClassSchedule,
+    scheduleLoading,
+    statusTick,
+    testClockEnabled,
+    testClockValue,
+  ]);
+
+  const canStartReenrolment =
+    reenrolmentDisplayState === "OPEN" || reenrolmentDisplayState === "PENDING";
+
   const selectedClassInfo = useMemo(() => {
     if (!selectedStudent) return null;
 
@@ -842,11 +1507,37 @@ export default function ParentReenrolmentPage() {
   }, []);
 
   useEffect(() => {
+    setError(null);
+    setSubmitted(false);
+    setSubmissionId(null);
+    setDeclarationConfirmed(false);
+    setSpecialRequest({
+      classroom_pickup: false,
+      ymca_dropoff: false,
+      walk_home: false,
+    });
+
     const currentClassId = selectedStudent?.classInfo?.id ?? "";
     setSelectedClassId(currentClassId);
     setSchoolYear(selectedStudent?.student.school_year ?? "");
     setSchoolClass(selectedStudent?.student.school_class ?? "");
     setMedicalInformation(selectedStudent?.student.medical_information ?? "");
+
+    const currentYear = Number(selectedStudent?.enrollment?.academic_year);
+    const currentTerm = Number(selectedStudent?.enrollment?.term);
+
+    if (
+      Number.isFinite(currentYear) &&
+      Number.isFinite(currentTerm)
+    ) {
+      if (currentTerm >= 4) {
+        setTargetAcademicYear(currentYear + 1);
+        setTargetTerm(1);
+      } else {
+        setTargetAcademicYear(currentYear);
+        setTargetTerm(currentTerm + 1);
+      }
+    }
   }, [selectedStudent]);
 
   useEffect(() => {
@@ -859,8 +1550,32 @@ export default function ParentReenrolmentPage() {
   }, [isClassroomPickupEligible, specialRequest.classroom_pickup]);
 
   useEffect(() => {
+    loadFamilyDisplayStates();
+  }, [
+    familyStudents,
+    reenrolmentSubmissions,
+    targetAcademicYear,
+    targetTerm,
+    statusTick,
+    testClockEnabled,
+    testClockValue,
+  ]);
+
+  useEffect(() => {
     loadRecommendation();
   }, [selectedStudentId, targetAcademicYear, targetTerm]);
+
+  useEffect(() => {
+    loadReenrolmentSchedules();
+  }, [selectedStudentId, targetAcademicYear, targetTerm, selectedClassId]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setStatusTick((value) => value + 1);
+    }, 60_000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   useEffect(() => {
     loadReenrolmentFinancials();
@@ -885,6 +1600,73 @@ export default function ParentReenrolmentPage() {
   {familyStudents.length === 1 ? "child’s" : "children’s"}{" "}
   enrolment for the next term.
 </p>
+
+          {process.env.NODE_ENV !== "production" && (
+            <div className="mt-4 rounded-xl border border-amber-300/30 bg-amber-100/10 p-4 text-xs text-amber-50">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="font-semibold uppercase tracking-[0.14em] text-amber-200">
+                  🧪 Re-enrolment Test Clock
+                </span>
+
+                <label className="inline-flex items-center gap-2">
+                  <input
+  type="checkbox"
+  checked={testClockEnabled}
+  onChange={(event) => {
+    const enabled = event.target.checked;
+
+    setTestClockEnabled(enabled);
+
+    if (!enabled) {
+      clearTestClock();
+      return;
+    }
+
+    if (testClockValue) {
+      setTestClock(testClockValue);
+    }
+  }}
+  className="h-4 w-4 rounded border-slate-300"
+/>
+                  Simulate Brisbane time
+                </label>
+
+                <input
+                  type="datetime-local"
+                  value={testClockValue}
+                  onChange={(event) => {
+  const value = event.target.value;
+
+  setTestClockValue(value);
+
+  if (testClockEnabled && value) {
+    setTestClock(value);
+  }
+}}
+                  disabled={!testClockEnabled}
+                  className="rounded-lg border border-amber-200/40 bg-white px-3 py-2 text-xs text-[#10213A] disabled:cursor-not-allowed disabled:opacity-50"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => {
+  setTestClockEnabled(false);
+  setTestClockValue("");
+  clearTestClock();
+}}
+                  className="rounded-lg border border-amber-200/40 px-3 py-2 font-semibold text-amber-100 hover:bg-amber-100/10"
+                >
+                  Use Live Time
+                </button>
+              </div>
+
+              {testClockEnabled && (
+                <p className="mt-2 text-amber-100/80">
+                  Status calculations use the simulated Brisbane wall-clock time. This control is development-only and does not change the database or Class Schedule.
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Error */}
@@ -942,11 +1724,10 @@ export default function ParentReenrolmentPage() {
                       <button
                         key={item.student.id}
                         type="button"
-                        onClick={() =>
-                          setSelectedStudentId(
-                            item.student.id
-                          )
-                        }
+                        onClick={() => {
+                          setSelectedStudentId(item.student.id);
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        }}
                         className={`
                           rounded-xl border px-4 py-4 text-left transition
                           ${
@@ -956,17 +1737,63 @@ export default function ParentReenrolmentPage() {
                           }
                         `}
                       >
-                        <div className="flex items-center gap-4">
-  <div className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#A78312]">
-    {familyStudents.length === 1
-      ? "CHILD"
-      : `CHILD ${index + 1}`}
-  </div>
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex min-w-0 items-center gap-4">
+                            <div className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#A78312]">
+                              {familyStudents.length === 1
+                                ? "CHILD"
+                                : `CHILD ${index + 1}`}
+                            </div>
 
-  <div className="min-w-0 text-base font-semibold text-[#10213A]">
-    {getStudentDisplayName(item.student) || "Student"}
-  </div>
-</div>
+                            <div className="min-w-0 text-base font-semibold text-[#10213A]">
+                              {getStudentDisplayName(item.student) || "Student"}
+                            </div>
+                          </div>
+
+                          {(() => {
+                            const itemSubmission = reenrolmentSubmissions.find(
+                              (submission) =>
+                                submission.student_id === item.student.id &&
+                                submission.academic_year === targetAcademicYear &&
+                                submission.term === targetTerm &&
+                                submission.status !== "Cancelled"
+                            );
+
+                            const itemState: ReenrolmentDisplayState | null =
+                              isSelected
+                                ? reenrolmentDisplayState
+                                : familyDisplayStates[item.student.id] ??
+                                  (itemSubmission?.status === "Completed"
+                                    ? "ENROLLED"
+                                    : itemSubmission?.status === "Submitted"
+                                      ? "SUBMITTED"
+                                      : null);
+
+                            if (!itemState) return null;
+
+                            const stateClass =
+                              itemState === "ENROLLED"
+                                ? "text-emerald-700"
+                                : itemState === "SUBMITTED"
+                                  ? "text-emerald-700"
+                                  : itemState === "PENDING"
+                                    ? "text-amber-700"
+                                    : itemState === "OPEN"
+                                      ? "text-blue-700"
+                                      : "text-slate-500";
+
+                            const stateLabel =
+                              itemState === "NOT_OPEN"
+                                ? "Not Open"
+                                : itemState.charAt(0) + itemState.slice(1).toLowerCase();
+
+                            return (
+                              <span className={`shrink-0 text-xs font-semibold ${stateClass}`}>
+                                {stateLabel}
+                              </span>
+                            );
+                          })()}
+                        </div>
                       </button>
                     );
                   })}
@@ -1088,8 +1915,114 @@ export default function ParentReenrolmentPage() {
               </section>
             )}
 
-            {/* Target Term */}
+            {/* Re-enrolment Status */}
             {selectedStudent?.enrollment && (
+              <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
+                <div
+                  className={`h-[6px] ${
+                    reenrolmentDisplayState === "ENROLLED" || reenrolmentDisplayState === "SUBMITTED"
+                      ? "bg-gradient-to-r from-emerald-300 via-emerald-400/70 to-transparent"
+                      : "bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent"
+                  }`}
+                />
+                <div className="p-6 sm:p-8">
+                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A78312]">
+                    Re-enrolment Status
+                  </div>
+
+                  <h2 className="mt-2 text-2xl font-semibold text-[#10213A]">
+                    {reenrolmentDisplayState === "NOT_OPEN"
+                      ? "Not Open Yet"
+                      : reenrolmentDisplayState === "OPEN"
+                        ? "OPEN"
+                        : reenrolmentDisplayState === "PENDING"
+                          ? "PENDING"
+                          : reenrolmentDisplayState === "SUBMITTED"
+                            ? "SUBMITTED"
+                            : "ENROLLED"}
+                  </h2>
+
+                  <p className="mt-2 text-sm leading-6 text-[#64748B]">
+                    {reenrolmentDisplayState === "NOT_OPEN"
+                      ? currentClassSchedule?.final_lesson
+                        ? `Re-enrolment opens at 8:00 AM the day after the Final Lesson (${currentClassSchedule.final_lesson.slice(0, 10)}).`
+                        : "Re-enrolment opening is being prepared from the class schedule."
+                      : reenrolmentDisplayState === "OPEN"
+                        ? "Re-enrolment is now open. Please complete the form below before the new term begins."
+                        : reenrolmentDisplayState === "PENDING"
+                          ? "This child’s Re-enrolment has not yet been submitted. Please complete it before the first lesson."
+                          : reenrolmentDisplayState === "SUBMITTED"
+                            ? "This child’s Re-enrolment has been submitted and is now pending payment verification."
+                            : "This child’s Re-enrolment has been completed and is now enrolled for the target term."}
+                  </p>
+
+                  <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <InfoField
+                      label="Student"
+                      value={getStudentDisplayName(selectedStudent.student)}
+                    />
+                    <InfoField
+                      label="Target Term"
+                      value={`${targetAcademicYear} Term ${targetTerm}`}
+                    />
+                    <InfoField
+                      label="Payment Status"
+                      value={currentSubmission?.payment_status ?? (reenrolmentDisplayState === "ENROLLED" ? "Paid" : "—")}
+                    />
+                    <InfoField
+                      label="First Lesson"
+                      value={targetClassSchedule?.first_lesson?.slice(0, 10) ?? "—"}
+                    />
+                  </div>
+
+                  {(currentSubmission?.id || submissionId) && (
+                    <p className="mt-5 text-xs text-[#64748B]">
+                      Submission ID: {currentSubmission?.id ?? submissionId}
+                    </p>
+                  )}
+
+                  {reenrolmentDisplayState === "NOT_OPEN" && (
+                    <div className="mt-6 rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] px-4 py-4 text-sm text-[#31445B]">
+                      Re-enrolment will become available automatically according to the current class schedule.
+                    </div>
+                  )}
+
+                  {reenrolmentDisplayState === "PENDING" && (
+  <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
+    {(() => {
+      const now = getBrisbaneNowParts(
+        testClockEnabled ? testClockValue : undefined
+      );
+
+      const firstLessonDate =
+        targetClassSchedule?.first_lesson?.slice(0, 10) ?? null;
+
+      if (firstLessonDate === now.dateKey) {
+        return "Reminder: the first lesson is today. The Re-enrolment link remains active so you can complete the submission.";
+      }
+
+      if (addOneCalendarDay(now.dateKey) === firstLessonDate) {
+        return "Reminder: the first lesson is tomorrow. The Re-enrolment link remains active so you can complete the submission.";
+      }
+
+      return "The first lesson has started. The Re-enrolment link remains active, please complete the reenrollment as soon as possible.";
+    })()}
+  </div>
+)}
+
+                  {(reenrolmentDisplayState === "SUBMITTED" || reenrolmentDisplayState === "ENROLLED") && (
+                    <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-900">
+                      {reenrolmentDisplayState === "SUBMITTED"
+                        ? "Please select another child above if they still need to complete Re-enrolment."
+                        : "This Re-enrolment is complete. The enrolled term is now locked by the formal enrolment record."}
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {/* Target Term */}
+            {selectedStudent?.enrollment && !currentSubmission && !submitted && canStartReenrolment && (
               <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
                 <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
 
@@ -1173,7 +2106,7 @@ export default function ParentReenrolmentPage() {
             )}
 
             {/* Class Selection */}
-            {selectedStudent?.enrollment && (
+            {selectedStudent?.enrollment && !currentSubmission && !submitted && canStartReenrolment && (
               <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
                 <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
 
@@ -1293,7 +2226,7 @@ export default function ParentReenrolmentPage() {
 
 
             {/* Special Request */}
-            {selectedStudent?.enrollment && (
+            {selectedStudent?.enrollment && !currentSubmission && !submitted && canStartReenrolment && (
               <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
                 <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
 
@@ -1469,7 +2402,7 @@ export default function ParentReenrolmentPage() {
             )}
 
             {/* Step 4 — Medical Snapshot */}
-            {selectedStudent?.enrollment && (
+            {selectedStudent?.enrollment && !currentSubmission && !submitted && canStartReenrolment && (
               <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
                 <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
                 <div className="p-6 sm:p-8">
@@ -1493,7 +2426,7 @@ export default function ParentReenrolmentPage() {
             )}
 
             {/* Step 5 — Tuition & Make-up Credit */}
-            {selectedStudent?.enrollment && (
+            {selectedStudent?.enrollment && !currentSubmission && !submitted && canStartReenrolment && (
               <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
                 <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
                 <div className="p-6 sm:p-8">
@@ -1532,7 +2465,7 @@ export default function ParentReenrolmentPage() {
             )}
 
             {/* Step 6 — Review & Declaration */}
-            {selectedStudent?.enrollment && (
+            {selectedStudent?.enrollment && !currentSubmission && !submitted && canStartReenrolment && (
               <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
                 <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
                 <div className="p-6 sm:p-8">
@@ -1581,7 +2514,7 @@ export default function ParentReenrolmentPage() {
             )}
 
             {/* Step 7 — Submission */}
-            {selectedStudent?.enrollment && (
+            {selectedStudent?.enrollment && !currentSubmission && !submitted && canStartReenrolment && (
               <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
                 <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
                 <div className="p-6 sm:p-8">

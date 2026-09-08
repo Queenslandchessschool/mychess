@@ -38,7 +38,7 @@ const navigationItems = [
   },
   {
     label: "Tuition Fee",
-    href: "/parent/tuition-fee",
+    href: "/parent/tuition",
     icon: "$",
   },
   {

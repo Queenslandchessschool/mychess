@@ -3,6 +3,8 @@ import {
   hasLessonStarted,
 } from "@/lib/attendanceTime";
 
+import { getBusinessTimeAsDate } from "@/lib/businessTime";
+
 export interface EligibleMakeupLesson {
   id: string;
 
@@ -869,10 +871,13 @@ if (
   );
 }
 
+const businessNow = getBusinessTimeAsDate();
+
 if (
   hasLessonStarted(
     lesson.lesson_date,
-    classData.start_time
+    classData.start_time,
+    businessNow
   )
 ) {
   throw new Error(

@@ -685,7 +685,7 @@ export default function RegistrationForm({
                     key={cls.id}
                     value={cls.id}
                   >
-                    {`${cls.campuses?.short_name} | ${cls.day} | ${cls.level}`}
+                    {`${cls.campuses?.short_name} | ${cls.day} | ${cls.level}${cls.class_suffix ? ` ${cls.class_suffix}` : ""}`}
                   </option>
                 ))}
               </select>
@@ -973,7 +973,7 @@ export default function RegistrationForm({
                     </p>
                     <p className="font-medium text-[#10213A]">
                       {selectedClass
-                        ? `${selectedCampus?.short_name} | ${selectedClass.day} | ${selectedClass.level}`
+                        ? `${selectedCampus?.short_name} | ${selectedClass.day} | ${selectedClass.level}${selectedClass.class_suffix ? ` ${selectedClass.class_suffix}` : ""}`
                         : "-"}
                     </p>
                   </div>

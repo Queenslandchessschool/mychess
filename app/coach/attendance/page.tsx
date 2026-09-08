@@ -30,6 +30,15 @@ import {
   isAttendanceLocked,
 } from "@/lib/attendanceTime";
 
+import {
+  clearTestClock,
+  getBusinessTime,
+  getBusinessTimeAsDate,
+  getTestClockValue,
+  isTestClockEnabled,
+  setTestClock,
+} from "@/lib/businessTime";
+
 import AttendanceHeader from "@/components/attendance/AttendanceHeader";
 import AttendanceLessonCard from "@/components/attendance/AttendanceLessonCard";
 import AttendanceLessonFilters from "@/components/attendance/AttendanceLessonFilters";
@@ -45,6 +54,43 @@ import type {
   AttendanceSummary as AttendanceSummaryType,
 } from "@/components/attendance/types";
 
+
+// ======================================================
+// DEV / UAT Global Business Time
+//
+// Production safety:
+// - The simulator is rendered only when NODE_ENV !== "production".
+// - Production always uses the real current time.
+//
+// IMPORTANT:
+// - This Coach control uses the existing global lib/businessTime.ts.
+// - Re-enrolment and Coach therefore share the same localStorage clock.
+// - This clock is used here to determine Roll Call availability only.
+// - It does NOT disable Attendance Runner / Engine / Reconciliation.
+// - It does NOT change Leave / Trial / Make-up / Holiday sync.
+// - The normal 23:59 Attendance lock remains controlled by the
+//   shared Attendance Time Engine.
+// ======================================================
+
+function getLiveBrisbaneDateTimeLocalValue() {
+  const parts = new Intl.DateTimeFormat("en-AU", {
+    timeZone: "Australia/Brisbane",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
+
+  return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`;
+}
 
 // ======================================================
 // Page
@@ -119,8 +165,19 @@ export default function CoachAttendancePage() {
   const [eightPmPopupShown, setEightPmPopupShown] =
   useState(false);
 
+  // Global Business Time / UAT clock.
+  // The actual state lives in lib/businessTime.ts localStorage.
+  const [rollCallTimeTick, setRollCallTimeTick] =
+    useState(Date.now());
+
+  const [rollCallTestClockEnabled, setRollCallTestClockEnabled] =
+    useState(false);
+
+  const [rollCallTestClockValue, setRollCallTestClockValue] =
+    useState("");
+
 const [coachGreetingName, setCoachGreetingName] =
-  useState("");
+    useState("");
 
 
   // ======================================================
@@ -170,7 +227,24 @@ const [coachGreetingName, setCoachGreetingName] =
     // on the lesson date.
     if (
       isAttendanceLocked(
-        selectedLesson.lesson_date
+        selectedLesson.lesson_date,
+        getBusinessTimeAsDate()
+      )
+    ) {
+      await loadStudents(
+        selectedLesson.id
+      );
+      return;
+    }
+
+    // Before Lesson Start, Coach Roll Call is disabled.
+    // This guard affects only Coach-initiated status changes.
+    // Automatic Attendance synchronization remains unaffected.
+    if (
+      rollCallTimeTick <
+      getLessonStartTimestamp(
+        selectedLesson.lesson_date,
+        selectedLesson.start_time
       )
     ) {
       await loadStudents(
@@ -420,6 +494,23 @@ const [coachGreetingName, setCoachGreetingName] =
 
   async function handleSubmitAttendance() {
     if (!selectedLesson || submittingAttendance) return;
+
+    // Submit Attendance is a Coach Roll Call action.
+    // It is unavailable before Lesson Start and after the
+    // Attendance lock. Automatic synchronization is unaffected.
+    if (
+      isAttendanceLocked(
+        selectedLesson.lesson_date,
+        getBusinessTimeAsDate()
+      ) ||
+      rollCallTimeTick <
+        getLessonStartTimestamp(
+          selectedLesson.lesson_date,
+          selectedLesson.start_time
+        )
+    ) {
+      return;
+    }
 
     const currentUser = await getCurrentUser();
 
@@ -1611,7 +1702,8 @@ async function addMakeupStudent(
 
   if (
     isAttendanceLocked(
-      selectedLesson.lesson_date
+      selectedLesson.lesson_date,
+      getBusinessTimeAsDate()
     )
   ) {
     await loadStudents(
@@ -2030,6 +2122,54 @@ const countMap =
   loadCoachGreeting();
 }, []);
 
+  useEffect(() => {
+    // Read the existing Global Business Time on mount.
+    const syncGlobalBusinessTime = () => {
+      const enabled = isTestClockEnabled();
+      const value = getTestClockValue();
+
+      setRollCallTestClockEnabled(enabled);
+      setRollCallTestClockValue(
+        value || getLiveBrisbaneDateTimeLocalValue()
+      );
+      setRollCallTimeTick(
+        getBusinessTimeAsDate().getTime()
+      );
+    };
+
+    syncGlobalBusinessTime();
+
+    // Keep the displayed business time moving while in live mode.
+    const interval = window.setInterval(
+      () => {
+        setRollCallTimeTick(
+          getBusinessTimeAsDate().getTime()
+        );
+      },
+      1000
+    );
+
+    // A different Portal / tab may change the shared Test Clock.
+    const handleStorage = (event: StorageEvent) => {
+      if (
+        event.key === "mychess_test_clock_enabled" ||
+        event.key === "mychess_test_clock_value"
+      ) {
+        syncGlobalBusinessTime();
+      }
+    };
+
+    window.addEventListener("storage", handleStorage);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener(
+        "storage",
+        handleStorage
+      );
+    };
+  }, []);
+
 useEffect(() => {
   if (!selectedLesson) {
     return;
@@ -2077,6 +2217,30 @@ useEffect(() => {
         )
       : false;
 
+  // ======================================================
+  // Coach Roll Call Availability
+  //
+  // Frozen rule:
+  // - Before Lesson Start: Coach Roll Call is disabled.
+  // - At / after Lesson Start: Coach Roll Call is enabled.
+  // - At 23:59 / next day: Attendance is locked.
+  //
+  // IMPORTANT:
+  // This guard applies ONLY to Coach Roll Call actions.
+  // It does NOT affect Attendance Runner, reconciliation,
+  // Leave sync, Trial / Make-up sync, or any other
+  // automatic Attendance synchronization.
+  // ======================================================
+  const rollCallEnabled =
+    selectedLesson
+      ? !attendanceLocked &&
+        rollCallTimeTick >=
+          getLessonStartTimestamp(
+            selectedLesson.lesson_date,
+            selectedLesson.start_time
+          )
+      : false;
+
 
   // ======================================================
   // Render
@@ -2114,6 +2278,151 @@ useEffect(() => {
           }
         />
 
+        {process.env.NODE_ENV !== "production" && (
+          <div
+            className="
+              fixed
+              bottom-4
+              right-4
+              z-[200]
+              w-[min(360px,calc(100vw-2rem))]
+              rounded-2xl
+              border
+              border-[#D4AF37]
+              bg-[#071B36]
+              p-4
+              text-white
+              shadow-2xl
+            "
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-[#F4C542]">
+                  Global Business Time
+                </div>
+                <div className="mt-1 text-xs text-slate-300">
+                  Shared UAT clock — Roll Call availability only.
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (rollCallTestClockEnabled) {
+                    clearTestClock();
+                    setRollCallTestClockEnabled(false);
+                    setRollCallTestClockValue(
+                      getLiveBrisbaneDateTimeLocalValue()
+                    );
+                    setRollCallTimeTick(Date.now());
+                    return;
+                  }
+
+                  const nextValue =
+                    rollCallTestClockValue ||
+                    getLiveBrisbaneDateTimeLocalValue();
+
+                  setTestClock(nextValue);
+                  setRollCallTestClockEnabled(true);
+                  setRollCallTestClockValue(nextValue);
+                  setRollCallTimeTick(
+                    getBusinessTimeAsDate().getTime()
+                  );
+                }}
+                className={`
+                  rounded-lg
+                  px-3
+                  py-1.5
+                  text-xs
+                  font-semibold
+                  ${
+                    rollCallTestClockEnabled
+                      ? "bg-[#F4C542] text-[#071B36]"
+                      : "bg-white/10 text-white"
+                  }
+                `}
+              >
+                {rollCallTestClockEnabled
+                  ? "TEST ON"
+                  : "TEST OFF"}
+              </button>
+            </div>
+
+            <div className="mt-3">
+              <label className="text-xs text-slate-300">
+                Brisbane simulated time
+              </label>
+              <input
+                type="datetime-local"
+                value={rollCallTestClockValue}
+                onChange={(event) => {
+                  const nextValue = event.target.value;
+                  setRollCallTestClockValue(nextValue);
+
+                  if (rollCallTestClockEnabled && nextValue) {
+                    setTestClock(nextValue);
+                    setRollCallTimeTick(
+                      getBusinessTimeAsDate().getTime()
+                    );
+                  }
+                }}
+                disabled={!rollCallTestClockEnabled}
+                className="
+                  mt-1
+                  w-full
+                  rounded-lg
+                  border
+                  border-white/20
+                  bg-white
+                  px-3
+                  py-2
+                  text-sm
+                  text-[#071B36]
+                  disabled:cursor-not-allowed
+                  disabled:opacity-50
+                "
+              />
+            </div>
+
+            <div className="mt-3 flex items-center justify-between gap-3 text-xs">
+              <span className="text-slate-300">
+                Current Roll Call clock
+              </span>
+              <span className="font-semibold text-[#F4C542]">
+                {new Intl.DateTimeFormat("en-AU", {
+                  timeZone: "Australia/Brisbane",
+                  dateStyle: "short",
+                  timeStyle: "medium",
+                }).format(
+                  new Date(rollCallTimeTick)
+                )}
+              </span>
+            </div>
+
+            {selectedLesson && (
+              <div className="mt-2 text-xs text-slate-300">
+                {rollCallEnabled
+                  ? "Roll Call: ENABLED"
+                  : "Roll Call: LOCKED"}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                clearTestClock();
+                setRollCallTestClockValue(
+                  getLiveBrisbaneDateTimeLocalValue()
+                );
+                setRollCallTestClockEnabled(false);
+                setRollCallTimeTick(Date.now());
+              }}
+              className="mt-3 w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/15"
+            >
+              Reset to Real Time
+            </button>
+          </div>
+        )}
 
         {loading ? (
 
@@ -2229,7 +2538,7 @@ useEffect(() => {
                       onClick={handleSubmitAttendance}
                       disabled={
                         submittingAttendance ||
-                        attendanceLocked
+                        !rollCallEnabled
                       }
                       className={`
                         inline-flex
@@ -2252,6 +2561,8 @@ useEffect(() => {
                     >
                       {attendanceLocked
   ? "Attendance Locked"
+  : !rollCallEnabled
+  ? "Roll Call Not Open"
   : submittingAttendance
   ? "Saving..."
   : attendanceSubmittedAt
@@ -2278,7 +2589,7 @@ useEffect(() => {
                     }
 
                     locked={
-                      attendanceLocked
+                      !rollCallEnabled
                     }
                   />
 

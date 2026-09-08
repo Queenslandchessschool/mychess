@@ -6,6 +6,34 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## 2026-09-08 — UAT Checkpoint
+
+### Attendance
+- Continued formal UAT of the Frozen Attendance Core Lifecycle.
+- Confirmed the intended lifecycle:
+  04:00 → Realtime → T-30 → Lesson Start → Roll Call → After Start → 23:59 Lock.
+- Confirmed that Coach Attendance remains operational for the lesson date until the Brisbane business-day boundary.
+- Confirmed that completed lessons can remain editable in Coach Attendance before 23:59, while Admin Attendance History provides the historical/read-only view.
+- No changes made to the Frozen Attendance Engine / Runner / Time Engine core.
+
+### Make-up
+- Continued validation of Make-up Booking ↔ Attendance integration.
+- Preserved existing Credit / Attendance business rules.
+
+### Re-enrolment / Tuition
+- Preserved the completed Parent Re-enrolment → Class Selection → Tuition Calculation → Credit Redemption → Submit → Admin Confirm Paid → Parent Tuition flow.
+- Parent Tuition payment display remains Paid / Not Paid.
+- Historical T3 data remains retained for production transition.
+
+### Registration
+- Updated class display to include class suffix where applicable.
+
+### Development / UAT
+- Global Business Time Test Clock retained for UAT.
+- Test Clock is a development/UAT tool only and is not part of production business time.
+- Production deployment has NOT been performed.
+- This checkpoint is a UAT baseline before continuing the remaining formal acceptance sequence.
+
 ### CHANGELOG — 2026-09-04
 
 ## Parent Re-enrolment UI & Tuition — PASS
