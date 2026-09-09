@@ -20,6 +20,8 @@ export interface MakeupBooking {
 
   campus_name: string;
 
+  class_name?: string;
+
   attendance_id: string | null;
 
   status: string;
@@ -63,5 +65,7 @@ export interface LessonOption {
   campus_name: string;
 
   level: string;
+
+  class_name?: string;
 
 }

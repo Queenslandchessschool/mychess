@@ -36,7 +36,7 @@ export default function BookingForm({
       className="
         relative
         w-full
-        overflow-hidden
+        overflow-visible
         rounded-2xl
         border
         border-[#D9E0E8]
@@ -44,29 +44,40 @@ export default function BookingForm({
         shadow-sm
       "
     >
-      {/* Frozen MyCHESS Gold Tapered Accent */}
-<div
-  aria-hidden="true"
-  className="
-    pointer-events-none
-    absolute
-    left-0
-    right-0
-    top-0
-    h-[6px]
-    bg-gradient-to-r
-    from-[#F7D968]
-    via-[#D4AF37]/75
-    to-transparent
-  "
-  style={{
-    clipPath:
-      "polygon(0 0, 100% 42%, 100% 58%, 0 100%)",
-  }}
-/>
+          {/* Frozen MyCHESS Gold Tapered Accent */}
+      <div
+        aria-hidden="true"
+        className="
+          pointer-events-none
+          absolute
+          inset-0
+          overflow-hidden
+          rounded-2xl
+        "
+      >
+        <div
+          className="
+            absolute
+            left-0
+            right-0
+            top-0
+            h-[6px]
+            bg-gradient-to-r
+            from-[#F7D968]
+            via-[#D4AF37]/75
+            to-transparent
+          "
+          style={{
+            clipPath:
+              "polygon(0 0, 100% 42%, 100% 58%, 0 100%)",
+          }}
+        />
+      </div>
 
       <div
         className="
+          relative
+          z-10
           px-5
           py-6
           sm:px-6

@@ -12,12 +12,17 @@ interface Props {
     record: MakeupBooking
   ) => void;
 
+  onComplete?: (
+  record: MakeupBooking
+) => void;
+
   actionLabel?: string;
 }
 
 export default function BookingTable({
   records,
   onDelete,
+  onComplete,
   actionLabel = "Delete",
 }: Props) {
   return (
@@ -83,7 +88,7 @@ export default function BookingTable({
                   Completed
                 </th>
 
-                <th className="w-28 px-4 py-4">
+                <th className="w-48 px-4 py-4">
                   Action
                 </th>
               </tr>
@@ -185,37 +190,65 @@ export default function BookingTable({
                     </td>
 
                     {/* Action */}
-                    <td className="px-4 py-4">
-                      {canCancel && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            onDelete(record)
-                          }
-                          className="
-                            inline-flex
-                            min-h-[40px]
-                            items-center
-                            justify-center
-                            rounded-xl
-                            border
-                            border-red-500
-                            bg-white
-                            px-3
-                            py-2
-                            text-sm
-                            font-medium
-                            text-red-600
-                            transition-all
-                            duration-200
-                            hover:bg-red-50
-                            active:scale-[0.98]
-                          "
-                        >
-                          {actionLabel}
-                        </button>
-                      )}
-                    </td>
+<td className="w-48 whitespace-nowrap px-4 py-4">
+   <div className="flex items-center gap-2">
+    {record.status === "Booked" && onComplete && (
+      <button
+        type="button"
+        onClick={() => onComplete(record)}
+        className="
+          inline-flex
+          min-h-[40px]
+          items-center
+          justify-center
+          rounded-xl
+          border
+          border-[#D4AF37]
+          bg-[#D4AF37]
+          px-3
+          py-2
+          text-sm
+          font-medium
+          text-[#10213A]
+          transition-all
+          duration-200
+          hover:bg-[#F4D35E]
+          active:scale-[0.98]
+        "
+      >
+        Complete
+      </button>
+    )}
+
+    {canCancel && (
+      <button
+        type="button"
+        onClick={() => onDelete(record)}
+        className="
+          inline-flex
+          min-h-[40px]
+          items-center
+          justify-center
+          rounded-xl
+          border
+          border-red-500
+          bg-white
+          px-3
+          py-2
+          text-sm
+          font-medium
+          text-red-600
+          transition-all
+          duration-200
+          hover:bg-red-50
+          active:scale-[0.98]
+        "
+      >
+        {actionLabel}
+      </button>
+    )}
+  </div>
+</td>
                   </tr>
                 );
               })}
@@ -263,7 +296,7 @@ export default function BookingTable({
       record.start_time
     );
 
-          return (
+           return (
             <article
               key={record.id}
               className="
@@ -455,40 +488,69 @@ export default function BookingTable({
                   </div>
                 </div>
 
-                {/* Action */}
+               {/* Action */}
 
-                {canCancel && (
-                  <div className="mt-5">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onDelete(record)
-                      }
-                      className="
-                        inline-flex
-                        min-h-[44px]
-                        w-full
-                        items-center
-                        justify-center
-                        rounded-xl
-                        border
-                        border-red-500
-                        bg-white
-                        px-5
-                        py-2.5
-                        text-sm
-                        font-medium
-                        text-red-600
-                        transition-all
-                        duration-200
-                        hover:bg-red-50
-                        active:scale-[0.98]
-                      "
-                    >
-                      {actionLabel}
-                    </button>
-                  </div>
-                )}
+{(record.status === "Booked" && onComplete) || canCancel ? (
+  <div className="mt-5 space-y-2">
+    {record.status === "Booked" && onComplete && (
+      <button
+        type="button"
+        onClick={() => onComplete(record)}
+        className="
+          inline-flex
+          min-h-[44px]
+          w-full
+          items-center
+          justify-center
+          rounded-xl
+          border
+          border-[#D4AF37]
+          bg-[#D4AF37]
+          px-5
+          py-2.5
+          text-sm
+          font-medium
+          text-[#10213A]
+          transition-all
+          duration-200
+          hover:bg-[#F4D35E]
+          active:scale-[0.98]
+        "
+      >
+        Complete
+      </button>
+    )}
+
+    {canCancel && (
+      <button
+        type="button"
+        onClick={() => onDelete(record)}
+        className="
+          inline-flex
+          min-h-[44px]
+          w-full
+          items-center
+          justify-center
+          rounded-xl
+          border
+          border-red-500
+          bg-white
+          px-5
+          py-2.5
+          text-sm
+          font-medium
+          text-red-600
+          transition-all
+          duration-200
+          hover:bg-red-50
+          active:scale-[0.98]
+        "
+      >
+        {actionLabel}
+      </button>
+    )}
+  </div>
+) : null}
               </div>
             </article>
           );

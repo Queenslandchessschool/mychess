@@ -40,6 +40,14 @@ const [filterYear, setFilterYear] = useState<number | null>(null);
 const [filterTerm, setFilterTerm] = useState<number | null>(null);
 const [filterClassId, setFilterClassId] = useState<string>("");
 const [filterStatus, setFilterStatus] = useState<string>("");
+const [reconciliationResult, setReconciliationResult] =
+  useState<{
+    candidate: number;
+    created: number;
+    updated: number;
+    unchanged: number;
+    protected: number;
+  } | null>(null);
 
 const [selectedLesson, setSelectedLesson] = useState<any | null>(null);
 
@@ -801,20 +809,13 @@ for (const item of lessonsToUpdate) {
       ).length;
 
 
-    alert(
-  [
-    "Lesson Reconciliation completed.",
-    "",
-    `Candidate Lessons: ${candidateLessons.length}`,
-    "",
-    `Created: ${created}`,
-    `Updated: ${updated}`,
-    `Unchanged: ${unchanged}`,
-    `Protected: ${protectedCount}`,
-    "",
-    "Database changes have been saved."
-  ].join("\n")
-);
+    setReconciliationResult({
+      candidate: candidateLessons.length,
+      created,
+      updated,
+      unchanged,
+      protected: protectedCount,
+    });
 
   } finally {
 
@@ -1300,6 +1301,167 @@ const filteredLessons = lessons.filter((lesson) => {
           )}
         </div>
       </div>
+      {reconciliationResult && (
+  <div
+    className="
+      fixed
+      inset-0
+      z-[100]
+      flex
+      items-center
+      justify-center
+      bg-[#10213A]/50
+      px-4
+      backdrop-blur-[2px]
+    "
+  >
+    <div
+      className="
+        relative
+        w-full
+        max-w-md
+        overflow-hidden
+        rounded-2xl
+        border
+        border-[#D9E0E8]
+        bg-[#FFFDF8]
+        shadow-2xl
+      "
+    >
+      {/* Gold Accent */}
+      <div
+        aria-hidden="true"
+        className="
+          absolute
+          left-0
+          right-0
+          top-0
+          h-[6px]
+          bg-gradient-to-r
+          from-[#F7D968]
+          via-[#D4AF37]
+          to-transparent
+        "
+      />
+
+      <div className="px-6 py-7 sm:px-7">
+        <p
+          className="
+            text-[11px]
+            font-semibold
+            uppercase
+            tracking-[0.22em]
+            text-[#B28A22]
+          "
+        >
+          LESSON GENERATOR
+        </p>
+
+        <h2
+          className="
+            mt-2
+            text-2xl
+            font-bold
+            tracking-tight
+            text-[#10213A]
+          "
+        >
+          Reconciliation Completed
+        </h2>
+
+        <p
+          className="
+            mt-2
+            text-sm
+            text-[#64748B]
+          "
+        >
+          Database changes have been saved successfully.
+        </p>
+
+        <div
+          className="
+            mt-6
+            grid
+            grid-cols-2
+            gap-3
+          "
+        >
+          <div className="rounded-xl bg-[#F5F9FD] p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">
+              Candidate
+            </p>
+            <p className="mt-1 text-2xl font-bold text-[#10213A]">
+              {reconciliationResult.candidate}
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-[#FFF8DF] p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">
+              Created
+            </p>
+            <p className="mt-1 text-2xl font-bold text-[#10213A]">
+              {reconciliationResult.created}
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-[#F5F9FD] p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">
+              Updated
+            </p>
+            <p className="mt-1 text-2xl font-bold text-[#10213A]">
+              {reconciliationResult.updated}
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-[#F5F9FD] p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">
+              Unchanged
+            </p>
+            <p className="mt-1 text-2xl font-bold text-[#10213A]">
+              {reconciliationResult.unchanged}
+            </p>
+          </div>
+
+          <div className="col-span-2 rounded-xl bg-[#F5F9FD] p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">
+              Protected
+            </p>
+            <p className="mt-1 text-2xl font-bold text-[#10213A]">
+              {reconciliationResult.protected}
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() =>
+            setReconciliationResult(null)
+          }
+          className="
+            mt-6
+            w-full
+            rounded-xl
+            border
+            border-[#D4AF37]
+            bg-[#D4AF37]
+            px-5
+            py-3
+            text-sm
+            font-semibold
+            text-[#10213A]
+            shadow-sm
+            transition
+            hover:bg-[#F4D35E]
+            active:scale-[0.98]
+          "
+        >
+          Done
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </main>
   );
 }

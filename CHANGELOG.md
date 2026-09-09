@@ -6,6 +6,32 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## 2026-09-10 — Make-up Booking Completion
+
+### Added
+- Added Admin-side completion flow for Make-up Bookings.
+- Added `completeMakeupBooking()` to complete a booked make-up lesson.
+- Added `completeMakeupBookingsForLesson()` for lesson-level completion.
+- Added Admin Complete action for Booked Make-up Booking Records.
+- Added responsive Complete action to desktop and mobile Booking Records.
+
+### Business Flow
+- Make-up Booking: `Booked → Completed`
+- Make-up Credit: `Booked → Used`
+- Attendance remains linked to the Make-up Booking.
+- `completed_at` is recorded when the booking is completed.
+- Existing Cancel flow remains unchanged.
+- Existing On-site Make-up Attendance flow remains unchanged.
+
+### UAT
+- Private 1-to-1 Online Make-up tested with Harley Miao.
+- Admin Complete flow: **PASS**
+- Booking `Booked → Completed`: **PASS**
+- Credit `Booked → Used`: **PASS**
+- Completed timestamp recorded: **PASS**
+- MyCHESS confirmation/success modal: **PASS**
+- Desktop Booking Records: **PASS**
+
 ## 2026-09-08 — UAT Checkpoint
 
 ### Attendance

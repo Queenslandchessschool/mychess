@@ -24,6 +24,9 @@ import {
 } from "@/lib/leaveAttendanceSync";
 import { addOnSiteMakeupAttendance } from "@/lib/makeupAttendance";
 import {
+  completeMakeupBookingsForLesson,
+} from "@/lib/makeupBooking";
+import {
   getLessonStartTimestamp,
   getBrisbaneDate,
   getBrisbaneDateParts,
@@ -550,6 +553,23 @@ const [coachGreetingName, setCoachGreetingName] =
       setAttendanceSubmittedAt(
         data?.submitted_at ??
           new Date().toISOString()
+      );
+
+          // --------------------------------------------------
+      // Make-up Booking Completion
+      //
+      // Coach has submitted the actual Attendance.
+      // Complete all Booked Make-up Bookings for this lesson.
+      //
+      // Present / Late / Absent
+      //        ↓
+      // Booking Completed
+      //        ↓
+      // Credit Used
+      // --------------------------------------------------
+
+      await completeMakeupBookingsForLesson(
+        selectedLesson.id
       );
     } catch (error) {
       console.error(

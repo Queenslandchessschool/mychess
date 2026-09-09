@@ -13,16 +13,18 @@ interface Props {
     form: MakeupFormData
   ) => void;
 
-  onSave: () => void;
+    onSave: () => void;
   onCancel: () => void;
+  editing: boolean;
 }
 
 export default function MakeupForm({
   form,
   students,
   onChange,
-  onSave,
+    onSave,
   onCancel,
+  editing,
 }: Props) {
   return (
     <section
@@ -92,7 +94,9 @@ export default function MakeupForm({
               sm:text-3xl
             "
           >
-            Grant Make-up Credit
+                      {editing
+              ? "Edit Make-up Credit"
+              : "Grant Make-up Credit"}
           </h2>
 
         </div>
@@ -332,7 +336,7 @@ export default function MakeupForm({
                 focus:ring-[#D4AF37]/30
               "
             >
-              Grant Credit
+            {editing ? "Save Changes" : "Grant Credit"}
             </button>
 
           </div>

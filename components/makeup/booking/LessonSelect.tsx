@@ -190,12 +190,16 @@ function getLessonLabel(
       lesson.end_time
     );
 
-  const parts = [
-    date,
-    time,
-    lesson.campus_name,
-    lesson.level,
-  ].filter(Boolean);
+  const className =
+  lesson.class_name ||
+  lesson.level;
+
+const parts = [
+  date,
+  time,
+  lesson.campus_name,
+  className,
+].filter(Boolean);
 
   return parts.join(" · ");
 }
@@ -299,7 +303,7 @@ export default function LessonSelect({
           border
           bg-[#F5F9FD]
           px-4
-          py-3
+          py-2.5
           text-left
           text-sm
           text-[#10213A]
@@ -351,22 +355,18 @@ export default function LessonSelect({
           ====================================================== */}
 
       {open && (
-        <div
-          className="
-            absolute
-            left-0
-            right-0
-            z-50
-            mt-2
-            max-h-[220px]
-            overflow-y-auto
-            rounded-xl
-            border
-            border-[#D9E0E8]
-            bg-white
-            shadow-lg
-          "
-        >
+  <div
+    className="
+      mt-2
+      max-h-[200px]
+      overflow-y-auto
+      rounded-xl
+      border
+      border-[#D9E0E8]
+      bg-white
+      shadow-lg
+    "
+  >
           {lessons.length === 0 ? (
             <div
               className="
@@ -402,7 +402,7 @@ export default function LessonSelect({
                         border-b
                         border-[#EEF2F6]
                         px-4
-                        py-3
+                        py-2.5
                         text-left
                         transition
                         last:border-b-0

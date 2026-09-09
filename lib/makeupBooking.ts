@@ -25,6 +25,7 @@ export interface EligibleMakeupLesson {
 
 interface GetEligibleMakeupLessonsParams {
   studentId: string;
+  includePrivate?: boolean;
 }
 
 const LEVEL_ORDER = [
@@ -36,6 +37,7 @@ const LEVEL_ORDER = [
 
 export async function getEligibleMakeupLessons({
   studentId,
+  includePrivate = false,
 }: GetEligibleMakeupLessonsParams): Promise<
   EligibleMakeupLesson[]
 > {
@@ -274,35 +276,45 @@ export async function getEligibleMakeupLessons({
         }
 
         /*
-         * Never allow the student's own
-         * current class.
-         */
+ * Private lessons are normally excluded
+ * from Parent make-up booking.
+ *
+ * Admin may explicitly include Private
+ * make-up lessons.
+ */
 
-        if (
-          currentClassIds.has(
-            lesson.class_id
-          )
-        ) {
-          return false;
-        }
+const classSuffix =
+  classData.class_suffix
+    ?.trim()
+    .toLowerCase() ?? "";
 
-        /*
-         * Private lessons are not eligible
-         * for make-up booking.
-         */
+const isPrivateLesson =
+  classSuffix.startsWith("private");
 
-        const classSuffix =
-          classData.class_suffix
-            ?.trim()
-            .toLowerCase() ?? "";
+if (
+  isPrivateLesson &&
+  !includePrivate
+) {
+  return false;
+}
 
-        if (
-          classSuffix.startsWith(
-            "private"
-          )
-        ) {
-          return false;
-        }
+/*
+ * Never allow the student's own
+ * current class.
+ *
+ * Exception:
+ * Admin may explicitly book the student's
+ * own Private lesson.
+ */
+
+if (
+  currentClassIds.has(
+    lesson.class_id
+  ) &&
+  !(includePrivate && isPrivateLesson)
+) {
+  return false;
+}
 
         return true;
       })
@@ -697,6 +709,370 @@ export async function createMakeupBooking({
   return booking;
 }
 
+// ======================================================
+// Complete Make-up Booking
+//
+// Attendance → Booking Completed → Credit Used
+//
+// Frozen:
+// - Present / Late / Absent all consume the booked credit
+// - Booking must already be Booked
+// - Attendance must be linked to the Booking
+// - Attendance must be Make-up
+// - Credit must be Booked
+// - Safe to call repeatedly
+// ======================================================
+
+export interface CompleteMakeupBookingResult {
+  bookingId: string;
+  attendanceId: string;
+  creditId: string;
+  attendanceStatus: string;
+  completedAt: string;
+  usedAt: string;
+}
+
+export async function completeMakeupBooking({
+  bookingId,
+}: {
+  bookingId: string;
+}): Promise<CompleteMakeupBookingResult> {
+
+  if (!bookingId) {
+    throw new Error("Booking is required.");
+  }
+
+  // ====================================================
+  // 1. Load Booking + Credit
+  // ====================================================
+
+  const {
+    data: booking,
+    error: bookingError,
+  } = await supabase
+    .from("makeup_bookings")
+    .select(`
+      id,
+      credit_id,
+      student_id,
+      lesson_id,
+      attendance_id,
+      status,
+      completed_at,
+      makeup_credits:credit_id (
+        id,
+        status
+      )
+    `)
+    .eq("id", bookingId)
+    .maybeSingle();
+
+  if (bookingError) {
+    throw bookingError;
+  }
+
+  if (!booking) {
+    throw new Error("Make-up booking not found.");
+  }
+
+  // ====================================================
+  // 2. Idempotency
+  //
+  // Already completed → do not consume another Credit.
+  // ====================================================
+
+  if (booking.status === "Completed") {
+
+    if (!booking.attendance_id) {
+      throw new Error(
+        "Completed make-up booking has no Attendance ID."
+      );
+    }
+
+    const credit =
+      Array.isArray(booking.makeup_credits)
+        ? booking.makeup_credits[0]
+        : booking.makeup_credits;
+
+    if (!credit || credit.status !== "Used") {
+      throw new Error(
+        "Completed make-up booking has an inconsistent Credit state."
+      );
+    }
+
+    return {
+      bookingId: booking.id,
+      attendanceId: booking.attendance_id,
+      creditId: booking.credit_id,
+      attendanceStatus: "Completed",
+      completedAt:
+        booking.completed_at ??
+        new Date().toISOString(),
+      usedAt: new Date().toISOString(),
+    };
+  }
+
+  // ====================================================
+  // 3. Booking must be Booked
+  // ====================================================
+
+  if (booking.status !== "Booked") {
+    throw new Error(
+      "This make-up booking cannot be completed."
+    );
+  }
+
+  // ====================================================
+  // 4. Attendance must exist
+  // ====================================================
+
+  if (!booking.attendance_id) {
+    throw new Error(
+      "Make-up Attendance has not been created yet."
+    );
+  }
+
+  const {
+    data: attendance,
+    error: attendanceError,
+  } = await supabase
+    .from("attendance")
+    .select(`
+      id,
+      student_id,
+      lesson_id,
+      attendance_status,
+      attendance_type
+    `)
+    .eq("id", booking.attendance_id)
+    .maybeSingle();
+
+  if (attendanceError) {
+    throw attendanceError;
+  }
+
+  if (!attendance) {
+    throw new Error(
+      "The Attendance record linked to this make-up booking was not found."
+    );
+  }
+
+  // ====================================================
+  // 5. Safety validation
+  //
+  // Never complete against unrelated Attendance.
+  // ====================================================
+
+  if (
+    attendance.student_id !== booking.student_id ||
+    attendance.lesson_id !== booking.lesson_id
+  ) {
+    throw new Error(
+      "The linked Attendance does not belong to this make-up booking."
+    );
+  }
+
+  if (
+    attendance.attendance_type !== "Make-up"
+  ) {
+    throw new Error(
+      "The linked Attendance is not a Make-up attendance record."
+    );
+  }
+
+  // ====================================================
+  // 6. Validate Attendance Status
+  //
+  // Frozen:
+  // Present → Used
+  // Late    → Used
+  // Absent  → Used
+  // ====================================================
+
+  const validStatuses = [
+    "Present",
+    "Late",
+    "Absent",
+  ];
+
+  if (
+    !validStatuses.includes(
+      attendance.attendance_status
+    )
+  ) {
+    throw new Error(
+      "The Make-up Attendance has an invalid status for completion."
+    );
+  }
+
+  // ====================================================
+  // 7. Load Credit
+  // ====================================================
+
+  const credit =
+    Array.isArray(booking.makeup_credits)
+      ? booking.makeup_credits[0]
+      : booking.makeup_credits;
+
+  if (!credit) {
+    throw new Error(
+      "The make-up credit for this booking could not be found."
+    );
+  }
+
+  if (credit.status !== "Booked") {
+    throw new Error(
+      "The make-up credit is not in the Booked state."
+    );
+  }
+
+  // ====================================================
+  // 8. Complete Booking
+  // ====================================================
+
+  const now =
+    new Date().toISOString();
+
+  const {
+    data: completedBooking,
+    error: completionError,
+  } = await supabase
+    .from("makeup_bookings")
+    .update({
+      status: "Completed",
+      completed_at: now,
+    })
+    .eq("id", booking.id)
+    .eq("status", "Booked")
+    .select(`
+      id,
+      credit_id,
+      attendance_id,
+      status,
+      completed_at
+    `)
+    .maybeSingle();
+
+  if (
+    completionError ||
+    !completedBooking
+  ) {
+    throw (
+      completionError ??
+      new Error(
+        "Unable to complete the make-up booking."
+      )
+    );
+  }
+
+  // ====================================================
+  // 9. Credit Booked → Used
+  // ====================================================
+
+  const {
+    data: usedCredit,
+    error: creditError,
+  } = await supabase
+    .from("makeup_credits")
+    .update({
+      status: "Used",
+      attendance_id: attendance.id,
+      used_at: now,
+    })
+    .eq("id", credit.id)
+    .eq("status", "Booked")
+    .select("id")
+    .maybeSingle();
+
+  if (
+    creditError ||
+    !usedCredit
+  ) {
+
+    // --------------------------------------------------
+    // Compensating rollback:
+    // Booking must not remain Completed if Credit
+    // could not be consumed.
+    // --------------------------------------------------
+
+    await supabase
+      .from("makeup_bookings")
+      .update({
+        status: "Booked",
+        completed_at: null,
+      })
+      .eq("id", booking.id)
+      .eq("status", "Completed");
+
+    throw (
+      creditError ??
+      new Error(
+        "Unable to consume the make-up credit."
+      )
+    );
+  }
+
+  // ====================================================
+  // 10. Return
+  // ====================================================
+
+  return {
+    bookingId:
+      completedBooking.id,
+
+    attendanceId:
+      attendance.id,
+
+    creditId:
+      credit.id,
+
+    attendanceStatus:
+      attendance.attendance_status,
+
+    completedAt:
+      completedBooking.completed_at ??
+      now,
+
+    usedAt:
+      now,
+  };
+}
+export async function completeMakeupBookingsForLesson(
+  lessonId: string
+): Promise<CompleteMakeupBookingResult[]> {
+
+  if (!lessonId) {
+    throw new Error("Lesson is required.");
+  }
+
+  const {
+    data: bookings,
+    error,
+  } = await supabase
+    .from("makeup_bookings")
+    .select("id, status")
+    .eq("lesson_id", lessonId)
+    .eq("status", "Booked");
+
+  if (error) {
+    throw error;
+  }
+
+  const bookingRows = bookings ?? [];
+
+  const results: CompleteMakeupBookingResult[] = [];
+
+  for (const booking of bookingRows) {
+    const result =
+      await completeMakeupBooking({
+        bookingId: booking.id,
+      });
+
+    results.push(result);
+  }
+
+  return results;
+}
 
 /*
  * ============================================================
