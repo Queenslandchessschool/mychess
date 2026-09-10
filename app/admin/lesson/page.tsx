@@ -52,6 +52,19 @@ const [reconciliationResult, setReconciliationResult] =
 const [selectedLesson, setSelectedLesson] = useState<any | null>(null);
 
 const [cancellationReason, setCancellationReason] = useState("");
+
+const [modal, setModal] = useState<{
+  open: boolean;
+  type: "confirm" | "success" | "error";
+  title: string;
+  message: string;
+  onConfirm?: () => void;
+}>({
+  open: false,
+  type: "success",
+  title: "",
+  message: "",
+});
   // ======================================================
   // Initial Load
   // ======================================================
@@ -115,113 +128,200 @@ const [cancellationReason, setCancellationReason] = useState("");
   }
 }
 async function cancelLesson() {
-
   if (!selectedLesson) {
     return;
   }
 
   if (selectedLesson.operational_event_id) {
-  alert(
-    "This lesson is controlled by a School Operational Event and cannot be manually cancelled."
+    setModal({
+      open: true,
+      type: "error",
+      title: "Cannot Cancel Lesson",
+      message:
+        "This lesson is controlled by a School Operational Event and cannot be manually cancelled.",
+    });
+    return;
+  }
+
+  if (selectedLesson.status === "Completed") {
+    setModal({
+      open: true,
+      type: "error",
+      title: "Cannot Cancel Lesson",
+      message: "Completed lessons cannot be cancelled.",
+    });
+    return;
+  }
+
+  const lessonDate = new Date(
+    `${selectedLesson.lesson_date}T00:00:00`
   );
-  return;
-}
 
-if (selectedLesson.status === "Completed") {
-  alert("Completed lessons cannot be cancelled.");
-  return;
-}
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-const lessonDate = new Date(
-  `${selectedLesson.lesson_date}T00:00:00`
-);
+  if (lessonDate < today) {
+    setModal({
+      open: true,
+      type: "error",
+      title: "Cannot Cancel Lesson",
+      message: "Past lessons cannot be cancelled.",
+    });
+    return;
+  }
 
-const today = new Date();
-today.setHours(0, 0, 0, 0);
-
-if (lessonDate < today) {
-  alert("Past lessons cannot be cancelled.");
-  return;
-}
-if (
-  selectedLesson.status === "Cancelled" &&
-  selectedLesson.cancellation_reason
-) {
-  alert("This lesson has already been manually cancelled.");
-  return;
-}
+  if (
+    selectedLesson.status === "Cancelled" &&
+    selectedLesson.cancellation_reason
+  ) {
+    setModal({
+      open: true,
+      type: "error",
+      title: "Lesson Already Cancelled",
+      message:
+        "This lesson has already been manually cancelled.",
+    });
+    return;
+  }
 
   if (!cancellationReason) {
-    alert("Please select a cancellation reason.");
+    setModal({
+      open: true,
+      type: "error",
+      title: "Cancellation Reason Required",
+      message:
+        "Please select a cancellation reason.",
+    });
     return;
   }
 
-  const { error } = await supabase
-    .from("lessons")
-    .update({
-      status: "Cancelled",
-      chargeable: false,
-      cancellation_reason: cancellationReason,
-      operational_event_id: null,
-    })
-    .eq("id", selectedLesson.id);
+  setModal({
+    open: true,
+    type: "confirm",
+    title: "Cancel Lesson?",
+    message:
+      "This will mark the lesson as cancelled and non-chargeable. Do you want to continue?",
+    onConfirm: async () => {
+      setModal((current) => ({
+        ...current,
+        open: false,
+      }));
 
-  if (error) {
-    alert(error.message);
-    return;
-  }
+      const { error } = await supabase
+        .from("lessons")
+        .update({
+          status: "Cancelled",
+          chargeable: false,
+          cancellation_reason: cancellationReason,
+          operational_event_id: null,
+        })
+        .eq("id", selectedLesson.id);
 
-  await loadLessons();
+      if (error) {
+        setModal({
+          open: true,
+          type: "error",
+          title: "Unable to Cancel Lesson",
+          message: error.message,
+        });
+        return;
+      }
 
-  alert("Lesson cancelled successfully.");
+      await loadLessons();
+
+      setModal({
+        open: true,
+        type: "success",
+        title: "Lesson Cancelled",
+        message:
+          "The lesson has been cancelled successfully.",
+      });
+    },
+  });
 }
-
 async function restoreLesson() {
-
   if (!selectedLesson) {
     return;
   }
 
   if (selectedLesson.status !== "Cancelled") {
-    alert("Only cancelled lessons can be restored.");
+    setModal({
+      open: true,
+      type: "error",
+      title: "Cannot Restore Lesson",
+      message:
+        "Only cancelled lessons can be restored.",
+    });
     return;
   }
 
   if (selectedLesson.operational_event_id) {
-    alert(
-      "This lesson is controlled by a School Operational Event and cannot be manually restored."
-    );
+    setModal({
+      open: true,
+      type: "error",
+      title: "Cannot Restore Lesson",
+      message:
+        "This lesson is controlled by a School Operational Event and cannot be manually restored.",
+    });
     return;
   }
 
   if (!selectedLesson.cancellation_reason) {
-    alert(
-      "This lesson was not manually cancelled and cannot be restored here."
-    );
+    setModal({
+      open: true,
+      type: "error",
+      title: "Cannot Restore Lesson",
+      message:
+        "This lesson was not manually cancelled and cannot be restored here.",
+    });
     return;
   }
 
-  const { error } = await supabase
-    .from("lessons")
-    .update({
-      status: "Planned",
-      chargeable: true,
-      cancellation_reason: null,
-      operational_event_id: null,
-    })
-    .eq("id", selectedLesson.id);
+  setModal({
+    open: true,
+    type: "confirm",
+    title: "Restore Lesson?",
+    message:
+      "This will restore the lesson to Planned and Chargeable. Do you want to continue?",
+    onConfirm: async () => {
+      setModal((current) => ({
+        ...current,
+        open: false,
+      }));
 
-  if (error) {
-    alert(error.message);
-    return;
-  }
+      const { error } = await supabase
+        .from("lessons")
+        .update({
+          status: "Planned",
+          chargeable: true,
+          cancellation_reason: null,
+          operational_event_id: null,
+        })
+        .eq("id", selectedLesson.id);
 
-  setSelectedLesson(null);
-  await loadLessons();
+      if (error) {
+        setModal({
+          open: true,
+          type: "error",
+          title: "Unable to Restore Lesson",
+          message: error.message,
+        });
+        return;
+      }
 
-  alert("Lesson restored successfully.");
+      setSelectedLesson(null);
+      await loadLessons();
+
+      setModal({
+        open: true,
+        type: "success",
+        title: "Lesson Restored",
+        message:
+          "The lesson has been restored successfully.",
+      });
+    },
+  });
 }
-
   // ======================================================
   // Generate Lessons
   // ======================================================
@@ -616,12 +716,16 @@ for (const candidate of candidateLessons) {
   // ----------------------------------------------------
 
   const existing = existingLessons?.find(
-    (lesson) =>
-      lesson.class_schedule_id ===
-        candidate.class_schedule_id &&
-      lesson.lesson_date ===
-        candidate.lesson_date
-  );
+  (lesson) =>
+    lesson.class_schedule_id ===
+      candidate.class_schedule_id &&
+    lesson.lesson_date ===
+      candidate.lesson_date
+);
+
+const classMismatch =
+  existing !== undefined &&
+  existing.class_id !== candidate.class_id;
 
 
   // ----------------------------------------------------
@@ -695,22 +799,19 @@ for (const candidate of candidateLessons) {
   // ----------------------------------------------------
 
   if (
+  !classMismatch &&
   sameStatus &&
   sameChargeable &&
   sameOperationalEvent
 ) {
-
   unchanged++;
-
 } else {
-
   updated++;
 
   lessonsToUpdate.push({
     id: existing.id,
     candidate,
   });
-
 }
 }
 
@@ -756,10 +857,21 @@ if (lessonsToCreate.length > 0) {
 // ------------------------------------------------------
 
 for (const item of lessonsToUpdate) {
-
   const { error: updateError } = await supabase
     .from("lessons")
     .update({
+      class_id:
+        item.candidate.class_id,
+
+      class_schedule_id:
+        item.candidate.class_schedule_id,
+
+      academic_year:
+        item.candidate.academic_year,
+
+      term:
+        item.candidate.term,
+
       status:
         item.candidate.status,
 
@@ -1458,6 +1570,163 @@ const filteredLessons = lessons.filter((lesson) => {
         >
           Done
         </button>
+      </div>
+    </div>
+  </div>
+)}
+
+{modal.open && (
+  <div
+    className="
+      fixed
+      inset-0
+      z-[200]
+      flex
+      items-center
+      justify-center
+      bg-[#10213A]/50
+      px-4
+      backdrop-blur-[2px]
+    "
+    role="dialog"
+    aria-modal="true"
+  >
+    <div
+      className="
+        relative
+        w-full
+        max-w-md
+        overflow-hidden
+        rounded-2xl
+        border
+        border-[#D9E0E8]
+        bg-[#FFFDF8]
+        shadow-2xl
+      "
+    >
+      <div
+        aria-hidden="true"
+        className="
+          absolute
+          left-0
+          right-0
+          top-0
+          h-[6px]
+          bg-gradient-to-r
+          from-[#F7D968]
+          via-[#D4AF37]
+          to-transparent
+        "
+      />
+
+      <div className="px-6 py-7 sm:px-7">
+        <p
+          className="
+            text-[11px]
+            font-semibold
+            uppercase
+            tracking-[0.22em]
+            text-[#B28A22]
+          "
+        >
+          LESSON MANAGEMENT
+        </p>
+
+        <h2
+          className="
+            mt-2
+            text-2xl
+            font-bold
+            tracking-tight
+            text-[#10213A]
+          "
+        >
+          {modal.title}
+        </h2>
+
+        <p className="mt-3 text-sm leading-6 text-[#64748B]">
+          {modal.message}
+        </p>
+
+        {modal.type === "confirm" ? (
+          <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={() =>
+                setModal((current) => ({
+                  ...current,
+                  open: false,
+                }))
+              }
+              className="
+                rounded-xl
+                border
+                border-[#D4AF37]
+                bg-white
+                px-5
+                py-3
+                text-sm
+                font-semibold
+                text-[#10213A]
+                transition
+                hover:bg-[#FFF8DF]
+              "
+            >
+              Cancel
+            </button>
+
+            <button
+              type="button"
+              onClick={() => modal.onConfirm?.()}
+              className="
+                rounded-xl
+                border
+                border-[#D4AF37]
+                bg-[#D4AF37]
+                px-5
+                py-3
+                text-sm
+                font-semibold
+                text-[#10213A]
+                shadow-sm
+                transition
+                hover:bg-[#F4D35E]
+                active:scale-[0.98]
+              "
+            >
+              Confirm
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() =>
+              setModal((current) => ({
+                ...current,
+                open: false,
+              }))
+            }
+            className="
+              mt-6
+              w-full
+              rounded-xl
+              border
+              border-[#D4AF37]
+              bg-[#D4AF37]
+              px-5
+              py-3
+              text-sm
+              font-semibold
+              text-[#10213A]
+              shadow-sm
+              transition
+              hover:bg-[#F4D35E]
+              active:scale-[0.98]
+            "
+          >
+            Done
+          </button>
+        )}
       </div>
     </div>
   </div>

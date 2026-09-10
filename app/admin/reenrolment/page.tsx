@@ -368,8 +368,18 @@ export default function ReenrolmentPage() {
     const loadedSubmissions: ReEnrolmentSubmission[] = (
       submissionResult.data ?? []
     ).map((item: any) => {
-      const current = currentEnrolmentMap.get(item.student_id);
-      const selectedClass = classMapLocal.get(item.selected_class_id);
+      const previousTerm = item.term === 1 ? 4 : item.term - 1;
+const previousAcademicYear =
+  item.term === 1 ? item.academic_year - 1 : item.academic_year;
+
+const current = loadedEnrolments.find(
+  (enrolment) =>
+    enrolment.student_id === item.student_id &&
+    enrolment.academic_year === previousAcademicYear &&
+    enrolment.term === previousTerm
+);
+
+const selectedClass = classMapLocal.get(item.selected_class_id);
 
       return {
         id: item.id,
@@ -1241,8 +1251,8 @@ function handleAcademicYearChange(value: string) {
                   <tr className="text-[11px] uppercase tracking-[0.12em] text-[#64748B]">
                     <th className="w-[16%] px-3 py-4 font-semibold">Student</th>
                     <th className="w-[12%] px-3 py-4 font-semibold">Term</th>
-                    <th className="w-[16%] px-3 py-4 font-semibold">Current Class</th>
-                    <th className="w-[18%] px-3 py-4 font-semibold">Selected Class</th>
+                    <th className="w-[16%] px-3 py-4 font-semibold">Last Term</th>
+<th className="w-[18%] px-3 py-4 font-semibold">Current Term</th>
                     <th className="w-[9%] px-3 py-4 font-semibold">Amount</th>
                     <th className="w-[10%] px-3 py-4 font-semibold">Payment</th>
                     <th className="w-[8%] px-3 py-4 font-semibold">Status</th>

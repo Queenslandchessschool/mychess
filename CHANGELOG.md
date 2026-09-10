@@ -5,6 +5,71 @@ All notable changes to this project will be documented in this file.
 ---
 
 ---
+## 2026-09-10 — Re-enrolment, Make-up & Attendance Workflow
+
+### Completed
+
+#### 1. Private 1-to-1 Online Make-up
+- Added and validated Private 1-to-1 Online Make-up workflow.
+- Reused the existing Make-up Credit, Booking, Lesson and Attendance architecture.
+- Private Make-up uses a dedicated Lesson and does not appear in other students' booking options.
+- Parent self-booking is not enabled for Private Make-up.
+- Private Make-up UAT completed successfully.
+
+#### 2. Make-up Booking Completion
+- Added Admin-side completion flow for Booked Make-up Bookings.
+- Added `completeMakeupBooking()`.
+- Added `completeMakeupBookingsForLesson()`.
+- Booking lifecycle:
+  - `Booked → Completed`
+- Make-up Credit lifecycle:
+  - `Booked → Used`
+- `completed_at` and `used_at` are recorded.
+- Existing Attendance remains linked to the Make-up Booking.
+- MyCHESS confirmation and success modals validated.
+- Admin Complete flow: **PASS**
+
+#### 3. Make-up → Attendance Integration
+- Validated the existing Make-up Booking → Attendance integration.
+- Private Make-up Booking correctly creates/link Attendance through the existing Attendance Engine flow.
+- Attendance is created as:
+  - `Present`
+  - `Make-up`
+- Existing Attendance Engine, Attendance Runner and Attendance Time Engine remain unchanged.
+
+#### 4. Lesson Cancel / Restore UI
+- Replaced browser-native `alert()` confirmation for Lesson Cancel / Restore with the existing MyCHESS visual modal style.
+- Cancel / Restore modal UAT: **PASS**
+
+#### 5. Re-enrolment Tuition / Lesson Data Integrity
+- Fixed Lesson Generator reconciliation for existing future Lessons whose `class_id` did not match the selected `class_schedule`.
+- Existing future planned Lessons are now reconciled to the correct Class / Class Schedule.
+- Re-enrolment Remaining Lessons and Tuition calculations now correctly follow the selected Recommended Class.
+- Cancelled / non-chargeable Lessons are correctly excluded from Remaining Lessons.
+- YMCA drop-off Special Request state is correctly cleared when switching from School Program to a non-School class.
+
+#### 6. Admin Re-enrolment Historical Class Display
+- Corrected the Submitted Re-enrolments display terminology:
+  - `Current Class` → `Last Term`
+  - `Selected Class` → `Current Term`
+- Existing class data and Selected Class data were not changed.
+- The display now correctly communicates the historical previous-term class and the selected current-term class.
+- Admin Re-enrolment display UAT: **PASS**
+
+### UAT Status
+- Private 1-to-1 Online Make-up: **PASS**
+- Make-up Booking Completion: **PASS**
+- Make-up Credit Consumption: **PASS**
+- Make-up → Attendance integration: **PASS**
+- Lesson Cancel / Restore Modal: **PASS**
+- Re-enrolment Tuition Calculation: **PASS**
+- Lesson / Class Schedule reconciliation: **PASS**
+- Admin Re-enrolment Last Term / Current Term display: **PASS**
+
+### Next Priority
+- Implement the formal workflow for:
+  **Parent forgot to enrol/register → student attends the lesson → parent completes enrolment afterwards.**
+- This workflow must integrate correctly with the existing Lesson, Enrollment, Attendance and Tuition architecture without bypassing the existing SSOT / Engine rules.
 
 ## 2026-09-10 — Make-up Booking Completion
 

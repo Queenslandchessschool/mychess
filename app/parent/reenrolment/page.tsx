@@ -341,6 +341,9 @@ export default function ParentReenrolmentPage() {
 } | null>(null);
   const [currentClassSingleLessonFee, setCurrentClassSingleLessonFee] = useState(0);
   const [availableMakeupCredits, setAvailableMakeupCredits] = useState(0);
+  const [remainingLessons, setRemainingLessons] = useState(0);
+const [calculatedTuition, setCalculatedTuition] = useState(0);
+const [standardTuition, setStandardTuition] = useState(0);
   const [financialLoading, setFinancialLoading] = useState(false);
   const [declarationConfirmed, setDeclarationConfirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -979,88 +982,243 @@ if (targetEnrollment) {
   }
 
   async function loadReenrolmentFinancials() {
-    if (!selectedStudentId || !targetAcademicYear || !targetTerm || !selectedClassId) {
-      setTuitionConfig(null);
-      setCurrentClassSingleLessonFee(0);
-      setAvailableMakeupCredits(0);
-      return;
-    }
+  if (
+    !selectedStudentId ||
+    !targetAcademicYear ||
+    !targetTerm ||
+    !selectedClassId
+  ) {
+    setTuitionConfig(null);
+    setCurrentClassSingleLessonFee(0);
+    setAvailableMakeupCredits(0);
+    setRemainingLessons(0);
+    setCalculatedTuition(0);
+    setStandardTuition(0);
+    return;
+  }
 
-    setFinancialLoading(true);
+  setFinancialLoading(true);
 
-    try {
-      const { data: tuitionData, error: tuitionError } = await supabase
+  try {
+    /*
+     * Tuition pricing source:
+     * Recommended / selected target class.
+     *
+     * For a term that has already started, tuition is based on
+     * the remaining chargeable Lessons in the Lesson SSOT.
+     * For a future term, the configured full-term Standard Tuition
+     * remains the default.
+     */
+    const { data: tuitionData, error: tuitionError } =
+      await supabase
         .from("tuition_configurations")
         .select(`
-  id,
-  class_id,
-  single_lesson_fee,
-  total_lessons,
-  standard_tuition
-`)
+          id,
+          class_id,
+          single_lesson_fee,
+          total_lessons,
+          standard_tuition
+        `)
         .eq("academic_year", targetAcademicYear)
         .eq("term", targetTerm)
-        .in("class_id", Array.from(new Set([
-          selectedClassId,
-          selectedStudent?.classInfo?.id ?? selectedStudent?.enrollment?.class_id ?? "",
-        ].filter(Boolean))))
+        .in(
+          "class_id",
+          Array.from(
+            new Set(
+              [
+                selectedClassId,
+                selectedStudent?.classInfo?.id ??
+                  selectedStudent?.enrollment?.class_id ??
+                  "",
+              ].filter(Boolean)
+            )
+          )
+        )
         .eq("status", "Active");
 
-      if (tuitionError) {
-        throw tuitionError;
+    if (tuitionError) {
+      throw tuitionError;
+    }
+
+    const selectedTuitionData =
+      (tuitionData ?? []).find(
+        (row) => row.class_id === selectedClassId
+      ) ?? null;
+
+    const currentClassId =
+      selectedStudent?.classInfo?.id ??
+      selectedStudent?.enrollment?.class_id ??
+      "";
+
+    const currentTuitionData =
+      (tuitionData ?? []).find(
+        (row) => row.class_id === currentClassId
+      ) ?? null;
+
+    if (!selectedTuitionData) {
+      setTuitionConfig(null);
+      setCurrentClassSingleLessonFee(
+        Number(currentTuitionData?.single_lesson_fee ?? 0)
+      );
+      setRemainingLessons(0);
+      setCalculatedTuition(0);
+      setStandardTuition(0);
+    } else {
+      const singleLessonFee = Number(
+        selectedTuitionData.single_lesson_fee ?? 0
+      );
+
+      const configuredTotalLessons = Number(
+        selectedTuitionData.total_lessons ?? 0
+      );
+
+      const configuredStandardTuition = Number(
+        selectedTuitionData.standard_tuition ?? 0
+      );
+
+      /*
+       * Use the MyCHESS Business Time Engine so the calculation
+       * follows the existing Brisbane test clock in development
+       * and Brisbane business date in production.
+       */
+      const businessDate = getBusinessTime().dateKey;
+
+      const { data: lessonData, error: lessonError } =
+        await supabase
+          .from("lessons")
+          .select(`
+            id,
+            lesson_date,
+            status,
+            chargeable
+          `)
+          .eq("class_id", selectedClassId)
+          .eq("academic_year", targetAcademicYear)
+          .eq("term", targetTerm)
+          .eq("chargeable", true)
+          .order("lesson_date", {
+            ascending: true,
+          });
+
+      if (lessonError) {
+        throw lessonError;
       }
 
-      const selectedTuitionData =
-        (tuitionData ?? []).find((row) => row.class_id === selectedClassId) ?? null;
-      const currentClassId =
-        selectedStudent?.classInfo?.id ?? selectedStudent?.enrollment?.class_id ?? "";
-      const currentTuitionData =
-        (tuitionData ?? []).find((row) => row.class_id === currentClassId) ?? null;
+      const chargeableLessons = lessonData ?? [];
 
-      setTuitionConfig(
-  selectedTuitionData
-    ? {
+      const remainingChargeableLessons =
+        chargeableLessons.filter(
+          (lesson) =>
+            lesson.lesson_date >= businessDate
+        ).length;
+
+      /*
+       * If Lessons have not yet been generated for a future term,
+       * retain the configured total lesson count rather than
+       * inventing lesson dates in the Parent UI.
+       */
+      const hasGeneratedLessons =
+        chargeableLessons.length > 0;
+
+      const effectiveRemainingLessons =
+        hasGeneratedLessons
+          ? remainingChargeableLessons
+          : configuredTotalLessons;
+
+      const isMidTerm =
+        hasGeneratedLessons &&
+        remainingChargeableLessons < chargeableLessons.length;
+
+      const dynamicCalculatedTuition =
+        effectiveRemainingLessons * singleLessonFee;
+
+      /*
+       * Future/full-term enrolment keeps the configured Standard
+       * Tuition, including any Admin-configured adjustment.
+       *
+       * Mid-term uses the calculated remaining-lesson tuition
+       * as the default Standard Tuition.
+       */
+      const effectiveStandardTuition = isMidTerm
+        ? dynamicCalculatedTuition
+        : configuredStandardTuition;
+
+      setTuitionConfig({
         id: selectedTuitionData.id,
-        single_lesson_fee: Number(selectedTuitionData.single_lesson_fee ?? 0),
-        total_lessons: Number(selectedTuitionData.total_lessons ?? 0),
-        standard_tuition: Number(selectedTuitionData.standard_tuition ?? 0),
-      }
-    : null
-);
-      setCurrentClassSingleLessonFee(Number(currentTuitionData?.single_lesson_fee ?? 0));
+        single_lesson_fee: singleLessonFee,
+        total_lessons: configuredTotalLessons,
+        standard_tuition: effectiveStandardTuition,
+      });
 
-      const { data: creditData, error: creditError } = await supabase
+      setCurrentClassSingleLessonFee(
+        Number(currentTuitionData?.single_lesson_fee ?? 0)
+      );
+
+      setRemainingLessons(
+        effectiveRemainingLessons
+      );
+
+      setCalculatedTuition(
+        dynamicCalculatedTuition
+      );
+
+      setStandardTuition(
+        effectiveStandardTuition
+      );
+    }
+
+    const { data: creditData, error: creditError } =
+      await supabase
         .from("makeup_credits")
         .select("credits")
         .eq("student_id", selectedStudentId)
         .eq("status", "Available")
         .gt("credits", 0);
 
-      if (creditError) {
-        throw creditError;
-      }
+    if (creditError) {
+      throw creditError;
+    }
 
-      const totalCredits = (creditData ?? []).reduce(
-        (sum, row) => sum + Number(row.credits ?? 0),
+    const totalCredits =
+      (creditData ?? []).reduce(
+        (sum, row) =>
+          sum + Number(row.credits ?? 0),
         0
       );
 
-      setAvailableMakeupCredits(totalCredits);
-    } catch (financialError: any) {
-      console.error("RE-ENROLMENT FINANCIAL LOAD ERROR:", financialError);
-      setTuitionConfig(null);
-      setCurrentClassSingleLessonFee(0);
-      setAvailableMakeupCredits(0);
-    } finally {
-      setFinancialLoading(false);
-    }
-  }
+    setAvailableMakeupCredits(totalCredits);
+  } catch (financialError: any) {
+    console.error(
+      "RE-ENROLMENT FINANCIAL LOAD ERROR:",
+      financialError
+    );
 
-  const redeemCreditsAvailable = Math.min(availableMakeupCredits, 2);
-  const redeemAmount = redeemCreditsAvailable * currentClassSingleLessonFee;
-  const amountPayable = tuitionConfig
-    ? Math.max(0, tuitionConfig.standard_tuition - redeemAmount)
-    : 0;
+    setTuitionConfig(null);
+    setCurrentClassSingleLessonFee(0);
+    setAvailableMakeupCredits(0);
+    setRemainingLessons(0);
+    setCalculatedTuition(0);
+    setStandardTuition(0);
+  } finally {
+    setFinancialLoading(false);
+  }
+}
+
+  const redeemCreditsAvailable = Math.min(
+  availableMakeupCredits,
+  2
+);
+
+const redeemAmount =
+  redeemCreditsAvailable *
+  currentClassSingleLessonFee;
+
+const amountPayable = tuitionConfig
+  ? Math.max(
+      0,
+      standardTuition - redeemAmount
+    )
+  : 0;
 
     async function handleSubmit() {
     setError(null);
@@ -1159,8 +1317,14 @@ if (targetEnrollment) {
         recommendation?.recommended_class_id ?? currentClassId;
 
       const specialRequestSnapshot = {
-        ...specialRequest,
-        school_year:
+  classroom_pickup: isSchoolProgram
+    ? specialRequest.classroom_pickup
+    : false,
+  ymca_dropoff: isSchoolProgram
+    ? specialRequest.ymca_dropoff
+    : false,
+  walk_home: specialRequest.walk_home,
+  school_year:
           isSchoolProgram && targetTerm === 1
             ? schoolYear.trim()
             : null,
@@ -1548,7 +1712,21 @@ return "OPEN";
       }));
     }
   }, [isClassroomPickupEligible, specialRequest.classroom_pickup]);
+useEffect(() => {
+  if (!isSchoolProgram) {
+    setSpecialRequest((previous) => {
+      if (!previous.classroom_pickup && !previous.ymca_dropoff) {
+        return previous;
+      }
 
+      return {
+        ...previous,
+        classroom_pickup: false,
+        ymca_dropoff: false,
+      };
+    });
+  }
+}, [isSchoolProgram]);
   useEffect(() => {
     loadFamilyDisplayStates();
   }, [
@@ -1578,8 +1756,15 @@ return "OPEN";
   }, []);
 
   useEffect(() => {
-    loadReenrolmentFinancials();
-  }, [selectedStudentId, targetAcademicYear, targetTerm, selectedClassId]);
+  loadReenrolmentFinancials();
+}, [
+  selectedStudentId,
+  targetAcademicYear,
+  targetTerm,
+  selectedClassId,
+  testClockEnabled,
+  testClockValue,
+]);
 
   if (loading) {
     return <main className="min-h-screen" />;
@@ -2437,7 +2622,7 @@ return "OPEN";
                     Tuition & Make-up Credit
                   </h2>
                   <p className="mt-2 text-sm leading-6 text-[#64748B]">
-                    Tuition is based on the selected class. Make-up Credit redemption is based on the current class, with up to two available Make-up Credits redeemable toward the next term.
+                    Tuition is calculated from the selected Class pricing configuration. For a term already in progress, tuition is based on the remaining chargeable Lessons. Up to two available Make-up Credits may be redeemed toward the tuition.
                   </p>
 
                   {financialLoading ? (
@@ -2446,14 +2631,52 @@ return "OPEN";
                     </div>
                   ) : tuitionConfig ? (
                     <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                      <InfoField label="Recommended / Selected Class" value={getClassDisplayName(selectedClassInfo)} />
-                      <InfoField label="Standard Tuition (incl. GST)" value={`$${tuitionConfig.standard_tuition.toFixed(2)}`} />
-                      <InfoField label="Available Make-up Credits" value={String(availableMakeupCredits)} />
-                      <InfoField label="Redeem Credits" value={String(redeemCreditsAvailable)} />
-                      {redeemCreditsAvailable > 0 && (
-                        <InfoField label="Redeem Amount" value={`-$${redeemAmount.toFixed(2)}`} />
-                      )}
-                      <InfoField label="Amount Payable (incl. GST)" value={`$${amountPayable.toFixed(2)}`} />
+                      <InfoField
+  label="Selected Class"
+  value={getClassDisplayName(selectedClassInfo)}
+/>
+
+<InfoField
+  label="Remaining Lessons"
+  value={String(remainingLessons)}
+/>
+
+<InfoField
+  label="Single Lesson Fee"
+  value={`$${tuitionConfig.single_lesson_fee.toFixed(2)}`}
+/>
+
+<InfoField
+  label="Calculated Tuition"
+  value={`$${calculatedTuition.toFixed(2)}`}
+/>
+
+<InfoField
+  label="Standard Tuition (incl. GST)"
+  value={`$${standardTuition.toFixed(2)}`}
+/>
+
+<InfoField
+  label="Available Make-up Credits"
+  value={String(availableMakeupCredits)}
+/>
+
+<InfoField
+  label="Redeem Credits"
+  value={String(redeemCreditsAvailable)}
+/>
+
+{redeemCreditsAvailable > 0 && (
+  <InfoField
+    label="Redeem Amount"
+    value={`-$${redeemAmount.toFixed(2)}`}
+  />
+)}
+
+<InfoField
+  label="Amount Payable (incl. GST)"
+  value={`$${amountPayable.toFixed(2)}`}
+/>
                     </div>
                   ) : (
                     <div className="mt-6 rounded-xl border border-[#D4AF37]/40 bg-[#FFF8DC] px-4 py-5 text-sm text-[#64748B]">
