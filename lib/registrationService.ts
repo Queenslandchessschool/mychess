@@ -212,6 +212,36 @@ export async function createEnrollment(
   studentId: string,
   data: RegistrationData
 ) {
+
+    const { data: tuitionConfig, error: tuitionConfigError } =
+    await supabase
+      .from("tuition_configurations")
+      .select(
+        "id, standard_tuition, single_lesson_fee, total_lessons"
+      )
+      .eq(
+        "academic_year",
+        data.enrollment.academic_year
+      )
+      .eq(
+        "term",
+        data.enrollment.term
+      )
+      .eq(
+        "class_id",
+        data.enrollment.class_id
+      )
+      .maybeSingle();
+
+  if (tuitionConfigError) {
+    throw tuitionConfigError;
+  }
+
+  if (!tuitionConfig) {
+    throw new Error(
+      "Tuition configuration could not be found for the selected class and term."
+    );
+  }
   const { data: enrollment, error } = await supabase
     .from("student_enrolments")
     .insert({
@@ -240,9 +270,17 @@ export async function createEnrollment(
       special_request_snapshot:
         data.enrollment.special_request ?? null,
 
-      payment_status: "Pending",
-
-      payment_amount: null,
+        payment_status: "Pending",
+  payment_amount: null,
+  tuition_configuration_id: tuitionConfig.id,
+  pricing_method: "Calculated",
+  standard_tuition: Number(
+    tuitionConfig.standard_tuition ?? 0
+  ),
+  redeem_amount: 0,
+  amount_payable: Number(
+    tuitionConfig.standard_tuition ?? 0
+  ),
     })
     .select()
     .single();

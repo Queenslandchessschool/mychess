@@ -342,7 +342,9 @@ export default function ParentReenrolmentPage() {
   const [currentClassSingleLessonFee, setCurrentClassSingleLessonFee] = useState(0);
   const [availableMakeupCredits, setAvailableMakeupCredits] = useState(0);
   const [remainingLessons, setRemainingLessons] = useState(0);
-const [calculatedTuition, setCalculatedTuition] = useState(0);
+const [attendedLessons, setAttendedLessons] =
+  useState(0);
+  const [calculatedTuition, setCalculatedTuition] = useState(0);
 const [standardTuition, setStandardTuition] = useState(0);
   const [financialLoading, setFinancialLoading] = useState(false);
   const [declarationConfirmed, setDeclarationConfirmed] = useState(false);
@@ -991,6 +993,7 @@ if (targetEnrollment) {
     setTuitionConfig(null);
     setCurrentClassSingleLessonFee(0);
     setAvailableMakeupCredits(0);
+    setAttendedLessons(0);
     setRemainingLessons(0);
     setCalculatedTuition(0);
     setStandardTuition(0);
@@ -1107,30 +1110,87 @@ if (targetEnrollment) {
       const chargeableLessons = lessonData ?? [];
 
       const remainingChargeableLessons =
-        chargeableLessons.filter(
-          (lesson) =>
-            lesson.lesson_date >= businessDate
-        ).length;
+  chargeableLessons.filter(
+    (lesson) =>
+      lesson.lesson_date >= businessDate
+  ).length;
 
-      /*
-       * If Lessons have not yet been generated for a future term,
-       * retain the configured total lesson count rather than
-       * inventing lesson dates in the Parent UI.
-       */
-      const hasGeneratedLessons =
-        chargeableLessons.length > 0;
+/*
+ * Late Re-enrolment:
+ * Include chargeable lessons already attended before today.
+ *
+ * Only Regular attendance with Present/Late status is counted.
+ * Make-up and Trial attendance are excluded from normal term tuition.
+ */
+const pastChargeableLessonIds =
+  chargeableLessons
+    .filter(
+      (lesson) =>
+        lesson.lesson_date < businessDate
+    )
+    .map((lesson) => lesson.id);
 
-      const effectiveRemainingLessons =
-        hasGeneratedLessons
-          ? remainingChargeableLessons
-          : configuredTotalLessons;
+const { data: attendedPastLessons, error: attendanceError } =
+  pastChargeableLessonIds.length > 0
+    ? await supabase
+        .from("attendance")
+        .select(
+          "lesson_id, attendance_status, attendance_type"
+        )
+        .eq("student_id", selectedStudentId)
+        .in(
+          "lesson_id",
+          pastChargeableLessonIds
+        )
+        .in(
+          "attendance_status",
+          ["Present", "Late"]
+        )
+        .eq("attendance_type", "Regular")
+    : { data: [], error: null };
 
-      const isMidTerm =
-        hasGeneratedLessons &&
-        remainingChargeableLessons < chargeableLessons.length;
+if (attendanceError) {
+  throw attendanceError;
+}
 
-      const dynamicCalculatedTuition =
-        effectiveRemainingLessons * singleLessonFee;
+const attendedPastLessonIds =
+  new Set(
+    (attendedPastLessons ?? []).map(
+      (row) => row.lesson_id
+    )
+  );
+
+const attendedPastLessonCount =
+  attendedPastLessonIds.size;
+
+/*
+ * If Lessons have not yet been generated for a future term,
+ * retain the configured total lesson count rather than
+ * inventing lesson dates in the Parent UI.
+ */
+const hasGeneratedLessons =
+  chargeableLessons.length > 0;
+
+const effectiveRemainingLessons =
+  hasGeneratedLessons
+    ? remainingChargeableLessons
+    : configuredTotalLessons;
+
+const isMidTerm =
+  hasGeneratedLessons &&
+  remainingChargeableLessons < chargeableLessons.length;
+
+/*
+ * Late Re-enrolment tuition =
+ * attended chargeable lessons + remaining chargeable lessons.
+ */
+const dynamicCalculatedTuition =
+  hasGeneratedLessons
+    ? (attendedPastLessonCount +
+        effectiveRemainingLessons) *
+      singleLessonFee
+    : effectiveRemainingLessons *
+      singleLessonFee;
 
       /*
        * Future/full-term enrolment keeps the configured Standard
@@ -1157,6 +1217,10 @@ if (targetEnrollment) {
       setRemainingLessons(
         effectiveRemainingLessons
       );
+
+      setAttendedLessons(
+  attendedPastLessonCount
+);
 
       setCalculatedTuition(
         dynamicCalculatedTuition
@@ -1475,9 +1539,9 @@ const amountPayable = tuitionConfig
         throw submissionError;
       }
 
-      /*
+        /*
        * ----------------------------------------------------------
-       * 6. Synchronise Student Stage
+       * 7. Synchronise Student Stage
        * ----------------------------------------------------------
        */
 
@@ -1489,7 +1553,7 @@ const amountPayable = tuitionConfig
 
       /*
        * ----------------------------------------------------------
-       * 7. Update local UI state
+       * 8. Update local UI state
        * ----------------------------------------------------------
        */
 
@@ -2622,8 +2686,10 @@ useEffect(() => {
                     Tuition & Make-up Credit
                   </h2>
                   <p className="mt-2 text-sm leading-6 text-[#64748B]">
-                    Tuition is calculated from the selected Class pricing configuration. For a term already in progress, tuition is based on the remaining chargeable Lessons. Up to two available Make-up Credits may be redeemed toward the tuition.
-                  </p>
+  {attendedLessons > 0
+    ? "Tuition is calculated from the selected Class pricing configuration. For a term already in progress, tuition includes eligible lessons already attended plus the remaining chargeable Lessons. Up to two available Make-up Credits may be redeemed toward the tuition."
+    : "Tuition is calculated from the selected Class pricing configuration. For a term already in progress, tuition is based on the remaining chargeable Lessons. Up to two available Make-up Credits may be redeemed toward the tuition."}
+</p>
 
                   {financialLoading ? (
                     <div className="mt-6 rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] px-4 py-5 text-sm text-[#64748B]">
@@ -2636,10 +2702,24 @@ useEffect(() => {
   value={getClassDisplayName(selectedClassInfo)}
 />
 
+{attendedLessons > 0 && (
+  <InfoField
+    label="Attended Lessons"
+    value={String(attendedLessons)}
+  />
+)}
+
 <InfoField
   label="Remaining Lessons"
   value={String(remainingLessons)}
 />
+
+{attendedLessons > 0 && (
+  <InfoField
+    label="Chargeable Lessons"
+    value={String(attendedLessons + remainingLessons)}
+  />
+)}
 
 <InfoField
   label="Single Lesson Fee"

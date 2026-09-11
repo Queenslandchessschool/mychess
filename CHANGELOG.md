@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 ---
 
 ---
+## 2026-09-11 — Enrollment & Tuition Checkpoint
+
+### Added
+- Unified Admin Enrolment view for New Enrolment and Re-enrolment.
+- New Enrolment payment actions:
+  - Payment Received
+  - Mark Payment Pending
+- New Enrolment tuition data now links to the configured tuition record.
+- Mid-term New Enrolment amount calculation based on remaining chargeable lessons × single lesson fee.
+- Admin Payment Received now persists the final Amount Payable to the Enrollment record.
+
+### Fixed
+- Fixed Admin Enrolment table horizontal overflow on desktop.
+- Fixed New Enrolment records displaying the full-term tuition amount for mid-term enrolments.
+- Fixed Parent Tuition displaying a blank Amount Payable after Admin payment confirmation.
+
+### UAT
+- Mid-term New Enrolment: ✅ PASS
+- Admin Payment Received: ✅ PASS
+- Parent Amount Payable synchronisation: ✅ PASS
+- Desktop Enrolment table layout: ✅ PASS
+- `npm run build`: ✅ PASS
+
+### Notes
+- Existing Re-enrolment payment workflow remains unchanged.
+- Attendance modules and previously passed Attendance components were not modified.
+
 ## 2026-09-10 — Re-enrolment, Make-up & Attendance Workflow
 
 ### Completed

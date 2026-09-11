@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/currentUser";
 import { synchroniseStudentStage } from "@/lib/studentSynchronisation";
+import { getBusinessTime } from "@/lib/businessTime";
 
 type AcademicCalendar = {
   id: string;
@@ -35,6 +36,10 @@ type StudentEnrolment = {
   academic_year: number;
   term: number;
   class_id: string;
+  payment_status: string | null;
+  standard_tuition: number | null;
+  redeem_amount: number | null;
+  amount_payable: number | null;
   status: string;
   is_trial: boolean | null;
   student_name: string;
@@ -50,6 +55,25 @@ type Recommendation = {
   student_name: string;
   current_class_name: string;
   recommended_class_name: string;
+};
+
+type EnrollmentRow = {
+  id: string;
+  student_id: string;
+  academic_year: number;
+  term: number;
+  class_id: string;
+  status: string;
+  payment_status: string;
+  standard_tuition: number | null;
+  redeem_amount: number | null;
+  amount_payable: number | null;
+  student_name: string;
+  last_term_class_name: string;
+  current_term_class_name: string;
+  is_reenrolment: boolean;
+  submission_id: string | null;
+  submission_status: string | null;
 };
 
 type ReEnrolmentSubmission = {
@@ -128,6 +152,8 @@ export default function ReenrolmentPage() {
   const [enrolments, setEnrolments] = useState<StudentEnrolment[]>([]);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [submissions, setSubmissions] = useState<ReEnrolmentSubmission[]>([]);
+  const [enrollmentRows, setEnrollmentRows] =
+  useState<EnrollmentRow[]>([]);
   const [submissionSearchTerm, setSubmissionSearchTerm] = useState("");
   const [submissionActionLoading, setSubmissionActionLoading] = useState<string | null>(null);
 
@@ -213,8 +239,12 @@ export default function ReenrolmentPage() {
           term,
           class_id,
           status,
-          is_trial,
-          students:student_id (
+is_trial,
+payment_status,
+standard_tuition,
+redeem_amount,
+amount_payable,
+students:student_id (
             first_name,
             last_name
           ),
@@ -310,19 +340,86 @@ export default function ReenrolmentPage() {
     const loadedEnrolments: StudentEnrolment[] = (enrolmentResult.data ?? [])
       .filter((item: any) => item.status === "Active" && item.is_trial === false)
       .map((item: any) => ({
-        id: item.id,
-        student_id: item.student_id,
-        academic_year: item.academic_year,
-        term: item.term,
-        class_id: item.class_id,
-        status: item.status,
-        is_trial: item.is_trial,
-        student_name:
+       id: item.id,
+student_id: item.student_id,
+academic_year: item.academic_year,
+term: item.term,
+class_id: item.class_id,
+status: item.status,
+is_trial: item.is_trial,
+
+payment_status: item.payment_status ?? null,
+standard_tuition:
+  item.standard_tuition == null
+    ? null
+    : Number(item.standard_tuition),
+redeem_amount:
+  item.redeem_amount == null
+    ? null
+    : Number(item.redeem_amount),
+amount_payable:
+  item.amount_payable == null
+    ? null
+    : Number(item.amount_payable),
+
+student_name:
           `${item.students?.first_name ?? ""} ${
             item.students?.last_name ?? ""
           }`.trim() || "Student",
         class_name: buildClassName(item.classes, campusMapLocal),
       }));
+
+    const tuitionConfigRowsResult =
+  await supabase
+    .from("tuition_configurations")
+    .select(`
+      academic_year,
+      term,
+      class_id,
+      standard_tuition,
+      single_lesson_fee,
+      total_lessons
+    `)
+    .in(
+      "class_id",
+      Array.from(
+        new Set(
+          loadedEnrolments.map(
+            (item) => item.class_id
+          )
+        )
+      )
+    );
+
+if (tuitionConfigRowsResult.error) {
+  throw tuitionConfigRowsResult.error;
+}
+
+const tuitionConfigMap = new Map<
+  string,
+  {
+    standard_tuition: number;
+    single_lesson_fee: number;
+    total_lessons: number;
+  }
+>();
+
+for (
+  const config of
+  tuitionConfigRowsResult.data ?? []
+) {
+  tuitionConfigMap.set(
+    `${config.academic_year}-${config.term}-${config.class_id}`,
+    {
+      standard_tuition:
+        Number(config.standard_tuition ?? 0),
+      single_lesson_fee:
+        Number(config.single_lesson_fee ?? 0),
+      total_lessons:
+        Number(config.total_lessons ?? 0),
+    }
+  );
+}
 
     const currentEnrolmentMap = new Map<string, StudentEnrolment>();
 
@@ -417,12 +514,152 @@ const selectedClass = classMapLocal.get(item.selected_class_id);
       };
     });
 
+    const businessDate = getBusinessTime().dateKey;
+
+          const remainingLessonCountMap = new Map<
+      string,
+      number
+    >();
+
+    const enrolmentClassIds = Array.from(
+      new Set(
+        loadedEnrolments.map(
+          (item) => item.class_id
+        )
+      )
+    );
+
+    if (enrolmentClassIds.length > 0) {
+      const { data: lessonRows, error: lessonError } =
+        await supabase
+          .from("lessons")
+          .select(
+            "id, class_id, academic_year, term, lesson_date, status"
+          )
+          .in("class_id", enrolmentClassIds)
+          .in("status", ["Planned", "Completed"]);
+
+      if (lessonError) {
+        throw lessonError;
+      }
+
+      for (const lesson of lessonRows ?? []) {
+        if (lesson.lesson_date < businessDate) {
+          continue;
+        }
+
+        const key =
+          `${lesson.academic_year}-${lesson.term}-${lesson.class_id}`;
+
+        remainingLessonCountMap.set(
+          key,
+          (remainingLessonCountMap.get(key) ?? 0) + 1
+        );
+      }
+    }
+
+const loadedEnrollmentRows: EnrollmentRow[] =
+  loadedEnrolments.map((enrolment) => {
+    const previousTerm =
+      enrolment.term === 1 ? 4 : enrolment.term - 1;
+
+    const previousAcademicYear =
+      enrolment.term === 1
+        ? enrolment.academic_year - 1
+        : enrolment.academic_year;
+
+    const previousEnrolment =
+      loadedEnrolments.find(
+        (item) =>
+          item.student_id === enrolment.student_id &&
+          item.academic_year === previousAcademicYear &&
+          item.term === previousTerm
+      );
+
+    const submission =
+      (submissionResult.data ?? []).find(
+        (item: any) =>
+          item.student_id === enrolment.student_id &&
+          Number(item.academic_year) === Number(enrolment.academic_year) &&
+          Number(item.term) === Number(enrolment.term) &&
+          item.selected_class_id === enrolment.class_id &&
+          item.status !== "Cancelled"
+      );
+
+    const currentClass =
+      classMapLocal.get(enrolment.class_id);
+
+    const tuitionConfig =
+  tuitionConfigMap.get(
+    `${enrolment.academic_year}-${enrolment.term}-${enrolment.class_id}`
+  );
+
+const standardTuition =
+  enrolment.standard_tuition == null
+    ? tuitionConfig?.standard_tuition ?? null
+    : Number(enrolment.standard_tuition);
+
+const redeemAmount =
+  enrolment.redeem_amount == null
+    ? 0
+    : Number(enrolment.redeem_amount);
+
+    const tuitionKey =
+      `${enrolment.academic_year}-${enrolment.term}-${enrolment.class_id}`;
+
+    const remainingLessons =
+      remainingLessonCountMap.get(tuitionKey) ??
+      tuitionConfig?.total_lessons ??
+      0;
+
+    const calculatedAmountPayable =
+      Number(
+        remainingLessons *
+        Number(tuitionConfig?.single_lesson_fee ?? 0)
+      );
+
+    const amountPayable =
+  submission
+    ? (
+        enrolment.amount_payable == null
+          ? calculatedAmountPayable
+          : Number(enrolment.amount_payable)
+      )
+    : calculatedAmountPayable;
+
+    return {
+      id: enrolment.id,
+      student_id: enrolment.student_id,
+      academic_year: Number(enrolment.academic_year),
+      term: Number(enrolment.term),
+      class_id: enrolment.class_id,
+      status: enrolment.status,
+
+      payment_status: enrolment.payment_status ?? "Pending",
+      standard_tuition: standardTuition,
+      redeem_amount: redeemAmount,
+      amount_payable: amountPayable,
+      student_name: enrolment.student_name,
+      last_term_class_name:
+        previousEnrolment?.class_name ?? "—",
+      current_term_class_name:
+        buildClassName(
+          currentClass,
+          campusMapLocal
+        ),
+      is_reenrolment: !!submission,
+      submission_id: submission?.id ?? null,
+      submission_status: submission?.status ?? null,
+    };
+  });
+
     setCalendars(loadedCalendars);
     setCampuses(loadedCampuses);
     setClasses(loadedClasses);
     setEnrolments(loadedEnrolments);
     setRecommendations(loadedRecommendations);
     setSubmissions(loadedSubmissions);
+    setEnrollmentRows(loadedEnrollmentRows);
 
     if (!form.academic_year && loadedCalendars.length > 0) {
       setForm((previous) => ({
@@ -565,6 +802,36 @@ const selectedClass = classMapLocal.get(item.selected_class_id);
     });
   }, [submissions, submissionSearchTerm]);
 
+  const filteredEnrollmentRows = useMemo(() => {
+  const query = submissionSearchTerm.trim().toLowerCase();
+
+  return enrollmentRows
+    .filter((item) => {
+      if (!query) return true;
+
+      return (
+        item.student_name.toLowerCase().includes(query) ||
+        item.last_term_class_name.toLowerCase().includes(query) ||
+        item.current_term_class_name.toLowerCase().includes(query) ||
+        String(item.academic_year).includes(query) ||
+        `term ${item.term}`.includes(query) ||
+        item.payment_status.toLowerCase().includes(query) ||
+        item.status.toLowerCase().includes(query)
+      );
+    })
+    .sort((a, b) => {
+      if (a.academic_year !== b.academic_year) {
+        return b.academic_year - a.academic_year;
+      }
+
+      if (a.term !== b.term) {
+        return b.term - a.term;
+      }
+
+      return a.student_name.localeCompare(b.student_name);
+    });
+}, [enrollmentRows, submissionSearchTerm]);
+
   function formatSubmissionDate(value: string | null) {
     if (!value) return "—";
 
@@ -650,6 +917,88 @@ const selectedClass = classMapLocal.get(item.selected_class_id);
       setSubmissionActionLoading(null);
     }
   }
+
+    async function handleNewEnrollmentPayment(
+    enrollment: EnrollmentRow
+  ) {
+    if (submissionActionLoading) return;
+
+    const currentUser = await getCurrentUser();
+
+    if (!currentUser || currentUser.role !== "admin") {
+      showPopup(
+        "Access Required",
+        "Admin access is required.",
+        "error"
+      );
+      return;
+    }
+
+    if (enrollment.payment_status === "Paid") {
+      showPopup(
+        "Payment Already Processed",
+        "This enrolment payment is already marked as Paid.",
+        "info"
+      );
+      return;
+    }
+
+    setSubmissionActionLoading(enrollment.id);
+
+    try {
+      const amountPayable = Number(
+        enrollment.amount_payable ?? 0
+      );
+
+      if (!Number.isFinite(amountPayable)) {
+        throw new Error(
+          "The enrolment tuition amount could not be read."
+        );
+      }
+
+      const { error } = await supabase
+        .from("student_enrolments")
+        .update({
+  payment_status: "Paid",
+  payment_amount: Number(
+    amountPayable.toFixed(2)
+  ),
+  amount_payable: Number(
+    amountPayable.toFixed(2)
+  ),
+  updated_at: new Date().toISOString(),
+})
+        .eq("id", enrollment.id)
+        .eq("payment_status", "Pending");
+
+      if (error) {
+        throw error;
+      }
+
+      showPopup(
+        "Payment Received",
+        "The New Enrolment payment has been marked as Paid.",
+        "success"
+      );
+
+      await loadPage();
+    } catch (error: any) {
+      console.error(
+        "NEW ENROLMENT PAYMENT ACTION ERROR:",
+        error
+      );
+
+      showPopup(
+        "Payment Action Failed",
+        error?.message ??
+          "Unable to process the payment action.",
+        "error"
+      );
+    } finally {
+      setSubmissionActionLoading(null);
+    }
+  }
+
   async function handleCompleteSubmission(
     submission: ReEnrolmentSubmission
   ) {
@@ -1214,238 +1563,462 @@ function handleAcademicYearChange(value: string) {
         <div className="mx-auto max-w-[1400px]">
           <header className="mb-8">
             <h1 className="text-3xl font-bold tracking-tight text-[#F4F7FB] sm:text-4xl">
-              Re-enrolment
+              Enrolment
             </h1>
             <p className="mt-2 text-sm text-[#C8D2DF]/70 sm:text-base">
-              Manage recommended classes for the next term.
+              Manage new and returning student enrolments, payments, and current-term records.
             </p>
           </header>
 
           <section className="mb-8 overflow-hidden rounded-2xl border border-[#D9E0E8] border-t-4 border-t-[#D4AF37] bg-white shadow-sm">
-            <div className="border-b border-[#D9E0E8] px-5 py-5 sm:px-6">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold text-[#10213A]">
-                    Submitted Re-enrolments
-                  </h2>
-                  <p className="mt-1 text-sm text-[#64748B]">
-                    Review submitted requests, verify payment, and complete the new term enrolment.
-                  </p>
+  <div className="border-b border-[#D9E0E8] px-5 py-5 sm:px-6">
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        </div>
+
+      <div className="w-full sm:max-w-sm">
+        <label className="sr-only">
+          Search enrolments
+        </label>
+
+        <input
+          value={submissionSearchTerm}
+          onChange={(e) =>
+            setSubmissionSearchTerm(e.target.value)
+          }
+          placeholder="Search student, class, year or term..."
+          className="min-h-[44px] w-full rounded-xl border border-[#D9E0E8] bg-white px-4 text-sm text-[#10213A] outline-none focus:border-[#D4AF37]"
+        />
+      </div>
+    </div>
+  </div>
+
+  {/* Desktop */}
+  <div className="hidden max-h-[680px] overflow-x-hidden overflow-y-auto md:block">
+    <table className="w-full min-w-0 table-fixed text-left">
+      <thead className="sticky top-0 z-10 border-b border-[#E5EAF0] bg-[#F8FAFC]">
+        <tr className="text-[11px] uppercase tracking-[0.12em] text-[#64748B]">
+          <th className="w-[14%] px-3 py-4 font-semibold">
+            Student
+          </th>
+
+          <th className="w-[8%] px-3 py-4 font-semibold">
+            Term
+          </th>
+
+          <th className="w-[17%] px-3 py-4 font-semibold">
+            Last Term
+          </th>
+
+          <th className="w-[18%] px-3 py-4 font-semibold">
+            Current Term
+          </th>
+
+          <th className="w-[10%] px-3 py-4 font-semibold">
+            Amount
+          </th>
+
+          <th className="w-[10%] px-3 py-4 font-semibold">
+            Payment
+          </th>
+
+          <th className="w-[8%] px-3 py-4 font-semibold">
+            Status
+          </th>
+
+          <th className="w-[15%] px-3 py-4 text-right font-semibold">
+  Action
+</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {filteredEnrollmentRows.length === 0 ? (
+          <tr>
+            <td
+              colSpan={8}
+              className="px-5 py-10 text-center text-sm text-[#64748B]"
+            >
+              No enrolments found.
+            </td>
+          </tr>
+        ) : (
+          filteredEnrollmentRows.map((item) => (
+            <tr
+              key={item.id}
+              className="border-b border-[#EEF1F5] last:border-b-0"
+            >
+              <td className="px-3 py-4 align-top">
+                <div
+                  className="truncate text-[13px] font-semibold text-[#10213A]"
+                  title={item.student_name}
+                >
+                  {item.student_name}
                 </div>
 
-                <div className="w-full sm:max-w-sm">
-                  <label className="sr-only">Search submitted re-enrolments</label>
-                  <input
-                    value={submissionSearchTerm}
-                    onChange={(e) => setSubmissionSearchTerm(e.target.value)}
-                    placeholder="Search student, class, year or term..."
-                    className="min-h-[44px] w-full rounded-xl border border-[#D9E0E8] bg-white px-4 text-sm text-[#10213A] outline-none focus:border-[#D4AF37]"
-                  />
+                <div className="mt-1 text-[11px] text-[#94A3B8]">
+                  {item.is_reenrolment
+                    ? "Re-enrolment"
+                    : "New Enrolment"}
                 </div>
+              </td>
+
+              <td className="px-3 py-4 align-top text-[13px] text-[#475569]">
+                {item.academic_year} · T{item.term}
+              </td>
+
+              <td
+                className="px-3 py-4 align-top text-[13px] text-[#475569]"
+                title={item.last_term_class_name}
+              >
+                <div className="truncate">
+                  {item.last_term_class_name}
+                </div>
+              </td>
+
+              <td
+                className="px-3 py-4 align-top text-[13px] font-medium text-[#10213A]"
+                title={item.current_term_class_name}
+              >
+                <div className="truncate">
+                  {item.current_term_class_name}
+                </div>
+              </td>
+
+              <td className="px-3 py-4 align-top text-[13px] font-semibold text-[#10213A]">
+                {item.amount_payable == null
+                  ? "—"
+                  : `$${Number(
+                      item.amount_payable
+                    ).toFixed(2)}`}
+              </td>
+
+              <td className="px-3 py-4 align-top">
+                <span
+                  className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                    item.payment_status === "Paid"
+                      ? "bg-green-50 text-green-700"
+                      : "bg-amber-50 text-amber-700"
+                  }`}
+                >
+                  {item.payment_status}
+                </span>
+              </td>
+
+              <td className="px-3 py-4 align-top">
+                <span
+                  className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                    item.status === "Completed" ||
+                    item.payment_status === "Paid"
+                      ? "bg-green-50 text-green-700"
+                      : "bg-slate-100 text-slate-700"
+                  }`}
+                >
+                  {item.status === "Completed"
+                    ? "Completed"
+                    : item.is_reenrolment
+                      ? item.submission_status ?? item.status
+                      : item.status}
+                </span>
+              </td>
+
+              <td className="px-3 py-4 text-right align-top">
+                {item.is_reenrolment &&
+  item.submission_id &&
+  item.submission_status === "Submitted" &&
+  item.payment_status !== "Paid" ? (
+  <div className="flex flex-col items-end gap-1.5">
+    <button
+      type="button"
+      disabled={
+        submissionActionLoading ===
+        item.submission_id
+      }
+      onClick={() => {
+        const submission =
+          submissions.find(
+            (submissionItem) =>
+              submissionItem.id ===
+              item.submission_id
+          );
+
+        if (submission) {
+          void handleCompleteSubmission(
+            submission
+          );
+        }
+      }}
+      className="rounded-lg bg-[#10213A] px-3 py-2 text-xs font-semibold text-white hover:bg-[#1A3152] disabled:opacity-50"
+    >
+      {submissionActionLoading ===
+      item.submission_id
+        ? "Processing..."
+        : "Payment Received"}
+    </button>
+
+    <button
+      type="button"
+      disabled={
+        submissionActionLoading ===
+        item.submission_id
+      }
+      onClick={() => {
+        const submission =
+          submissions.find(
+            (submissionItem) =>
+              submissionItem.id ===
+              item.submission_id
+          );
+
+        if (submission) {
+          void handlePaymentStatus(
+            submission,
+            "Pending"
+          );
+        }
+      }}
+      className="whitespace-nowrap text-xs font-semibold text-[#64748B] hover:text-[#10213A] disabled:opacity-50"
+    >
+      Mark Payment Pending
+    </button>
+  </div>
+) : !item.is_reenrolment &&
+  item.payment_status !== "Paid" ? (
+  <div className="flex flex-col items-end gap-1.5">
+    <button
+      type="button"
+      disabled={
+        submissionActionLoading === item.id
+      }
+      onClick={() => {
+        void handleNewEnrollmentPayment(item);
+      }}
+      className="rounded-lg bg-[#10213A] px-3 py-2 text-xs font-semibold text-white hover:bg-[#1A3152] disabled:opacity-50"
+    >
+      {submissionActionLoading === item.id
+        ? "Processing..."
+        : "Payment Received"}
+    </button>
+
+    <button
+      type="button"
+      disabled={
+        submissionActionLoading === item.id
+      }
+      onClick={() => {
+        showPopup(
+          "Payment Reminder",
+          "The overdue tuition reminder email service is not yet available. No payment or enrolment status has been changed.",
+          "info"
+        );
+      }}
+      className="whitespace-nowrap text-xs font-semibold text-[#64748B] hover:text-[#10213A] disabled:opacity-50"
+    >
+      Mark Payment Pending
+    </button>
+  </div>
+) : item.payment_status === "Paid" ? (
+  null
+) : (
+                  <span className="text-xs text-[#94A3B8]">
+                    —
+                  </span>
+                )}
+              </td>
+            </tr>
+          ))
+        )}
+      </tbody>
+    </table>
+  </div>
+
+  {/* Mobile */}
+  <div className="max-h-[720px] space-y-3 overflow-y-auto p-4 md:hidden">
+    {filteredEnrollmentRows.length === 0 ? (
+      <div className="rounded-xl border border-[#E5EAF0] p-5 text-center text-sm text-[#64748B]">
+        No enrolments found.
+      </div>
+    ) : (
+      filteredEnrollmentRows.map((item) => (
+        <div
+          key={item.id}
+          className="rounded-xl border border-[#E5EAF0] bg-white p-4"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="text-base font-semibold text-[#10213A]">
+                {item.student_name}
+              </div>
+
+              <div className="mt-1 text-xs text-[#64748B]">
+                {item.is_reenrolment
+                  ? "Re-enrolment"
+                  : "New Enrolment"}{" "}
+                · {item.academic_year} · T{item.term}
               </div>
             </div>
 
-            <div className="hidden max-h-[680px] overflow-x-auto overflow-y-auto md:block">
-              <table className="w-full min-w-[1100px] table-fixed text-left">
-                <thead className="sticky top-0 z-10 border-b border-[#E5EAF0] bg-[#F8FAFC]">
-                  <tr className="text-[11px] uppercase tracking-[0.12em] text-[#64748B]">
-                    <th className="w-[16%] px-3 py-4 font-semibold">Student</th>
-                    <th className="w-[12%] px-3 py-4 font-semibold">Term</th>
-                    <th className="w-[16%] px-3 py-4 font-semibold">Last Term</th>
-<th className="w-[18%] px-3 py-4 font-semibold">Current Term</th>
-                    <th className="w-[9%] px-3 py-4 font-semibold">Amount</th>
-                    <th className="w-[10%] px-3 py-4 font-semibold">Payment</th>
-                    <th className="w-[8%] px-3 py-4 font-semibold">Status</th>
-                    <th className="w-[11%] px-3 py-4 text-right font-semibold">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredSubmissions.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="px-5 py-10 text-center text-sm text-[#64748B]">
-                        No submitted Re-enrolments found.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredSubmissions.map((item) => (
-                      <tr key={item.id} className="border-b border-[#EEF1F5] last:border-b-0">
-                        <td className="px-3 py-4 align-top">
-                          <div className="truncate text-[13px] font-semibold text-[#10213A]" title={item.student_name}>
-                            {item.student_name}
-                          </div>
-                          <div className="mt-1 text-[11px] text-[#94A3B8]">
-                            {formatSubmissionDate(item.submitted_at)}
-                          </div>
-                        </td>
-                        <td className="px-3 py-4 align-top text-[13px] text-[#475569]">
-                          {item.academic_year} · T{item.term}
-                        </td>
-                        <td className="px-3 py-4 align-top text-[13px] text-[#475569]" title={item.current_class_name}>
-                          <div className="truncate">{item.current_class_name}</div>
-                        </td>
-                        <td className="px-3 py-4 align-top text-[13px] font-medium text-[#10213A]" title={item.selected_class_name}>
-                          <div className="truncate">{item.selected_class_name}</div>
-                        </td>
-                        <td className="px-3 py-4 align-top text-[13px] font-semibold text-[#10213A]">
-                          ${Number(item.amount_payable ?? 0).toFixed(2)}
-                        </td>
-                        <td className="px-3 py-4 align-top">
-                          <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                            item.payment_status === "Paid"
-                              ? "bg-green-50 text-green-700"
-                              : "bg-amber-50 text-amber-700"
-                          }`}>
-                            {item.payment_status}
-                          </span>
-                        </td>
-                        <td className="px-3 py-4 align-top">
-                          <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                            item.status === "Completed"
-                              ? "bg-green-50 text-green-700"
-                              : "bg-slate-100 text-slate-700"
-                          }`}>
-                            {item.status}
-                          </span>
-                        </td>
-                        <td className="px-3 py-4 text-right align-top">
-                          <div className="flex flex-col items-end gap-2">
-                                                        {item.status === "Submitted" && item.payment_status !== "Paid" && (
-                              <>
-                                <button
-                                  type="button"
-                                  disabled={submissionActionLoading === item.id}
-                                  onClick={() => void handleCompleteSubmission(item)}
-                                  className="rounded-lg bg-[#10213A] px-3 py-2 text-xs font-semibold text-white hover:bg-[#1A3152] disabled:opacity-50"
-                                >
-                                  {submissionActionLoading === item.id
-                                    ? "Processing..."
-                                    : "Payment Received"}
-                                </button>
+            <span
+              className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                item.payment_status === "Paid"
+                  ? "bg-green-50 text-green-700"
+                  : "bg-amber-50 text-amber-700"
+              }`}
+            >
+              {item.payment_status}
+            </span>
+          </div>
 
-                                <button
-                                  type="button"
-                                  disabled={submissionActionLoading === item.id}
-                                  onClick={() =>
-                                    void handlePaymentStatus(item, "Pending")
-                                  }
-                                  className="text-xs font-semibold text-[#64748B] hover:text-[#10213A] disabled:opacity-50"
-                                >
-                                  Mark Payment Pending
-                                </button>
-                              </>
-                            )}
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#A78312]">
+                Last Term
+              </div>
 
-                            {item.status === "Submitted" && item.payment_status === "Paid" && (
-                              <span className="text-xs font-semibold text-green-700">
-                                ✓ Payment Received
-                              </span>
-                            )}
-
-                            {item.status === "Completed" && (
-                              <span className="text-xs font-semibold text-green-700">
-                                ✓ Completed
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+              <div className="mt-1 text-sm text-[#475569]">
+                {item.last_term_class_name}
+              </div>
             </div>
 
-            <div className="max-h-[720px] space-y-3 overflow-y-auto p-4 md:hidden">
-              {filteredSubmissions.length === 0 ? (
-                <div className="rounded-xl border border-[#E5EAF0] p-5 text-center text-sm text-[#64748B]">
-                  No submitted Re-enrolments found.
-                </div>
-              ) : (
-                filteredSubmissions.map((item) => (
-                  <div key={item.id} className="rounded-xl border border-[#E5EAF0] bg-white p-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <div className="text-base font-semibold text-[#10213A]">{item.student_name}</div>
-                        <div className="mt-1 text-xs text-[#64748B]">
-                          {item.academic_year} · Term {item.term}
-                        </div>
-                      </div>
-                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                        item.status === "Completed"
-                          ? "bg-green-50 text-green-700"
-                          : "bg-slate-100 text-slate-700"
-                      }`}>
-                        {item.status}
-                      </span>
-                    </div>
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#A78312]">
+                Current Term
+              </div>
 
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#A78312]">Current Class</div>
-                        <div className="mt-1 text-sm text-[#475569]">{item.current_class_name}</div>
-                      </div>
-                      <div>
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#A78312]">Selected Class</div>
-                        <div className="mt-1 text-sm font-semibold text-[#10213A]">{item.selected_class_name}</div>
-                      </div>
-                      <div>
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#A78312]">Amount Payable</div>
-                        <div className="mt-1 text-sm font-semibold text-[#10213A]">
-                          ${Number(item.amount_payable ?? 0).toFixed(2)}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#A78312]">Payment</div>
-                        <div className="mt-1 text-sm font-semibold text-[#10213A]">{item.payment_status}</div>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 rounded-lg bg-[#F8FAFC] p-3 text-xs leading-5 text-[#64748B]">
-                      <div>Make-up Credits Redeemed: {getRedeemCredits(item)}</div>
-                      <div>Special Request: {getSpecialRequestSummary(item)}</div>
-                      {item.medical_snapshot && (
-                        <div className="mt-1">Medical: {item.medical_snapshot}</div>
-                      )}
-                    </div>
-
-                    {item.status === "Submitted" && (
-                      <div className="mt-4 flex flex-col gap-2">
-                        {item.payment_status !== "Paid" ? (
-                          <button
-                            type="button"
-                            disabled={submissionActionLoading === item.id}
-                            onClick={() => void handleCompleteSubmission(item)}
-                            className="min-h-[44px] rounded-xl bg-[#10213A] px-4 text-sm font-semibold text-white disabled:opacity-50"
-                          >
-                            Payment Received
-                          </button>
-                        ) : (
-                          <>
-                            <button
-                              type="button"
-                              disabled={submissionActionLoading === item.id}
-                              onClick={() => void handleCompleteSubmission(item)}
-                              className="min-h-[44px] rounded-xl bg-[#D4AF37] px-4 text-sm font-semibold text-[#10213A] disabled:opacity-50"
-                            >
-                              {submissionActionLoading === item.id ? "Processing..." : "Complete Re-enrolment"}
-                            </button>
-                            <button
-                              type="button"
-                              disabled={submissionActionLoading === item.id}
-                              onClick={() => void handlePaymentStatus(item, "Pending")}
-                              className="min-h-[44px] rounded-xl border border-[#D9E0E8] bg-white px-4 text-sm font-semibold text-[#10213A] disabled:opacity-50"
-                            >
-                              Mark Payment Pending
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
+              <div className="mt-1 text-sm font-semibold text-[#10213A]">
+                {item.current_term_class_name}
+              </div>
             </div>
-          </section>
+
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#A78312]">
+                Amount
+              </div>
+
+              <div className="mt-1 text-sm font-semibold text-[#10213A]">
+                {item.amount_payable == null
+                  ? "—"
+                  : `$${Number(
+                      item.amount_payable
+                    ).toFixed(2)}`}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#A78312]">
+                Status
+              </div>
+
+              <div className="mt-1 text-sm font-semibold text-[#10213A]">
+                {item.status === "Completed"
+                  ? "Completed"
+                  : item.is_reenrolment
+                    ? item.submission_status ?? item.status
+                    : item.status}
+              </div>
+            </div>
+          </div>
+
+        {item.is_reenrolment &&
+  item.submission_id &&
+  item.submission_status === "Submitted" &&
+  item.payment_status !== "Paid" ? (
+  <div className="mt-4 flex flex-col gap-2">
+    <button
+      type="button"
+      disabled={
+        submissionActionLoading ===
+        item.submission_id
+      }
+      onClick={() => {
+        const submission =
+          submissions.find(
+            (submissionItem) =>
+              submissionItem.id ===
+              item.submission_id
+          );
+
+        if (submission) {
+          void handleCompleteSubmission(
+            submission
+          );
+        }
+      }}
+      className="min-h-[44px] w-full rounded-xl bg-[#10213A] px-4 text-sm font-semibold text-white disabled:opacity-50"
+    >
+      {submissionActionLoading ===
+      item.submission_id
+        ? "Processing..."
+        : "Payment Received"}
+    </button>
+
+    <button
+      type="button"
+      disabled={
+        submissionActionLoading ===
+        item.submission_id
+      }
+      onClick={() => {
+        const submission =
+          submissions.find(
+            (submissionItem) =>
+              submissionItem.id ===
+              item.submission_id
+          );
+
+        if (submission) {
+          void handlePaymentStatus(
+            submission,
+            "Pending"
+          );
+        }
+      }}
+      className="min-h-[44px] w-full rounded-xl border border-[#D9E0E8] bg-white px-4 text-sm font-semibold text-[#10213A] disabled:opacity-50"
+    >
+      Mark Payment Pending
+    </button>
+  </div>
+) : !item.is_reenrolment &&
+  item.payment_status !== "Paid" ? (
+  <div className="mt-4 flex flex-col gap-2">
+    <button
+      type="button"
+      disabled={
+        submissionActionLoading === item.id
+      }
+      onClick={() => {
+        void handleNewEnrollmentPayment(item);
+      }}
+      className="min-h-[44px] w-full rounded-xl bg-[#10213A] px-4 text-sm font-semibold text-white disabled:opacity-50"
+    >
+      {submissionActionLoading === item.id
+        ? "Processing..."
+        : "Payment Received"}
+    </button>
+
+    <button
+      type="button"
+      disabled={
+        submissionActionLoading === item.id
+      }
+      onClick={() => {
+        showPopup(
+          "Payment Reminder",
+          "The overdue tuition reminder email service is not yet available. No payment or enrolment status has been changed.",
+          "info"
+        );
+      }}
+      className="min-h-[44px] w-full rounded-xl border border-[#D9E0E8] bg-white px-4 text-sm font-semibold text-[#10213A] disabled:opacity-50"
+    >
+      Mark Payment Pending
+    </button>
+  </div>
+) : null}
+        </div>
+      ))
+    )}
+  </div>
+</section>
 
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
             <section className="lg:col-span-1">
