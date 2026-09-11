@@ -6,8 +6,12 @@ interface Props {
   stats: AttendanceHeaderStats;
   onRefresh: () => void;
   isAdmin?: boolean;
-  canAddMakeup?: boolean;
+    canAddMakeup?: boolean;
   onAddMakeup?: () => void;
+
+  canAddUnenrolledStudent?: boolean;
+  onAddUnenrolledStudent?: () => void;
+
   isHistory?: boolean;
 }
 
@@ -15,8 +19,12 @@ export default function AttendanceHeader({
   stats,
   onRefresh,
   isAdmin = true,
-  canAddMakeup = isAdmin,
+   canAddMakeup = isAdmin,
   onAddMakeup,
+
+  canAddUnenrolledStudent = false,
+  onAddUnenrolledStudent,
+
   isHistory = false,
 }: Props) {
   const {
@@ -150,6 +158,38 @@ export default function AttendanceHeader({
                   +
                 </span>
                 Add Make-up
+              </button>
+            )}
+
+                        {canAddUnenrolledStudent && (
+              <button
+                type="button"
+                onClick={onAddUnenrolledStudent}
+                className="
+                  inline-flex
+                  min-h-[40px]
+                  items-center
+                  justify-center
+                  rounded-xl
+                  border
+                  border-[#D4AF37]
+                  bg-[#102B4D]
+                  px-4
+                  py-2
+                  text-sm
+                  font-semibold
+                  text-[#F4D35E]
+                  shadow-sm
+                  transition-all
+                  duration-200
+                  hover:bg-[#17385F]
+                  active:scale-[0.98]
+                "
+              >
+                <span className="mr-1.5 text-base leading-none">
+                  +
+                </span>
+                Add Student
               </button>
             )}
 

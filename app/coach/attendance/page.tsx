@@ -19,6 +19,9 @@ import {
 import { runAttendanceReconciliation } from "@/lib/attendanceRunner";
 import { reconcileAttendance } from "@/lib/attendanceEngine";
 import {
+  addUnenrolledStudentAttendance,
+} from "@/lib/unenrolledAttendance";
+import {
   syncLeaveRequests,
   reverseLeaveRequest,
 } from "@/lib/leaveAttendanceSync";
@@ -49,6 +52,10 @@ import AttendanceSummary from "@/components/attendance/AttendanceSummary";
 import AttendanceStudentTable from "@/components/attendance/AttendanceStudentTable";
 import StudentQuickView from "@/components/attendance/StudentQuickView";
 import MakeUpStudentDialog from "@/components/attendance/MakeUpStudentDialog";
+import UnenrolledStudentDialog from "@/components/attendance/UnenrolledStudentDialog";
+import type {
+  UnenrolledStudent,
+} from "@/components/attendance/UnenrolledStudentDialog";
 
 import type {
   LessonCard,
@@ -119,6 +126,12 @@ export default function CoachAttendancePage() {
 
   const [showMakeupDialog, setShowMakeupDialog] =
     useState(false);
+
+  const [showUnenrolledDialog, setShowUnenrolledDialog] =
+  useState(false);
+
+const [unenrolledStudents, setUnenrolledStudents] =
+  useState<UnenrolledStudent[]>([]);
 
   const [eligibleStudents, setEligibleStudents] =
     useState<any[]>([]);
@@ -1760,6 +1773,355 @@ async function addMakeupStudent(
   await loadEligibleStudents();
 }
 
+// ======================================================
+// Unenrolled Student Candidates
+//
+// Frozen:
+// - Previous-term students
+// - Same class as the selected Lesson
+// - Active Regular enrolment only
+// - Exclude current-term Active enrolment
+// - Exclude students already in current Attendance
+// - Does NOT use Make-up Credit
+// - Does NOT use Leave list
+// ======================================================
+
+async function loadUnenrolledStudents() {
+  try {
+    if (!selectedLesson) {
+      setUnenrolledStudents([]);
+      return;
+    }
+
+    // ----------------------------------------------------
+    // 1. Load current Lesson context
+    // ----------------------------------------------------
+
+    const {
+      data: lesson,
+      error: lessonError,
+    } = await supabase
+      .from("lessons")
+      .select(`
+        id,
+        class_id,
+        academic_year,
+        term
+      `)
+      .eq("id", selectedLesson.id)
+      .single();
+
+    if (lessonError) {
+      throw lessonError;
+    }
+
+    if (!lesson) {
+      setUnenrolledStudents([]);
+      return;
+    }
+
+    const currentAcademicYear =
+      Number(lesson.academic_year);
+
+    const currentTerm =
+      Number(lesson.term);
+
+    // ----------------------------------------------------
+    // 2. Resolve Previous Term
+    // ----------------------------------------------------
+
+    const previousAcademicYear =
+      currentTerm === 1
+        ? currentAcademicYear - 1
+        : currentAcademicYear;
+
+    const previousTerm =
+      currentTerm === 1
+        ? 4
+        : currentTerm - 1;
+
+    // ----------------------------------------------------
+    // 3. Previous-term same-class Active Regular students
+    // ----------------------------------------------------
+
+    const {
+      data: previousEnrollments,
+      error: previousEnrollmentError,
+    } = await supabase
+      .from("student_enrolments")
+      .select(`
+        student_id
+      `)
+      .eq("class_id", lesson.class_id)
+      .eq(
+        "academic_year",
+        previousAcademicYear
+      )
+      .eq(
+        "term",
+        previousTerm
+      )
+      .eq("status", "Active")
+      .eq("is_trial", false);
+
+    if (previousEnrollmentError) {
+      throw previousEnrollmentError;
+    }
+
+    const previousStudentIds =
+      Array.from(
+        new Set(
+          (previousEnrollments ?? [])
+            .map(
+              (row: any) =>
+                row.student_id
+            )
+            .filter(Boolean)
+        )
+      );
+
+    if (previousStudentIds.length === 0) {
+      setUnenrolledStudents([]);
+      return;
+    }
+
+    // ----------------------------------------------------
+    // 4. Current-term Active enrolments
+    // ----------------------------------------------------
+
+    const {
+      data: currentEnrollments,
+      error: currentEnrollmentError,
+    } = await supabase
+      .from("student_enrolments")
+      .select(`
+        student_id
+      `)
+      .eq("class_id", lesson.class_id)
+      .eq(
+        "academic_year",
+        currentAcademicYear
+      )
+      .eq(
+        "term",
+        currentTerm
+      )
+      .eq("status", "Active");
+
+    if (currentEnrollmentError) {
+      throw currentEnrollmentError;
+    }
+
+    const currentStudentIds =
+      new Set(
+        (currentEnrollments ?? [])
+          .map(
+            (row: any) =>
+              row.student_id
+          )
+          .filter(Boolean)
+      );
+
+    // ----------------------------------------------------
+    // 5. Existing Attendance
+    // ----------------------------------------------------
+
+    const {
+      data: existingAttendance,
+      error: attendanceError,
+    } = await supabase
+      .from("attendance")
+      .select(`
+        student_id
+      `)
+      .eq(
+        "lesson_id",
+        selectedLesson.id
+      );
+
+    if (attendanceError) {
+      throw attendanceError;
+    }
+
+    const attendanceStudentIds =
+      new Set(
+        (existingAttendance ?? [])
+          .map(
+            (row: any) =>
+              row.student_id
+          )
+          .filter(Boolean)
+      );
+
+    // ----------------------------------------------------
+    // 6. Final candidates
+    //
+    // Previous Term
+    //      ↓
+    // Same Class
+    //      ↓
+    // Active Regular
+    //      ↓
+    // NOT current-term enrolled
+    //      ↓
+    // NOT already in Attendance
+    // ----------------------------------------------------
+
+    const candidateIds =
+      previousStudentIds.filter(
+        (studentId) =>
+          !currentStudentIds.has(
+            studentId
+          ) &&
+          !attendanceStudentIds.has(
+            studentId
+          )
+      );
+
+    if (candidateIds.length === 0) {
+      setUnenrolledStudents([]);
+      return;
+    }
+
+    // ----------------------------------------------------
+    // 7. Load Student details
+    // ----------------------------------------------------
+
+    const {
+      data: studentRows,
+      error: studentError,
+    } = await supabase
+      .from("students")
+      .select(`
+        id,
+        student_code,
+        first_name,
+        preferred_name,
+        last_name,
+        current_level
+      `)
+      .in("id", candidateIds);
+
+    if (studentError) {
+      throw studentError;
+    }
+
+    const candidates: UnenrolledStudent[] =
+      (studentRows ?? [])
+        .map((student: any) => ({
+          student_id:
+            student.id,
+
+          student_code:
+            student.student_code ?? "",
+
+          student_name:
+            `${student.first_name ?? ""}${
+              student.preferred_name?.trim()
+                ? ` (${student.preferred_name.trim()})`
+                : ""
+            } ${student.last_name ?? ""}`.trim(),
+
+          level:
+            student.current_level ?? "",
+        }))
+        .sort(
+          (a, b) =>
+            a.student_code.localeCompare(
+              b.student_code
+            )
+        );
+
+    setUnenrolledStudents(
+      candidates
+    );
+
+  } catch (error) {
+    console.error(
+      "LOAD UNENROLLED STUDENTS ERROR:",
+      error
+    );
+
+    setUnenrolledStudents([]);
+  }
+}
+
+// ======================================================
+// Add Unenrolled Student
+//
+// Coach explicitly confirms that the student attended.
+// Attendance Engine creates:
+//   Present + Regular
+//
+// No current enrolment is created.
+// No Make-up Credit is used.
+// ======================================================
+
+async function addUnenrolledStudent(
+  student: UnenrolledStudent
+) {
+  if (!selectedLesson) {
+    return;
+  }
+
+  // ----------------------------------------------------
+  // Attendance Lock
+  // ----------------------------------------------------
+
+  if (
+    isAttendanceLocked(
+      selectedLesson.lesson_date,
+      getBusinessTimeAsDate()
+    )
+  ) {
+    await loadStudents(
+      selectedLesson.id
+    );
+    return;
+  }
+
+  // ----------------------------------------------------
+  // Roll Call is available only at / after Lesson Start
+  // ----------------------------------------------------
+
+  if (
+    rollCallTimeTick <
+    getLessonStartTimestamp(
+      selectedLesson.lesson_date,
+      selectedLesson.start_time
+    )
+  ) {
+    return;
+  }
+
+  // ----------------------------------------------------
+  // Attendance Engine
+  // ----------------------------------------------------
+
+  await addUnenrolledStudentAttendance({
+    lessonId:
+      selectedLesson.id,
+
+    studentId:
+      student.student_id,
+  });
+
+  // ----------------------------------------------------
+  // Reload Attendance
+  // ----------------------------------------------------
+
+  await loadStudents(
+    selectedLesson.id
+  );
+
+  // ----------------------------------------------------
+  // Reload candidates
+  //
+  // Newly added student should disappear immediately.
+  // ----------------------------------------------------
+
+  await loadUnenrolledStudents();
+}
 
   // ======================================================
   // Load Coach Lessons
@@ -2287,16 +2649,29 @@ useEffect(() => {
       >
 
         <AttendanceHeader
-          stats={headerStats}
-          onRefresh={loadLessons}
-          isAdmin={isAdmin}
-          canAddMakeup={
-            canAddMakeup
-          }
-          onAddMakeup={
-            openMakeupDialog
-          }
-        />
+  stats={headerStats}
+  onRefresh={loadLessons}
+  isAdmin={isAdmin}
+
+  canAddMakeup={
+    canAddMakeup
+  }
+  onAddMakeup={
+    openMakeupDialog
+  }
+
+  canAddUnenrolledStudent={
+    !!selectedLesson &&
+    rollCallEnabled &&
+    !attendanceLocked
+  }
+  onAddUnenrolledStudent={
+    async () => {
+      await loadUnenrolledStudents();
+      setShowUnenrolledDialog(true);
+    }
+  }
+/>
 
         {process.env.NODE_ENV !== "production" && (
           <div
@@ -2908,6 +3283,35 @@ useEffect(() => {
 
       console.error(
         "COACH MAKE-UP ERROR:",
+        error
+      );
+    }
+  }}
+/>
+
+{/* ==================================================
+    Unenrolled Student Dialog
+================================================== */}
+
+<UnenrolledStudentDialog
+  open={showUnenrolledDialog}
+
+  students={unenrolledStudents}
+
+  onClose={() =>
+    setShowUnenrolledDialog(false)
+  }
+
+  onAdd={async (student) => {
+    try {
+      await addUnenrolledStudent(
+        student
+      );
+
+      setShowUnenrolledDialog(false);
+    } catch (error) {
+      console.error(
+        "COACH UNENROLLED STUDENT ERROR:",
         error
       );
     }

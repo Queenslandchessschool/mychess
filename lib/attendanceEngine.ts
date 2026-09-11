@@ -633,3 +633,280 @@ export async function reconcileAttendance(
       missingEnrolments.length,
   };
 }
+// ======================================================
+// Manual Attendance for Unenrolled Student
+//
+// Frozen business rule:
+// - Explicit Coach action only.
+// - Student comes from previous-term enrolment.
+// - Does NOT create current-term enrolment.
+// - Does NOT use Make-up Credit.
+// - Attendance Type = Regular.
+// - Attendance Status = Present.
+// - Existing Attendance always wins.
+//
+// IMPORTANT:
+// This is still an Attendance Engine write path.
+// Coach UI must NOT write directly to attendance.
+// ======================================================
+
+export async function addManualRegularAttendance(
+  lessonId: string,
+  studentId: string,
+  db: SupabaseClient = supabase
+): Promise<{
+  attendanceId: string;
+  lessonId: string;
+  studentId: string;
+  attendanceStatus: string;
+  attendanceType: string;
+}> {
+
+  if (!lessonId) {
+    throw new Error(
+      "Manual Attendance failed: lesson is required."
+    );
+  }
+
+  if (!studentId) {
+    throw new Error(
+      "Manual Attendance failed: student is required."
+    );
+  }
+
+  // ====================================================
+  // 1. Load current Lesson
+  // ====================================================
+
+  const {
+    data: lesson,
+    error: lessonError,
+  } = await db
+    .from("lessons")
+    .select(`
+      id,
+      class_id,
+      academic_year,
+      term,
+      lesson_date
+    `)
+    .eq("id", lessonId)
+    .single();
+
+  if (lessonError) {
+    throw lessonError;
+  }
+
+  if (!lesson) {
+    throw new Error(
+      "Manual Attendance failed: lesson not found."
+    );
+  }
+
+  // ====================================================
+  // 2. Check existing Attendance
+  //
+  // Existing Attendance always wins.
+  // ====================================================
+
+  const {
+    data: existingAttendance,
+    error: existingAttendanceError,
+  } = await db
+    .from("attendance")
+    .select(`
+      id,
+      lesson_id,
+      student_id,
+      attendance_status,
+      attendance_type
+    `)
+    .eq("lesson_id", lessonId)
+    .eq("student_id", studentId)
+    .maybeSingle();
+
+  if (existingAttendanceError) {
+    throw existingAttendanceError;
+  }
+
+  if (existingAttendance) {
+    return {
+      attendanceId: existingAttendance.id,
+      lessonId,
+      studentId,
+      attendanceStatus:
+        existingAttendance.attendance_status,
+      attendanceType:
+        existingAttendance.attendance_type,
+    };
+  }
+
+  // ====================================================
+  // 3. Resolve Previous Term
+  //
+  // Current Term 1:
+  //   Previous = previous Academic Year Term 4
+  //
+  // Current Term 2/3/4:
+  //   Previous = same Academic Year, previous Term
+  // ====================================================
+
+  const currentAcademicYear =
+    Number(lesson.academic_year);
+
+  const currentTerm =
+    Number(lesson.term);
+
+  const previousAcademicYear =
+    currentTerm === 1
+      ? currentAcademicYear - 1
+      : currentAcademicYear;
+
+  const previousTerm =
+    currentTerm === 1
+      ? 4
+      : currentTerm - 1;
+
+  // ====================================================
+  // 4. Verify student was enrolled in the SAME CLASS
+  //    in the previous term.
+  //
+  // Only Active Regular enrolment is accepted.
+  // Trial students are excluded.
+  // ====================================================
+
+  const {
+    data: previousEnrollment,
+    error: previousEnrollmentError,
+  } = await db
+    .from("student_enrolments")
+    .select(`
+      id,
+      student_id,
+      class_id,
+      academic_year,
+      term,
+      status,
+      is_trial
+    `)
+    .eq("student_id", studentId)
+    .eq("class_id", lesson.class_id)
+    .eq(
+      "academic_year",
+      previousAcademicYear
+    )
+    .eq(
+      "term",
+      previousTerm
+    )
+    .eq("status", "Active")
+    .eq("is_trial", false)
+    .maybeSingle();
+
+  if (previousEnrollmentError) {
+    throw previousEnrollmentError;
+  }
+
+  if (!previousEnrollment) {
+    throw new Error(
+      "Manual Attendance failed: student was not enrolled in this class in the previous term."
+    );
+  }
+
+  // ====================================================
+  // 5. Verify student is NOT currently enrolled
+  //    in this lesson's class.
+  //
+  // This protects the meaning of:
+  // "Add Unenrolled Student"
+  // ====================================================
+
+  const {
+    data: currentEnrollment,
+    error: currentEnrollmentError,
+  } = await db
+    .from("student_enrolments")
+    .select("id")
+    .eq("student_id", studentId)
+    .eq(
+      "academic_year",
+      currentAcademicYear
+    )
+    .eq(
+      "term",
+      currentTerm
+    )
+    .eq("status", "Active")
+    .maybeSingle();
+
+  if (currentEnrollmentError) {
+    throw currentEnrollmentError;
+  }
+
+  if (currentEnrollment) {
+    throw new Error(
+      "Manual Attendance failed: student is already enrolled in this class for the current term."
+    );
+  }
+
+  // ====================================================
+  // 6. Insert through Attendance Engine
+  //
+  // This is the ONLY database write in this function.
+  //
+  // No:
+  // - current enrolment
+  // - make-up credit
+  // - trial
+  // - leave
+  // - holiday
+  // ====================================================
+
+  const now =
+    new Date().toISOString();
+
+  const {
+    data: insertedAttendance,
+    error: insertError,
+  } = await db
+    .from("attendance")
+    .insert({
+      lesson_id: lessonId,
+      student_id: studentId,
+      attendance_status: "Present",
+      attendance_type: "Regular",
+      created_at: now,
+      updated_at: now,
+    })
+    .select(`
+      id,
+      lesson_id,
+      student_id,
+      attendance_status,
+      attendance_type
+    `)
+    .single();
+
+  if (insertError) {
+    throw insertError;
+  }
+
+  if (!insertedAttendance) {
+    throw new Error(
+      "Manual Attendance failed: Attendance record was not created."
+    );
+  }
+
+  return {
+    attendanceId:
+      insertedAttendance.id,
+    lessonId:
+      insertedAttendance.lesson_id,
+    studentId:
+      insertedAttendance.student_id,
+    attendanceStatus:
+      insertedAttendance.attendance_status,
+    attendanceType:
+      insertedAttendance.attendance_type,
+  };
+}
