@@ -76,39 +76,49 @@ const navigationGroups = [
         href: "/admin/academic-calendar",
         icon: "◷",
       },
+      {
+  label: "Tuition Fee",
+  href: "/admin/tuition",
+  icon: "$",
+},
     ],
   },
 
   {
-    label: "Operations",
-    items: [
-      {
-        label: "Leave",
-        href: "/admin/leave",
-        icon: "◴",
-      },
-          {
+  label: "Operations",
+  items: [
+    {
+      label: "Leave",
+      href: "/admin/leave",
+      icon: "◴",
+    },
+    {
       label: "Special Arrangements",
       href: "/admin/special-arrangements",
       icon: "◇",
     },
-      {
-        label: "Make-up",
-        href: "/admin/makeup",
-        icon: "↻",
-      },
-      {
-        label: "Re-enrolment",
-        href: "/admin/reenrolment",
-        icon: "↺",
-      },
-      {
-        label: "Trial Management",
-        href: "/admin/trials",
-        icon: "★",
-      },
-    ],
-  },
+    {
+      label: "Make-up",
+      href: "/admin/makeup",
+      icon: "↻",
+    },
+    {
+      label: "Transfer",
+      href: "/admin/transfer",
+      icon: "↔",
+    },
+    {
+      label: "Enrollment",
+      href: "/admin/reenrolment",
+      icon: "↺",
+    },
+    {
+      label: "Trial Management",
+      href: "/admin/trials",
+      icon: "★",
+    },
+  ],
+},
 
   {
     label: null,
@@ -123,6 +133,17 @@ const navigationGroups = [
         href: "/admin/info",
         icon: "ⓘ",
       },
+      {
+  label: 
+"Attendance-History"
+,
+  href: 
+"/admin/attendance-history"
+,
+  icon: 
+"◷"
+,
+},
       {
         label: "Settings",
         href: "/admin/settings",

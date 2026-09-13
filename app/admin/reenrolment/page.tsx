@@ -1043,6 +1043,7 @@ const redeemAmount =
     setSubmissionActionLoading(submission.id);
 
     let usedCreditIds: string[] = [];
+    let appliedTuitionCreditIds: string[] = [];
     let enrollmentUpdated = false;
     let submissionUpdated = false;
     let originalPaymentAmount: number | null = null;
@@ -1144,6 +1145,104 @@ const redeemAmount =
       }
 
       /*
+ * Transfer Tuition Credit
+ *
+ * Tuition Credit is separate from Make-up Credit.
+ * Consume Pending Tuition Credit when payment is received.
+ */
+const submittedStandardTuition = Number(
+  submission.standard_tuition ?? 0
+);
+
+const submittedRedeemAmount = Number(
+  submission.redeem_amount ?? 0
+);
+
+const tuitionCreditAppliedAmount = Math.max(
+  0,
+  submittedStandardTuition -
+    submittedRedeemAmount -
+    amountPayable
+);
+
+if (tuitionCreditAppliedAmount > 0) {
+  const { data: tuitionCredits, error: tuitionCreditLoadError } =
+    await supabase
+      .from("tuition_adjustments")
+      .select("id, adjustment_amount")
+      .eq("student_id", submission.student_id)
+      .eq("adjustment_type", "Tuition Credit")
+      .eq("status", "Pending")
+      .lt("adjustment_amount", 0)
+      .order("created_at", { ascending: true });
+
+  if (tuitionCreditLoadError) {
+    throw tuitionCreditLoadError;
+  }
+
+  let remainingCreditToApply =
+    tuitionCreditAppliedAmount;
+
+  const creditIdsToApply: string[] = [];
+
+  for (const credit of tuitionCredits ?? []) {
+    const creditAmount = Math.abs(
+      Number(credit.adjustment_amount ?? 0)
+    );
+
+    if (creditAmount <= 0) {
+      continue;
+    }
+
+    if (creditAmount > remainingCreditToApply) {
+      break;
+    }
+
+    creditIdsToApply.push(credit.id);
+    remainingCreditToApply -= creditAmount;
+
+    if (remainingCreditToApply <= 0.001) {
+      break;
+    }
+  }
+
+  if (remainingCreditToApply > 0.001) {
+    throw new Error(
+      "The available Tuition Credit has changed. Please review the Re-enrolment before marking payment as received."
+    );
+  }
+
+  if (creditIdsToApply.length > 0) {
+    const { data: appliedCredits, error: tuitionCreditUpdateError } =
+      await supabase
+        .from("tuition_adjustments")
+        .update({
+          status: "Applied",
+          updated_at: new Date().toISOString(),
+        })
+        .in("id", creditIdsToApply)
+        .eq("status", "Pending")
+        .select("id");
+
+    if (tuitionCreditUpdateError) {
+      throw tuitionCreditUpdateError;
+    }
+
+    if (
+      (appliedCredits ?? []).length !==
+      creditIdsToApply.length
+    ) {
+      throw new Error(
+        "One or more Tuition Credits could not be applied safely."
+      );
+    }
+
+    appliedTuitionCreditIds =
+      creditIdsToApply;
+  }
+}
+
+      /*
        * Update the Enrollment created by Parent Submit.
        * Do NOT insert a new Enrollment.
        */
@@ -1208,6 +1307,7 @@ const redeemAmount =
         "Payment has been marked as received. The existing Enrollment is now Paid and the Re-enrolment is Completed.",
         "success"
       );
+      await loadPage();
     } catch (error: any) {
       /*
        * Roll back Submission if it was changed.
@@ -1275,6 +1375,29 @@ const redeemAmount =
           );
         }
       }
+
+      /*
+ * Roll back Tuition Credit consumption if
+ * any later payment-completion step fails.
+ */
+if (appliedTuitionCreditIds.length > 0) {
+  const { error: tuitionCreditRollbackError } =
+    await supabase
+      .from("tuition_adjustments")
+      .update({
+        status: "Pending",
+        updated_at: new Date().toISOString(),
+      })
+      .in("id", appliedTuitionCreditIds)
+      .eq("status", "Applied");
+
+  if (tuitionCreditRollbackError) {
+    console.error(
+      "Failed to roll back Tuition Credit:",
+      tuitionCreditRollbackError
+    );
+  }
+}
 
       console.error("RE-ENROLMENT PAYMENT RECEIVED ERROR:", error);
 

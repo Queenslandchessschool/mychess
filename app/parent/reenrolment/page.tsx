@@ -341,6 +341,8 @@ export default function ParentReenrolmentPage() {
 } | null>(null);
   const [currentClassSingleLessonFee, setCurrentClassSingleLessonFee] = useState(0);
   const [availableMakeupCredits, setAvailableMakeupCredits] = useState(0);
+  const [availableTuitionCredit, setAvailableTuitionCredit] =
+  useState(0);
   const [remainingLessons, setRemainingLessons] = useState(0);
 const [attendedLessons, setAttendedLessons] =
   useState(0);
@@ -1250,7 +1252,36 @@ const dynamicCalculatedTuition =
         0
       );
 
-    setAvailableMakeupCredits(totalCredits);
+        setAvailableMakeupCredits(totalCredits);
+
+    /*
+     * Transfer Tuition Credit
+     *
+     * Tuition Credit is separate from Make-up Credits.
+     * Only Pending Tuition Credit may be applied.
+     */
+    const { data: tuitionCreditData, error: tuitionCreditError } =
+      await supabase
+        .from("tuition_adjustments")
+        .select("id, adjustment_amount")
+        .eq("student_id", selectedStudentId)
+        .eq("adjustment_type", "Tuition Credit")
+        .eq("status", "Pending")
+        .lt("adjustment_amount", 0)
+        .order("created_at", { ascending: true });
+
+    if (tuitionCreditError) {
+      throw tuitionCreditError;
+    }
+
+    const totalTuitionCredit =
+      (tuitionCreditData ?? []).reduce(
+        (sum, row) =>
+          sum + Math.abs(Number(row.adjustment_amount ?? 0)),
+        0
+      );
+
+    setAvailableTuitionCredit(totalTuitionCredit);
   } catch (financialError: any) {
     console.error(
       "RE-ENROLMENT FINANCIAL LOAD ERROR:",
@@ -1260,6 +1291,7 @@ const dynamicCalculatedTuition =
     setTuitionConfig(null);
     setCurrentClassSingleLessonFee(0);
     setAvailableMakeupCredits(0);
+    setAvailableTuitionCredit(0);
     setRemainingLessons(0);
     setCalculatedTuition(0);
     setStandardTuition(0);
@@ -1268,7 +1300,7 @@ const dynamicCalculatedTuition =
   }
 }
 
-  const redeemCreditsAvailable = Math.min(
+ const redeemCreditsAvailable = Math.min(
   availableMakeupCredits,
   2
 );
@@ -1277,10 +1309,22 @@ const redeemAmount =
   redeemCreditsAvailable *
   currentClassSingleLessonFee;
 
+/*
+ * Transfer Tuition Credit is separate from Make-up Credit.
+ */
+const tuitionCreditApplied = tuitionConfig
+  ? Math.min(
+      availableTuitionCredit,
+      Math.max(0, standardTuition - redeemAmount)
+    )
+  : 0;
+
 const amountPayable = tuitionConfig
   ? Math.max(
       0,
-      standardTuition - redeemAmount
+      standardTuition -
+        redeemAmount -
+        tuitionCreditApplied
     )
   : 0;
 
@@ -2722,34 +2766,21 @@ useEffect(() => {
 )}
 
 <InfoField
-  label="Single Lesson Fee"
-  value={`$${tuitionConfig.single_lesson_fee.toFixed(2)}`}
-/>
-
-<InfoField
-  label="Calculated Tuition"
-  value={`$${calculatedTuition.toFixed(2)}`}
-/>
-
-<InfoField
   label="Standard Tuition (incl. GST)"
   value={`$${standardTuition.toFixed(2)}`}
 />
 
-<InfoField
-  label="Available Make-up Credits"
-  value={String(availableMakeupCredits)}
-/>
-
-<InfoField
-  label="Redeem Credits"
-  value={String(redeemCreditsAvailable)}
-/>
-
-{redeemCreditsAvailable > 0 && (
+{redeemAmount > 0 && (
   <InfoField
-    label="Redeem Amount"
+    label="Make-up Credit"
     value={`-$${redeemAmount.toFixed(2)}`}
+  />
+)}
+
+{tuitionCreditApplied > 0 && (
+  <InfoField
+    label="Tuition Credit"
+    value={`-$${tuitionCreditApplied.toFixed(2)}`}
   />
 )}
 
