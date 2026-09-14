@@ -5,6 +5,153 @@ All notable changes to this project will be documented in this file.
 ---
 
 ---
+
+## 2026-09-14 — Admin Master Data Milestone
+
+### Coaches — PASS / FROZEN
+
+- Completed Admin Coaches Management page.
+- Followed the Student Module canonical Admin UI/UX pattern.
+- Added Coach create and update workflow.
+- Added Coach Active / Inactive status management.
+- Preserved historical coach records; no Delete action.
+- Added Blue Card status display based on Blue Card Expiry date.
+- Added Blue Card Expiry date field for Admin maintenance.
+- Blue Card status is automatically determined as:
+  - Active — expiry date is today or later.
+  - Expired — expiry date has passed.
+  - Blank — no expiry date entered.
+- Added responsive Coach List presentation.
+- Added search and status filtering.
+- Verified Coach List table presentation on desktop and mobile.
+- `npm run build`: PASS.
+- Coach page UAT: PASS.
+
+### Coach Blue Card Reminder — FROZEN / Email Matrix Pending
+
+- Frozen requirement: send Blue Card expiry reminder six months before expiry.
+- Reminder is sent to the Coach and CC to Admin.
+- Email uses the Coach `display_name`.
+- Email automatically retrieves the Blue Card Expiry date from the database.
+- Reminder requests the Coach to update the Blue Card before expiry.
+- Coach is asked to send the latest Blue Card screenshot to Peter.
+- Standard MyCHESS email signature / footer will be applied.
+- Email implementation is deferred to the central Email Matrix stage.
+- No email automation has been added to the Coach page at this stage.
+
+### Venues / Campus — PASS / FROZEN
+
+- Completed Admin Venues / Campus Management page.
+- Followed the established Coach / Student canonical Admin UI/UX pattern.
+- Added Venue create and update workflow.
+- Added Venue Active / Inactive status management.
+- Added search and status filtering.
+- Added venue code, campus name, short name, address and type presentation.
+- Verified real database venue records.
+- Verified responsive desktop / mobile presentation.
+- `npm run build`: PASS.
+- Venues UI / UAT: PASS.
+
+## 2026-09-14 — Major Development Milestone
+
+### Attendance
+- Completed Attendance Core Lifecycle.
+- Implemented 04:00 daily roster generation.
+- Implemented T-30 roster reconciliation.
+- Implemented T-0 final roster reconciliation.
+- Implemented realtime Leave → Attendance synchronization.
+- Implemented Lesson Start attendance locking behaviour.
+- Implemented 23:59 Brisbane-time Attendance lock.
+- Completed Coach Attendance workflow and Admin Override.
+- Confirmed Australia/Brisbane business timezone handling.
+
+### Make-up
+- Completed Make-up → Attendance integration.
+- Completed Make-up Booking → Attendance creation.
+- Completed Make-up Credit lifecycle.
+- Completed Booking completion workflow.
+- Completed Private 1-to-1 Online Make-up workflow.
+- Confirmed Make-up Attendance uses existing Attendance Engine.
+
+### Tuition & Re-enrolment
+- Completed tuition calculation based on configured class pricing.
+- Completed remaining-lesson calculation.
+- Added Attendance-aware late Re-enrolment tuition calculation.
+- Completed Make-up Credit redemption.
+- Added separate Tuition Credit mechanism.
+- Tuition Credit is stored in `tuition_adjustments`.
+- Completed Parent Re-enrolment Tuition Credit deduction.
+- Completed Admin Payment Received → Tuition Credit Applied.
+- Completed Re-enrolment Submitted → Completed.
+- Completed Enrollment Payment → Paid.
+- Added Payment Received automatic UI refresh.
+
+### Mid-term Class Transfer
+- Completed Mid-term Class Transfer workflow.
+- Implemented effective-date-based future lesson calculation.
+- Past lessons are excluded from transfer tuition calculation.
+- Implemented Old Remaining Tuition calculation.
+- Implemented New Remaining Tuition calculation.
+- Implemented Additional Payment / No Adjustment / Tuition Credit outcomes.
+- Added `tuition_adjustments` database integration.
+- Added Tuition Credit audit trail.
+- Preserved original payment history.
+- Completed Enrollment segmentation with no overlap/gap.
+- Completed Transfer History.
+- Transfer History displays real database records.
+- Added responsive Transfer History table with sticky header and vertical scrolling.
+
+### Admin Navigation & UI
+- Added Operations → Transfer.
+- Renamed Admin Re-enrolment navigation to Enrollment.
+- Added Planning → Tuition Fee.
+- Added Reports → Attendance-History.
+- Confirmed existing Tuition Fee and Attendance-History pages.
+- Unified Transfer UI direction with existing MyCHESS UI/VI.
+
+### Validation
+- `npm run build` PASS.
+- Tuition Credit end-to-end UAT PASS.
+- Payment Received automatic refresh UAT PASS.
+- Mid-term Transfer UAT PASS.
+- Transfer History UAT PASS.
+
+## Next Development Phase
+
+### Admin Master Data
+- Build Admin Coaches page.
+- Build Admin Venues / Campus page.
+- Follow existing Student/Canonical Admin UI/UX.
+
+### MyFAMILY
+- Complete current-class synchronization.
+- Verify Parent-facing current enrolment information.
+
+### Communication
+- Complete email/reminder workflows.
+- Verify relevant payment and enrolment notifications.
+
+### Admin History & Reporting
+- Complete remaining history/report requirements.
+- Verify audit visibility and data consistency.
+
+### Security & Final UAT
+- Final role/access verification.
+- RLS verification.
+- Regression testing.
+- End-to-end final UAT.
+
+### Production / Go-Live
+- Production environment configuration.
+- Supabase production verification.
+- Vercel deployment.
+- Scheduled Attendance execution.
+- 04:00 Attendance generation verification.
+- T-30 / T-0 production verification.
+- Reminder scheduling verification.
+- Production smoke test.
+- Final GO LIVE.
+
 ## 2026-09-11 — Enrollment & Tuition Checkpoint
 
 ### Added
