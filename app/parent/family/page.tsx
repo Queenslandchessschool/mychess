@@ -86,7 +86,8 @@ type Enrollment = {
 
   status: string | null;
 
- };
+  created_at: string;
+};
 
 type ClassInfo = {
   id: string;
@@ -491,26 +492,45 @@ export default function ParentFamilyPage() {
        */
 
       const {
-        data: enrollmentData,
-        error: enrollmentError,
-      } = await supabase
-        .from("student_enrolments")
-        .select(`
-          id,
-          student_id,
-          class_id,
-          academic_year,
-          term,
-          status
-        `)
-        .in(
-          "student_id",
-          studentIds
-        )
-        .eq(
-          "status",
-          "Active"
-        );
+  data: enrollmentData,
+  error: enrollmentError,
+} = await supabase
+  .from("student_enrolments")
+  .select(`
+    id,
+    student_id,
+    class_id,
+    academic_year,
+    term,
+    status,
+    created_at
+  `)
+  .in(
+    "student_id",
+    studentIds
+  )
+  .eq(
+    "status",
+    "Active"
+  )
+  .order(
+    "academic_year",
+    {
+      ascending: false,
+    }
+  )
+  .order(
+    "term",
+    {
+      ascending: false,
+    }
+  )
+  .order(
+    "created_at",
+    {
+      ascending: false,
+    }
+  );
 
       if (enrollmentError) {
         throw enrollmentError;

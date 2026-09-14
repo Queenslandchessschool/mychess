@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 ---
 
 ---
+## 2026-09-14 MyFAMILY — Current Class / Term Transition
+
+### Current Class Business Rule
+- Frozen definition:
+  - `Current Class` is determined by the student's latest business-valid Active Enrollment.
+  - The latest Enrollment is selected by `academic_year DESC`, `term DESC`, and `created_at DESC`.
+  - Payment Status is NOT a prerequisite for displaying Current Class.
+  - A completed Re-enrollment may update Current Class before the new Term officially starts.
+  - Historical / Inactive Enrollments must not override the latest Active Enrollment.
+- No `is_current` field is used.
+- Selected Class logic remains unchanged.
+
+### UAT — PASS
+- Re-enrolled student correctly displays the new Term's Class before the new Term starts.
+- Current Class correctly follows the latest Active Enrollment.
+- Payment is not used as a Current Class prerequisite.
+- Historical Inactive Enrollment does not override the latest Active Enrollment.
+- Term 3 → Term 4 class transition verified.
+- Mid-term / latest Enrollment scenarios verified.
+- Campus, Class, Day and Time displayed correctly.
+- Existing MyFAMILY UI structure and Selected Class logic remain unchanged.
+
+### Verification Samples
+- 新建学费 验收 → `Novice 1 · Saturday 15:00–16:00`
+- 0908测试 新 → `Advanced · Saturday 15:30–17:00`
+- Middlejoin 测试 → latest Active Enrollment correctly selected
+- 813test Test → latest Active Enrollment correctly selected; older Inactive Enrollment ignored
+- 测试 Reenrollment → latest Term 4 Enrollment correctly selected
+- 最新 中途测试 → latest Term 4 Enrollment correctly selected
+
+### Status
+- MyFAMILY Current Class / Term Transition: **PASS / FROZEN**
+
 
 ## 2026-09-14 Attendance — 04:00 Daily Generation
 
