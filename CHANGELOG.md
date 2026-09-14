@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 ---
 
 ---
+
+## 2026-09-15 Email — F01 Central Email Service
+
+### Central Email Service
+- Added `lib/email/emailService.ts` as the central business-email sending service.
+- Introduced a unified `sendEmail()` function for business emails.
+- Central service uses Resend as the email delivery provider.
+- `RESEND_API_KEY` is loaded from environment variables.
+- Standard sender is:
+  `MyCHESS <noreply@queenslandchessschool.com.au>`
+- Supports a single recipient or multiple recipients.
+- Returns a unified success / failure result with Resend message ID.
+- Handles missing API key and Resend delivery errors without throwing business-layer errors.
+- No business logic is included in the central email service.
+- No tuition calculation or payment logic is included.
+- No bank/payment details are hardcoded.
+- Existing business email routes remain unchanged at this stage.
+
+### UAT — PASS
+- Central Email Service successfully sent a real test email through Resend.
+- Resend returned a valid message ID.
+- Test email was successfully received in the configured Gmail inbox.
+- Invalid Resend API key correctly returned `success: false`.
+- Final production-build verification passed after removing the temporary test API.
+- Temporary `/api/test-central-email` route removed after UAT.
+
+### Status
+- F01 Central Email Service: **PASS / FROZEN**
+- Ready for F02 Central Template Library.
+
 ## 2026-09-14 MyFAMILY — Current Class / Term Transition
 
 ### Current Class Business Rule
