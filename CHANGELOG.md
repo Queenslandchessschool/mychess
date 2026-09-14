@@ -6,6 +6,33 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## 2026-09-14 Attendance — 04:00 Daily Generation
+
+### 04:00 Attendance Generator
+- Added dedicated `/api/attendance/generate` scheduler endpoint.
+- Generator uses Brisbane date (`Australia/Brisbane`) to find today's Lessons.
+- Generator reuses the existing `reconcileAttendance()` engine.
+- Existing Attendance records are never overwritten.
+- Generation is idempotent and safely skips existing Attendance.
+- Regular / Trial eligibility rules remain owned by the existing Attendance Engine.
+- Booked Make-up students are supported through the existing Attendance Engine.
+- No Attendance UI changes were introduced.
+
+### UAT — PASS
+- GET request rejected with `405 Method Not Allowed`.
+- Missing / invalid `CRON_SECRET` rejected with `401 Unauthorized`.
+- Authorised generation successfully created today's 20 Attendance records.
+- Re-running generation created 0 duplicate records.
+- Existing manual Attendance change (`Absent`) was preserved.
+- Booked Make-up student successfully appeared in Attendance as Make-up / Present.
+- Re-running Generator after Make-up creation created 0 duplicate records.
+
+### Scheduler Status
+- 04:00 Generator API: PASS.
+- Production 04:00 scheduler / Vercel Cron configuration: NOT YET CONFIGURED.
+- Lazy Load remains as the existing backup mechanism.
+- T-30 / T-0 reconciliation remains separate from 04:00 generation.
+
 ## 2026-09-14 — Admin Master Data Milestone
 
 ### Coaches — PASS / FROZEN
