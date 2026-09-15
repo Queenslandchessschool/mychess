@@ -5,6 +5,68 @@ All notable changes to this project will be documented in this file.
 ---
 
 ---
+## F06 — Payment Settings
+
+### 2026-09-16 — Central Payment Settings Foundation
+
+#### Database Foundation
+- Confirmed no existing Payment / Bank Settings table existed.
+- Created `public.payment_settings`.
+- Added 9 frozen fields:
+  - `id`
+  - `account_name`
+  - `bsb`
+  - `account_number`
+  - `payment_reference`
+  - `status`
+  - `created_at`
+  - `updated_at`
+  - `updated_by`
+- `status` is restricted to:
+  - `Active`
+  - `Inactive`
+- BSB and Account Number are stored as `text` to preserve leading zeros.
+
+#### Timestamp Handling
+- Added `payment_settings_set_updated_at` trigger.
+- `updated_at` is automatically refreshed on UPDATE.
+- `created_at` remains unchanged after UPDATE.
+
+#### RLS / Security
+- RLS enabled.
+- Authenticated Admin users can SELECT Payment Settings.
+- Authenticated Admin users can INSERT Payment Settings.
+- Authenticated Admin users can UPDATE Payment Settings.
+- DELETE policy is intentionally not provided.
+- Admin verification uses `user_roles.auth_user_id = auth.uid()`.
+- Payment Settings are therefore restricted from normal Parent / Coach access.
+
+#### UAT
+- Schema verification: PASS.
+- Constraint verification: PASS.
+- RLS verification: PASS.
+- Policy verification: PASS.
+- INSERT test: PASS.
+- BSB leading-zero preservation: PASS.
+- Account Number leading-zero preservation: PASS.
+- Default `Active` status: PASS.
+- UPDATE test: PASS.
+- `updated_at` automatic update: PASS.
+- `Inactive` status: PASS.
+- Invalid status rejection: PASS.
+- Data integrity after rejected UPDATE: PASS.
+- Test data cleanup: PASS.
+- Final test record count: `0`.
+
+#### Scope
+- Payment Settings is configuration data only.
+- No Tuition calculation changes.
+- No Payment Status changes.
+- No Email Sending integration.
+- No business payment state changes.
+
+#### Status
+**F06 — Database Foundation PASS / FROZEN**
 
 ## F05 — Central Email Audit / Event Log
 
