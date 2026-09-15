@@ -6,6 +6,117 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## 2026-09-16 Email — F04 Central Footer
+
+### Central Email Footer
+- Added `lib/email/emailFooter.ts` as the central business-email footer.
+- Centralised the standard Email, WhatsApp and Website contact information.
+- Email address uses a clickable `mailto:` link.
+- WhatsApp number uses a clickable `tel:` link.
+- Website uses a clickable HTTPS link to `https://queenslandchessschool.com.au/`.
+- Replaced raw emoji characters with HTML entities for more stable email-client rendering.
+- Footer remains independent from template content and variable rendering.
+- Footer contains no business logic, tuition calculation, payment logic or email delivery logic.
+- Existing `lib/emailFooter.ts` remains unchanged at this stage.
+- Existing business email flows have not yet been migrated to the new central footer.
+
+### UAT — PASS
+- Email address verified.
+- Email `mailto:` link verified.
+- WhatsApp number verified.
+- WhatsApp `tel:` link verified.
+- Website text verified.
+- Website HTTPS link verified.
+- Email icon verified.
+- WhatsApp icon verified.
+- Website icon verified.
+- Raw emoji characters confirmed removed.
+- All Email Footer tests passed.
+- Final build verification passed.
+
+### Status
+- F04 Central Footer: **PASS / FROZEN**
+
+## Email — F03 Variable Renderer
+
+### Variable Renderer
+- Added `lib/email/variableRenderer.ts`.
+- Introduced a central `renderTemplate()` function for template variable replacement.
+- Supports variable replacement in both Email Subject and Email Body.
+- Supports repeated occurrences of the same variable.
+- Template variables use the `[Variable Name]` format.
+- Missing required variables produce an explicit error.
+- Missing variables are never silently replaced with an empty value.
+- Renderer contains no email delivery logic.
+- Renderer contains no business logic.
+- Renderer contains no tuition or payment calculation.
+- Renderer does not modify business state.
+
+### UAT — PASS
+- Normal Subject variable replacement: PASS.
+- Normal Body variable replacement: PASS.
+- Repeated variable replacement: PASS.
+- Missing variable error handling: PASS.
+- Subject + Body variable replacement: PASS.
+- All Variable Renderer tests passed.
+- Final production build verification passed.
+
+### Status
+- F03 Variable Renderer: **PASS / FROZEN**
+
+### Git
+- Checkpoint: `7e233f6`
+- Commit: `checkpoint: email variable renderer`
+- Working tree: CLEAN
+- Push: deferred.
+
+## Email — F02 Central Email Template Library
+
+### Database Foundation
+- Added `public.email_templates`.
+- Added the required 10-field template library structure.
+- Added UUID primary key.
+- Added unique constraint on `template_name`.
+- Added `Active` / `Inactive` status constraint.
+- Added `business_event`.
+- Added `available_variables` as JSONB.
+- Added `created_at`, `updated_at` and `updated_by`.
+- Enabled Row Level Security.
+- Added authenticated-user full-access policy consistent with the existing MyCHESS business-table RLS pattern.
+
+### First Central Template
+- Added `THANK_YOU_TEMPLATE`.
+- Business Event: `TRIAL_DECLINED`.
+- Status: `Active`.
+- Available Variables:
+  - `[Parent Name]`
+  - `[Student Name]`
+- Template Body stored centrally without Footer.
+- Existing Trial Declined business flow remains unchanged.
+
+### UAT — PASS
+- Email Template Library table verified.
+- Required fields verified.
+- Primary Key verified.
+- Unique Template Name verified.
+- Active / Inactive status constraint verified.
+- Required fields verified.
+- RLS verified.
+- Authenticated Full Access Policy verified.
+- `THANK_YOU_TEMPLATE` retrieval verified.
+- Subject verified.
+- Body verified.
+- Business Event verified.
+- Available Variables verified.
+- Footer confirmed not stored in the F02 template body.
+- Duplicate `template_name` protection verified.
+- Existing `THANK_YOU_TEMPLATE` remained unchanged after duplicate insert test.
+
+### Status
+- F02 Central Email Template Library Database Foundation: **PASS / FROZEN**
+- First Central Template: **PASS**
+- Duplicate Protection: **PASS**
+
 ## 2026-09-15 Email — F01 Central Email Service
 
 ### Central Email Service
