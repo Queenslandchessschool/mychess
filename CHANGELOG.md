@@ -6,6 +6,77 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## F05 — Central Email Audit / Event Log
+
+### 2026-09-15 — Central Email Audit Foundation
+
+#### Database Foundation
+- Created `public.email_audit_logs`.
+- Added 15 frozen fields:
+  - `id`
+  - `triggered_by`
+  - `triggered_at`
+  - `business_event`
+  - `template_name`
+  - `recipient_email`
+  - `student_id`
+  - `parent_id`
+  - `enrollment_id`
+  - `trial_id`
+  - `data_used`
+  - `status`
+  - `message_id`
+  - `error_message`
+  - `created_at`
+- `status` is restricted to:
+  - `Success`
+  - `Failed`
+- `data_used` stores template variables only.
+- No email secrets or credentials are stored in the audit record.
+
+#### RLS / Security
+- RLS enabled.
+- Authenticated users can INSERT audit records.
+- Authenticated users can SELECT audit records.
+- No UPDATE policy.
+- No DELETE policy.
+- Audit history cannot be modified or deleted through normal authenticated access.
+
+#### Central Audit Logger
+- Created `lib/email/emailAudit.ts`.
+- Implemented centralized `logEmailAudit()`.
+- Uses the trusted server-side Supabase client.
+- Supports:
+  - Success email audit
+  - Failed email audit
+  - Business event
+  - Template name
+  - Recipient
+  - Student / Parent / Enrollment / Trial references
+  - Template data used
+  - Message ID
+  - Error message
+  - Trigger timestamp
+
+#### UAT
+- Build verification: PASS.
+- Success Audit Logger test: PASS.
+- Failed Audit Logger test: PASS.
+- Database record verification: PASS.
+- `data_used` verification: PASS.
+- Success `message_id` verification: PASS.
+- Failed `error_message` verification: PASS.
+- Test records removed successfully.
+- Final test record count: `0`.
+
+#### Status
+**F05 — PASS / FROZEN**
+
+Central Email Audit / Event Log foundation is complete.
+
+No business email flow was migrated during F05.
+No changes were made to email sending logic.
+
 ## 2026-09-16 Email — F04 Central Footer
 
 ### Central Email Footer
