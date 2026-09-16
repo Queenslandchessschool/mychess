@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 ---
 
 ---
+## E01 — Central Email Template Library Admin UI
+
+### 2026-09-16 — Email Template Library Admin UI
+
+#### Features
+- Added Admin Email Template Library page.
+- Added template search by name, business event and subject.
+- Added status filtering: Active / Inactive.
+- Added template editing for Subject, Body and Status.
+- Template Name and Business Event remain read-only.
+- Available Variables displayed as read-only.
+- Added automatic `updated_at` handling through database trigger.
+- Added automatic `updated_by` recording from the authenticated Admin user.
+
+#### UAT
+- Email Template Library page: PASS
+- Search and status filter: PASS
+- Template edit and save: PASS
+- `updated_at` trigger verification: PASS
+- `updated_by` authenticated user verification: PASS
+- Production Build: PASS
+- Subject restored to formal content: PASS
+
+#### Scope
+- Admin UI only.
+- No email sending, preview, automation or version history included.
+
+#### Status
+PASS
+
 ## F06 — Payment Settings
 
 ### 2026-09-16 — Central Payment Settings Foundation
