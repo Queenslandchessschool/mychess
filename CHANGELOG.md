@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 ---
 
 ---
+## E02 — Central Email Template Service Integration
+
+### 2026-09-17 — Central Email Template Service
+
+#### Added
+- Added `lib/email/templateService.ts`.
+- Added centralized active email template retrieval by `business_event`.
+- Added centralized template variable rendering for Subject and Body.
+- Added automatic standard email footer integration.
+
+#### Changed
+- Migrated Trial Declined Email to the central Email Template Service.
+- Integrated central `sendEmail()` delivery service.
+- Integrated centralized Email Audit logging for Success and Failed email delivery.
+- Preserved the existing `TRIAL_DECLINED` business event and template variables.
+
+#### UAT
+- Production Build: PASS.
+- Git working tree verification: PASS.
+
+#### Scope
+- Trial Declined Email migration only.
+- No changes to other business email workflows.
+- No changes to tuition, payment or attendance logic.
+
+#### Status
+Central Email Template Service Integration: **IMPLEMENTED / BUILD PASS**
+
 ## E01 — Central Email Template Library Admin UI
 
 ### 2026-09-16 — Email Template Library Admin UI
