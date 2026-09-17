@@ -1,17 +1,13 @@
+
 import { NextResponse } from "next/server";
-import { Resend } from "resend";
-import { buildTrialDeclinedEmail } from "@/lib/trialEmailTemplates";
+
+import { getRenderedEmailTemplate } from "@/lib/email/templateService";
+import { sendEmail } from "@/lib/email/emailService";
+import { logEmailAudit } from "@/lib/email/emailAudit";
+
+const BUSINESS_EVENT = "TRIAL_DECLINED";
 
 export async function POST(request: Request) {
-  const apiKey = process.env.RESEND_API_KEY;
-
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: "RESEND_API_KEY is missing" },
-      { status: 500 }
-    );
-  }
-
   try {
     const body = await request.json();
 
@@ -29,35 +25,66 @@ export async function POST(request: Request) {
       );
     }
 
-    const email = buildTrialDeclinedEmail({
-      parentName,
-      studentName,
-    });
+    const variables = {
+      "Parent Name": parentName,
+      "Student Name": studentName,
+    };
 
-    const resend = new Resend(apiKey);
+    let email;
 
-    const { data, error } = await resend.emails.send({
-      from: "MyCHESS <noreply@queenslandchessschool.com.au>",
-      to: [parentEmail],
-      subject: email.subject,
-      html: email.html,
-    });
+    try {
+      email = await getRenderedEmailTemplate({
+        businessEvent: BUSINESS_EVENT,
+        variables,
+      });
+    } catch (error) {
+      const errorMessage = String(error);
 
-    if (error) {
-      console.error(
-        "TRIAL DECLINED EMAIL ERROR:",
-        error
-      );
+      await logEmailAudit({
+        businessEvent: BUSINESS_EVENT,
+        recipientEmail: parentEmail,
+        dataUsed: variables,
+        status: "Failed",
+        errorMessage,
+      });
 
       return NextResponse.json(
-        { error },
+        { error: errorMessage },
+        { status: 500 }
+      );
+    }
+
+    const result = await sendEmail({
+      to: parentEmail,
+      subject: email.subject,
+      html: email.body,
+    });
+
+    await logEmailAudit({
+      businessEvent: BUSINESS_EVENT,
+      templateName: email.templateName,
+      recipientEmail: parentEmail,
+      dataUsed: variables,
+      status: result.success ? "Success" : "Failed",
+      messageId: result.messageId ?? null,
+      errorMessage: result.success
+        ? null
+        : String(result.error ?? "Email sending failed"),
+    });
+
+    if (!result.success) {
+      return NextResponse.json(
+        {
+          error: String(result.error ?? "Email sending failed"),
+        },
         { status: 500 }
       );
     }
 
     return NextResponse.json({
       success: true,
-      messageId: data?.id,
+      messageId: result.messageId,
+      templateName: email.templateName,
     });
   } catch (error) {
     console.error(

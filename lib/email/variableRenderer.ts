@@ -10,7 +10,7 @@ export type RenderedTemplate = {
   body: string;
 };
 
-function findVariables(text: string): string[] {
+export function findVariables(text: string): string[] {
   const matches = text.match(/\[[^\]]+\]/g) ?? [];
 
   return Array.from(

@@ -1,4 +1,5 @@
 "use client";
+import { findVariables } from "@/lib/email/variableRenderer";
 
 interface EmailTemplateFormProps {
   form: {
@@ -67,6 +68,13 @@ export default function EmailTemplateForm({
   editingTemplate,
   onCancel,
 }: EmailTemplateFormProps) {
+
+  const displayVariables = Array.from(
+  new Set([
+    ...findVariables(form.subject),
+    ...findVariables(form.body),
+  ])
+);
   return (
     <section
       className="
@@ -103,10 +111,17 @@ export default function EmailTemplateForm({
             </label>
 
             <input
-              className={readOnlyClass}
-              value={form.template_name}
-              readOnly
-            />
+  className={editingTemplate ? readOnlyClass : inputClass}
+  value={form.template_name}
+  readOnly={!!editingTemplate}
+  onChange={(e) =>
+    setForm({
+      ...form,
+      template_name: e.target.value,
+    })
+  }
+  placeholder="Template Name"
+/>
           </div>
 
           {/* Business Event */}
@@ -116,10 +131,17 @@ export default function EmailTemplateForm({
             </label>
 
             <input
-              className={readOnlyClass}
-              value={form.business_event}
-              readOnly
-            />
+  className={editingTemplate ? readOnlyClass : inputClass}
+  value={form.business_event}
+  readOnly={!!editingTemplate}
+  onChange={(e) =>
+    setForm({
+      ...form,
+      business_event: e.target.value,
+    })
+  }
+  placeholder="Business Event"
+/>
           </div>
 
           {/* Status */}
@@ -137,7 +159,6 @@ export default function EmailTemplateForm({
                   status: e.target.value,
                 })
               }
-              disabled={!editingTemplate}
             >
               <option
                 value="Active"
@@ -171,7 +192,6 @@ export default function EmailTemplateForm({
                   subject: e.target.value,
                 })
               }
-              disabled={!editingTemplate}
             />
           </div>
 
@@ -192,7 +212,6 @@ export default function EmailTemplateForm({
                   body: e.target.value,
                 })
               }
-              disabled={!editingTemplate}
             />
           </div>
 
@@ -204,12 +223,12 @@ export default function EmailTemplateForm({
 
             <div className="rounded-lg border border-[#D9E0E8] bg-[#F8F5ED] p-3">
               <div className="flex flex-wrap gap-2">
-                {form.available_variables.length === 0 ? (
-                  <span className="text-xs text-[#94A3B8]">
-                    No variables
-                  </span>
-                ) : (
-                  form.available_variables.map((variable) => (
+                {displayVariables.length === 0 ? (
+  <span className="text-xs text-[#94A3B8]">
+    No variables
+  </span>
+) : (
+  displayVariables.map((variable) => (
                     <span
                       key={variable}
                       className="
@@ -263,54 +282,51 @@ export default function EmailTemplateForm({
           </div>
 
           {/* Actions */}
-          {editingTemplate && (
-            <div className="flex gap-2 pt-1">
-              <button
-  type="button"
-  onClick={onSave}
-  className="
-    flex-1
-    rounded-lg
-    border
-    border-[#D4AF37]
-    bg-[#0D2444]
-    py-2.5
-    text-sm
-    font-medium
-    text-[#D4AF37]
-    transition-colors
-    duration-200
-    hover:border-[#E8C75A]
-    hover:bg-[#152D4D]
-    active:border-[#D4AF37]
-    active:bg-[#102B4D]
-  "
->
-  Save Changes
-</button>
+          <div className="flex gap-2 pt-1">
+  <button
+    type="button"
+    onClick={onSave}
+    className="
+      flex-1
+      rounded-lg
+      border
+      border-[#D4AF37]
+      bg-[#0D2444]
+      py-2.5
+      text-sm
+      font-medium
+      text-[#D4AF37]
+      transition-colors
+      duration-200
+      hover:border-[#E8C75A]
+      hover:bg-[#152D4D]
+      active:bg-[#102B4D]
+    "
+  >
+    {editingTemplate ? "Save Changes" : "Create Template"}
+  </button>
 
-              {onCancel && (
-                <button
-                  type="button"
-                  onClick={onCancel}
-                  className="
-                    rounded-lg
-                    border border-[#D9E0E8]
-                    px-4
-                    text-sm
-                    font-medium
-                    text-[#64748B]
-                    transition-colors
-                    duration-200
-                    hover:border-[#D4AF37]
-                    hover:text-[#8A6900]
-                  "
-                >
-                  Cancel
-                </button>
-              )}
-            </div>
-          )}
+  {editingTemplate && onCancel && (
+    <button
+      type="button"
+      onClick={onCancel}
+      className="
+        rounded-lg
+        border border-[#D9E0E8]
+        px-4
+        text-sm
+        font-medium
+        text-[#64748B]
+        transition-colors
+        duration-200
+        hover:border-[#D4AF37]
+        hover:text-[#8A6900]
+      "
+    >
+      Cancel
+    </button>
+  )}
+</div>
         </div>
       </div>
     </section>

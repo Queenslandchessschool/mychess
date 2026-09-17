@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { findVariables } from "@/lib/email/variableRenderer";
 
 import EmailTemplateForm from "@/components/email/EmailTemplateForm";
 import EmailTemplateTable from "@/components/email/EmailTemplateTable";
@@ -65,8 +66,14 @@ export default function EmailTemplatesPage() {
     });
   }
 
-  async function updateTemplate() {
-  if (!editingTemplate) {
+  async function saveTemplate() {
+  if (!form.template_name.trim()) {
+    alert("Please enter the template name.");
+    return;
+  }
+
+  if (!form.business_event.trim()) {
+    alert("Please enter the business event.");
     return;
   }
 
@@ -80,6 +87,13 @@ export default function EmailTemplatesPage() {
     return;
   }
 
+  const availableVariables = Array.from(
+  new Set([
+    ...findVariables(form.subject),
+    ...findVariables(form.body),
+  ])
+);
+
   // Get the currently authenticated user
   const {
     data: { user },
@@ -91,19 +105,41 @@ export default function EmailTemplatesPage() {
     return;
   }
 
-  const { error } = await supabase
-    .from("email_templates")
-    .update({
-      subject: form.subject,
-      body: form.body,
-      status: form.status,
-      updated_by: user.id,
-    })
-    .eq("id", editingTemplate.id);
+  if (editingTemplate) {
+    // Update existing template
+    const { error } = await supabase
+      .from("email_templates")
+      .update({
+  subject: form.subject.trim(),
+  body: form.body,
+  status: form.status,
+  available_variables: availableVariables,
+  updated_by: user.id,
+})
+      .eq("id", editingTemplate.id);
 
-  if (error) {
-    alert(error.message);
-    return;
+    if (error) {
+      alert(error.message);
+      return;
+    }
+  } else {
+    // Create new template
+    const { error } = await supabase
+      .from("email_templates")
+      .insert({
+  template_name: form.template_name.trim(),
+  business_event: form.business_event.trim(),
+  status: form.status,
+  subject: form.subject.trim(),
+  body: form.body,
+  available_variables: availableVariables,
+  updated_by: user.id,
+})
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
   }
 
   resetForm();
@@ -225,7 +261,7 @@ export default function EmailTemplatesPage() {
             <EmailTemplateForm
               form={form}
               setForm={setForm}
-              onSave={updateTemplate}
+              onSave={saveTemplate}
               editingTemplate={editingTemplate}
               onCancel={resetForm}
             />
