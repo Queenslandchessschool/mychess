@@ -244,6 +244,8 @@ const classReference =
   classReferenceMap[String(classData.level ?? "")] ||
   String(classData.level ?? "");
 
+const className = String(classData.level ?? "");
+
 const paymentReference =
   `${campusReference} ${classReference} ${studentName}`.trim();
 
@@ -286,6 +288,7 @@ const paymentReference =
     const variables = {
       "Parent Name": String(parent.parent1_name ?? ""),
       "Student Name": studentName,
+      "Class Name": className,
       "Campus Name": campusName,
       "Campus Address": campusAddress,
       "Term Start Date": formatDate(firstLessonDate),

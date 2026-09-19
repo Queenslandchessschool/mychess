@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## 2026-09-20 — PASS: Trial Confirmation Email & Registration Success Modal
+
+### Trial Confirmation Email
+- Added `TRIAL_CONFIRMED` email API route.
+- Integrated Trial Confirmation with the Central Email Template Service.
+- Added dynamic trial details:
+  - Student Name
+  - Class Name
+  - Campus Name
+  - Campus Address
+  - Trial Date
+  - Trial Time
+  - Coach Name
+- Trial Date uses the enrollment `join_date`.
+- Class Name uses the full class level name.
+- Trial confirmation email is sent only for trial enrolments.
+
+### Registration Flow
+- Added automatic email routing:
+  - Trial registration → Trial Confirmation email.
+  - Regular registration → Enrolment Confirmation email.
+- Added the Class Name variable to the Regular Enrolment Confirmation email.
+
+### Registration Success Modal
+- Replaced the browser alert with a custom MyCHESS-styled success modal.
+- Added separate success messages for Trial and Regular registration.
+- Added a registration failure modal message.
+- Preserved the existing registration business logic.
+
+### Validation
+- Production build passed successfully.
+- `git diff --check` passed.
+
+### Frozen Baseline
+- Existing registration and email business logic remains unchanged.
+- Trial Confirmation email and registration modal are treated as the current baseline.
+- Future changes should be additive and should not redesign the existing UI or email layout without an explicit requirement.
+
 ## 2026-09-19 — PASS: Central Email Layout & Special Arrangement Emails
 
 ### Email Layout
