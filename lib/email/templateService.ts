@@ -1,10 +1,9 @@
-
 import { supabaseServer } from "@/lib/supabaseServer";
 import {
   renderTemplate,
   type RenderedTemplate,
 } from "./variableRenderer";
-import { buildEmailFooter } from "./emailFooter";
+import { buildEmailLayout } from "./emailLayout";
 
 export type GetRenderedTemplateInput = {
   businessEvent: string;
@@ -48,9 +47,17 @@ export async function getRenderedEmailTemplate({
     variables
   );
 
+  const loginUrl =
+    variables["MyCHESS Login URL"] || undefined;
+
+  const formattedBody = buildEmailLayout({
+    body: rendered.body,
+    loginUrl,
+  });
+
   return {
     templateName: template.template_name,
     subject: rendered.subject,
-    body: `${rendered.body}${buildEmailFooter()}`,
+    body: formattedBody,
   };
 }

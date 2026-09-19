@@ -1000,6 +1000,37 @@ export default function SpecialArrangementsPage() {
   // Create / Update Arrangement
   // ======================================================
 
+  async function sendSpecialArrangementEmail(
+    endpoint: string,
+    enrollmentId: string
+  ) {
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          enrollmentId,
+          myChessLoginUrl: `${window.location.origin}/login`,
+        }),
+      });
+
+      if (!response.ok) {
+        const result = await response.json().catch(() => null);
+        console.error(
+          "SPECIAL ARRANGEMENT → EMAIL ERROR:",
+          result?.error ?? `HTTP ${response.status}`
+        );
+      }
+    } catch (error) {
+      console.error(
+        "SPECIAL ARRANGEMENT → EMAIL EXCEPTION:",
+        error
+      );
+    }
+  }
+
   async function handleSave() {
     if (saving) return;
 
@@ -1229,6 +1260,13 @@ export default function SpecialArrangementsPage() {
         savedEnrolmentId
       );
 
+      await sendSpecialArrangementEmail(
+        editingArrangement
+          ? "/api/email/special-arrangement-updated"
+          : "/api/email/special-arrangement-confirmed",
+        savedEnrolmentId
+      );
+
       resetForm();
       await loadArrangements();
     } catch (error: any) {
@@ -1377,6 +1415,11 @@ export default function SpecialArrangementsPage() {
       }
 
             await recalculateSpecialArrangementTuition(
+        arrangement.student_enrolment_id
+      );
+
+      await sendSpecialArrangementEmail(
+        "/api/email/special-arrangement-cancelled",
         arrangement.student_enrolment_id
       );
 

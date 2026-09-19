@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## 2026-09-19 — PASS: Central Email Layout & Special Arrangement Emails
+
+### Email Layout
+- Completed and validated the shared MyCHESS email layout.
+- Applied the unified Navy / Gold branding across emails using Central Email Template Service.
+- Removed the unreliable external logo image dependency.
+- Added responsive, mobile-first email header layout.
+- Added solid gold top accent line and separated header divider.
+- Centered the MyCHESS login button within the email content.
+- Preserved the existing contact footer and email business logic.
+- Updated the compact footer to:
+  - MyCHESS · Every move matters
+  - A brighter mind for a brighter future.
+
+### Special Arrangement Emails
+- Confirmed the shared layout integration for:
+  - SPECIAL_ARRANGEMENT_CONFIRMED
+  - SPECIAL_ARRANGEMENT_UPDATED
+  - SPECIAL_ARRANGEMENT_CANCELLED
+- Desktop and mobile email presentation reviewed.
+- Production build validated successfully.
+
+### Frozen Baseline
+- Special Arrangement email business logic and API routes remain unchanged.
+- Central email layout is now treated as the current PASS baseline.
+- Future changes should be additive and should not redesign the layout without an explicit requirement.
+
 ### 2026-09-19 — Special Arrangement Tuition Recalculation
 
 - Added `lib/tuition/specialArrangementTuition.ts`.
