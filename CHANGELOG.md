@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+### 2026-09-19 — Special Arrangement Tuition Recalculation
+
+- Added `lib/tuition/specialArrangementTuition.ts`.
+- Added tuition recalculation after creating or updating a Special Arrangement.
+- Added tuition recalculation after cancelling a Special Arrangement.
+- Calculates deductions for cancelled lessons and active Special Arrangement lessons.
+- Updates the authoritative `student_enrolments.amount_payable` value.
+- Special Arrangement remains restricted to the period before the first formal lesson.
+- Build: PASS.
+- Git diff check: PASS.
+
 ### 2026-09-19 — Admin Enrolment Amount Payable Source Fix
 
 - Updated `app/admin/reenrolment/page.tsx`.

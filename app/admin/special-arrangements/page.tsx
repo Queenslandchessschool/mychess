@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { supabase } from "@/lib/supabase";
+import { recalculateSpecialArrangementTuition } from "@/lib/tuition/specialArrangementTuition";
 import { getCurrentUser } from "@/lib/currentUser";
 
 // ======================================================
@@ -1220,6 +1221,14 @@ export default function SpecialArrangementsPage() {
         );
       }
 
+            const savedEnrolmentId =
+        editingArrangement?.student_enrolment_id ??
+        form.student_enrolment_id;
+
+      await recalculateSpecialArrangementTuition(
+        savedEnrolmentId
+      );
+
       resetForm();
       await loadArrangements();
     } catch (error: any) {
@@ -1366,6 +1375,10 @@ export default function SpecialArrangementsPage() {
       if (error) {
         throw error;
       }
+
+            await recalculateSpecialArrangementTuition(
+        arrangement.student_enrolment_id
+      );
 
       showPopup(
         "Arrangement Cancelled",
