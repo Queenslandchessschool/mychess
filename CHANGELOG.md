@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## 2026-09-20 — PASS: Mid-term New Enrolment Tuition & Lesson Count
+
+### Tuition Calculation
+- Fixed New Enrolment tuition calculation to respect the student's Join Date.
+- Tuition is calculated using chargeable lessons from Join Date onward × Single Lesson Fee.
+- Example validated: Join Date 24 October 2026, 7 lessons × $25 = $175.00.
+- Preserved existing tuition configuration and payment logic.
+
+### Email Confirmation
+- Updated Enrolment Confirmation lesson count to exclude lessons before the student's Join Date.
+- Enrolment Confirmation email reads the saved Enrollment Amount Payable.
+- Removed Excluded Lesson(s) display from the email template.
+- Detailed lesson information remains available in the Dashboard.
+
+### Acceptance Testing
+- Registration Review: PASS
+- Enrolment Confirmation Email: PASS
+- Admin Enrolment Amount: PASS
+- Parent Tuition Amount Payable: PASS
+- Mid-term New Enrolment workflow: PASS
+
+### Frozen Baseline
+- Existing Admin, Parent Tuition, and Email Layout functionality remains unchanged.
+- Future changes must be additive and must not redesign this PASS workflow without a confirmed bug or explicit requirement.
+
 ## 2026-09-20 — PASS: Trial Confirmation Email & Registration Success Modal
 
 ### Trial Confirmation Email

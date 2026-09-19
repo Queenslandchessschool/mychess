@@ -191,7 +191,10 @@ const cancelledLessons = validLessons.filter(
 );
 
 const chargeableLessons = validLessons.filter(
-  (lesson) => lesson.status !== "Cancelled"
+  (lesson) =>
+    lesson.status !== "Cancelled" &&
+    (!enrollment.join_date ||
+      lesson.lesson_date >= enrollment.join_date)
 );
 
 const firstLessonDate = validLessons[0]?.lesson_date ?? null;

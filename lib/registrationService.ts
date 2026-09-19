@@ -242,17 +242,17 @@ export async function createEnrollment(
     );
   }
 
-  const { data: cancelledLessons, error: cancelledLessonsError } =
+    const { data: chargeableLessons, error: lessonsError } =
     await supabase
       .from("lessons")
       .select("id, lesson_date, status")
       .eq("class_id", data.enrollment.class_id)
       .eq("academic_year", data.enrollment.academic_year)
       .eq("term", data.enrollment.term)
-      .eq("status", "Cancelled");
+      .in("status", ["Planned", "Completed"]);
 
-  if (cancelledLessonsError) {
-    throw cancelledLessonsError;
+  if (lessonsError) {
+    throw lessonsError;
   }
 
   const standardTuition = Number(
@@ -263,17 +263,16 @@ export async function createEnrollment(
     tuitionConfig.single_lesson_fee ?? 0
   );
 
-  const cancelledLessonCount =
-    cancelledLessons?.length ?? 0;
+  const joinDate = data.enrollment.join_date;
 
-  const excludedLessonDeduction =
-    cancelledLessonCount * singleLessonFee;
+  const remainingChargeableLessons =
+    (chargeableLessons ?? []).filter(
+      (lesson) =>
+        !joinDate || lesson.lesson_date >= joinDate
+    );
 
-  const amountPayable = Math.max(
-    0,
-    standardTuition - excludedLessonDeduction
-  );
-
+  const amountPayable =
+    remainingChargeableLessons.length * singleLessonFee;
   const { data: enrollment, error } = await supabase
     .from("student_enrolments")
     .insert({
