@@ -619,13 +619,9 @@ const redeemAmount =
       );
 
     const amountPayable =
-  submission
-    ? (
-        enrolment.amount_payable == null
-          ? calculatedAmountPayable
-          : Number(enrolment.amount_payable)
-      )
-    : calculatedAmountPayable;
+      enrolment.amount_payable == null
+        ? calculatedAmountPayable
+        : Number(enrolment.amount_payable);
 
     return {
       id: enrolment.id,

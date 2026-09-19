@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+### 2026-09-19 — Admin Enrolment Amount Payable Source Fix
+
+- Updated `app/admin/reenrolment/page.tsx`.
+- Formal Enrolment records now prioritize the database `student_enrolments.amount_payable`.
+- Existing calculated amount is used only as a fallback when `amount_payable` is null.
+- Ensures Admin and Parent portals use the same authoritative tuition amount after Special Arrangement updates.
+- Build: PASS.
+
 ## 2026-09-19 — Email Template System & Enrolment Confirmation
 
 ### Completed — Email Templates (2026-09-18)
