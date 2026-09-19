@@ -5,26 +5,51 @@ import { activateEnrollment } from "@/lib/registrationService";
 
 export default function NewStudentPage() {
   async function handleSubmit(data: any) {
-    try {
-      await activateEnrollment(data);
+  try {
+    const result = await activateEnrollment(data);
 
-      alert(
-        `Thank you for your interest in our chess program!
+    const response = await fetch(
+      "/api/email/enrolment-confirmation",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          enrollmentId: result.enrollment.id,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+
+      throw new Error(
+        payload.error ?? "Confirmation email failed."
+      );
+    }
+
+    alert(
+      `Thank you for your interest in our chess program!
 
 Your registration has been submitted successfully.
 
-A confirmation email including your class details, tuition fees and payment instructions will be sent to you shortly.
+A confirmation email including your class details, tuition fees and payment instructions has been sent to you.
 
 Your place will be secured once payment has been received.
 
 We look forward to welcoming your family to Queensland Chess School.`
-      );
-    } catch (err) {
-      console.error(err);
+    );
+  } catch (err) {
+    console.error(err);
 
-      alert("Registration failed.");
-    }
+    alert(
+      err instanceof Error
+        ? `Registration failed: ${err.message}`
+        : "Registration failed."
+    );
   }
+}
 
   return (
     <div className="w-full">

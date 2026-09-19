@@ -212,8 +212,7 @@ export async function createEnrollment(
   studentId: string,
   data: RegistrationData
 ) {
-
-    const { data: tuitionConfig, error: tuitionConfigError } =
+  const { data: tuitionConfig, error: tuitionConfigError } =
     await supabase
       .from("tuition_configurations")
       .select(
@@ -242,27 +241,55 @@ export async function createEnrollment(
       "Tuition configuration could not be found for the selected class and term."
     );
   }
+
+  const { data: cancelledLessons, error: cancelledLessonsError } =
+    await supabase
+      .from("lessons")
+      .select("id, lesson_date, status")
+      .eq("class_id", data.enrollment.class_id)
+      .eq("academic_year", data.enrollment.academic_year)
+      .eq("term", data.enrollment.term)
+      .eq("status", "Cancelled");
+
+  if (cancelledLessonsError) {
+    throw cancelledLessonsError;
+  }
+
+  const standardTuition = Number(
+    tuitionConfig.standard_tuition ?? 0
+  );
+
+  const singleLessonFee = Number(
+    tuitionConfig.single_lesson_fee ?? 0
+  );
+
+  const cancelledLessonCount =
+    cancelledLessons?.length ?? 0;
+
+  const excludedLessonDeduction =
+    cancelledLessonCount * singleLessonFee;
+
+  const amountPayable = Math.max(
+    0,
+    standardTuition - excludedLessonDeduction
+  );
+
   const { data: enrollment, error } = await supabase
     .from("student_enrolments")
     .insert({
       student_id: studentId,
 
-      class_id:
-        data.enrollment.class_id,
+      class_id: data.enrollment.class_id,
 
-      academic_year:
-        data.enrollment.academic_year,
+      academic_year: data.enrollment.academic_year,
 
-      term:
-        data.enrollment.term,
+      term: data.enrollment.term,
 
-      join_date:
-        data.enrollment.join_date || null,
+      join_date: data.enrollment.join_date || null,
 
       status: "Active",
 
-      is_trial:
-        data.enrollment.is_trial,
+      is_trial: data.enrollment.is_trial,
 
       medical_snapshot:
         data.enrollment.medical_snapshot ?? null,
@@ -270,22 +297,26 @@ export async function createEnrollment(
       special_request_snapshot:
         data.enrollment.special_request ?? null,
 
-        payment_status: "Pending",
-  payment_amount: null,
-  tuition_configuration_id: tuitionConfig.id,
-  pricing_method: "Calculated",
-  standard_tuition: Number(
-    tuitionConfig.standard_tuition ?? 0
-  ),
-  redeem_amount: 0,
-  amount_payable: Number(
-    tuitionConfig.standard_tuition ?? 0
-  ),
+      payment_status: "Pending",
+
+      payment_amount: null,
+
+      tuition_configuration_id: tuitionConfig.id,
+
+      pricing_method: "Calculated",
+
+      standard_tuition: standardTuition,
+
+      redeem_amount: 0,
+
+      amount_payable: amountPayable,
     })
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 
   return enrollment;
 }

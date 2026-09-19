@@ -4,6 +4,60 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## 2026-09-19 — Email Template System & Enrolment Confirmation
+
+### Completed — Email Templates (2026-09-18)
+
+- Completed Re-enrolment Opening Email Template.
+- Completed Re-enrolment Reminder Email Template.
+- Completed Class Reminder Email Template.
+- Added corresponding API Routes:
+  - `/api/email/reenrolment-opening`
+  - `/api/email/reenrolment-reminder`
+  - `/api/email/class-reminder`
+- Integrated templates with the Central Email Template Service.
+- Reused the existing Central Email Sending Service and Email Audit mechanism.
+- Preserved the existing Email Template Library and variable rendering system.
+
+### Completed — Enrolment Confirmation (2026-09-19)
+
+- Completed Enrolment Confirmation Email API Route.
+- Integrated formal Enrollment data using `enrollmentId`.
+- Reused Enrollment `amount_payable` as the tuition fee source.
+- Updated cancelled lesson handling:
+  - Cancelled lessons are displayed as Excluded Lesson(s).
+  - Cancelled lessons are excluded from the lesson count.
+  - Cancelled lessons are excluded from tuition calculation.
+- Added structured Payment Reference generation:
+  - MacGregor → MacG
+  - Toowong → TOOW
+  - Warrigal Road State School → WRSS
+  - Online → ONLINE
+  - Advanced → A
+  - Intermediate → I
+  - Novice → N
+  - Beginner → B
+- Updated the template to use `[Payment Reference]`.
+- Added MyCHESS Parent Portal login link placeholder.
+- Netlify production login URL will be updated after deployment.
+
+### Testing / Acceptance
+
+- Re-enrolment Opening Email Template: Completed.
+- Re-enrolment Reminder Email Template: Completed.
+- Class Reminder Email Template: Completed.
+- Enrolment Confirmation local API test: PASS.
+- Cancelled lesson and tuition amount verification: PASS.
+- Payment Reference integration: Build PASS.
+- Updated Enrolment Confirmation Template: Saved.
+- MyCHESS login link format: PASS / Production URL Pending.
+
+### Scope Boundary
+
+- Existing PASS / FROZEN Email Service, Template Library, Footer and Audit mechanisms remain unchanged.
+- Special Arrangement tuition recalculation and follow-up email workflow remain separate future work.
+- Production deployment of the Enrolment Confirmation API remains pending.
+
 ---
 ## E02 — Central Email Template Service Integration
 

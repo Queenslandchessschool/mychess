@@ -31,6 +31,23 @@ export function buildEmailFooter() {
         <span style="
           display: inline-block;
           width: 22px;
+          height: 22px;
+          line-height: 22px;
+          text-align: center;
+          border-radius: 50%;
+          background-color: #07C160;
+          color: #ffffff;
+          font-weight: 600;
+        ">
+          &#128172;
+        </span>
+        WeChat: KQCHESS
+      </div>
+
+      <div style="margin-bottom: 4px;">
+        <span style="
+          display: inline-block;
+          width: 22px;
           font-weight: 600;
         ">
           &#9742;
@@ -64,3 +81,4 @@ export function buildEmailFooter() {
     </div>
   `;
 }
+
