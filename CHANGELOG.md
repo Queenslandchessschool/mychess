@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## 2026-09-20 — Email Automation Integration Specification**
+
+- Added the frozen Email Automation Integration Specification.
+- Documented the Re-enrolment Email Matrix and automated email business rules.
+- Defined the integration principles for Business Events, Central Email Templates, Dynamic Data, and Email Audit.
+- Documented the planned automation workflow and acceptance requirements.
+- No existing PASSed email templates or business rules were changed.
+
+## 2026-09-21 — Re-enrolment Opening Cron API Security**
+
+### Cron Authentication**
+
+- Added a dedicated Cron API route for Re-enrolment Opening Email automation.
+- Added `CRON_SECRET` configuration validation.
+- Added Bearer token authentication to prevent unauthorized API execution.
+- Preserved the existing Central Email Template Service, Email Sending Service, and Email Audit logic.
+- Build validation: PASS.
+
 ## 2026-09-20 — PASS: Mid-term New Enrolment Tuition & Lesson Count
 
 ### Tuition Calculation
