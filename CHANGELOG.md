@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+### 2026-09-21 — Re-enrolment Opening Batch Email Core
+
+- Added protected cron API route for Re-enrolment Opening batch email processing.
+- Added CRON_SECRET authorization.
+- Added active regular enrolment filtering by academic year and term.
+- Added student-level recipient matching and duplicate-send checking.
+- Added email audit logging and batch result summary.
+- Added SEND confirmation safeguard for manual execution.
+- Full date-trigger automation and production scheduler remain pending.
+
 ## 2026-09-20 — Email Automation Integration Specification**
 
 - Added the frozen Email Automation Integration Specification.
