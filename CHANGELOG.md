@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## 2026-09-21 — IN PROGRESS: Class Reminder Email Cron
+
+- Added Class Reminder Cron route:
+  - `app/api/cron/email/class-reminder/route.ts`
+- Added Brisbane-time trigger check for First Lesson Eve.
+- Added target-term active enrolment and parent email lookup.
+- Added duplicate email audit check.
+- Added confirmation requirement: `confirm: "SEND"`.
+- Build verification: PASS.
+- Production scheduler and live email testing: Pending.
+
 ## 2026-09-21 — IN PROGRESS: Re-enrolment Reminder Email Cron
 
 ### Added
