@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## 2026-09-21 — IN PROGRESS: Re-enrolment Opening Email Automation
+
+### Re-enrolment Opening
+- Added protected Cron API route for Re-enrolment Opening Email batch processing.
+- Added `CRON_SECRET` authentication.
+- Added academic year and term filtering.
+- Added Active, non-Trial enrolment filtering.
+- Added class schedule and Final Lesson lookup.
+- Added Brisbane timezone opening trigger validation:
+  Final Lesson + 1 day at 08:00.
+- Added `confirm: "SEND"` safety requirement.
+- Added production parent portal link.
+- Added per-student processing results and email audit logging.
+- Added duplicate-send prevention based on successful email audit records.
+
+### Validation Status
+- TypeScript / Production Build: PASS
+- Git Diff Check: PASS
+- Production Scheduler: NOT YET CONFIGURED
+- End-to-End Email Sending Test: NOT YET COMPLETED
+- Final UAT: PENDING
+
+### Baseline
+This is an ongoing implementation. It must not be treated as fully automated or production-ready until scheduler configuration, deployment and end-to-end UAT are completed.
+
 ### 2026-09-21 — Re-enrolment Opening Batch Email Core
 
 - Added protected cron API route for Re-enrolment Opening batch email processing.

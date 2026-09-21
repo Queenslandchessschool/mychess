@@ -63,6 +63,7 @@ export async function POST(request: Request) {
         .select(`
           id,
           student_id,
+class_id,
           academic_year,
           term,
           status,
@@ -93,6 +94,28 @@ export async function POST(request: Request) {
 
     for (const enrolment of enrolments ?? []) {
       const studentId = enrolment.student_id;
+const { data: schedule, error: scheduleError } =
+  await supabaseServer
+    .from("class_schedule")
+    .select("final_lesson")
+    .eq("class_id", enrolment.class_id)
+    .eq("academic_year", academicYear)
+    .eq("term", term)
+    .maybeSingle();
+
+if (scheduleError || !schedule?.final_lesson) {
+  failed += 1;
+
+  results.push({
+    studentId,
+    status: "Failed",
+    error:
+      scheduleError?.message ??
+      "Class schedule or final lesson not found.",
+  });
+
+  continue;
+}
 
       const student = Array.isArray(enrolment.students)
         ? enrolment.students[0]
@@ -111,6 +134,53 @@ export async function POST(request: Request) {
           studentId,
           status: "Failed",
           error: "Student information is incomplete.",
+        });
+
+        continue;
+      }
+
+      const finalLessonDate = schedule.final_lesson.slice(0, 10);
+      const [finalYear, finalMonth, finalDay] =
+        finalLessonDate.split("-").map(Number);
+
+      const openingDate = new Date(
+        Date.UTC(finalYear, finalMonth - 1, finalDay + 1)
+      );
+
+      const openingDateKey = openingDate
+        .toISOString()
+        .slice(0, 10);
+
+      const brisbaneParts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Australia/Brisbane",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        hourCycle: "h23",
+      }).formatToParts(new Date());
+
+      const getPart = (type: string) =>
+        brisbaneParts.find((part) => part.type === type)?.value ?? "";
+
+      const brisbaneDateKey =
+        `${getPart("year")}-${getPart("month")}-${getPart("day")}`;
+
+      const brisbaneHour = Number(getPart("hour"));
+
+      const openingNotReached =
+        brisbaneDateKey < openingDateKey ||
+        (brisbaneDateKey === openingDateKey && brisbaneHour < 8);
+
+      if (openingNotReached) {
+        skipped += 1;
+
+        results.push({
+          studentId,
+          studentName,
+          status: "Skipped",
+          reason:
+            "Re-enrolment opening time has not been reached.",
         });
 
         continue;
