@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## 2026-09-21 — IN PROGRESS: Re-enrolment Reminder Email Cron
+
+### Added
+- Added the Re-enrolment Reminder Cron API route:
+  - `app/api/cron/email/reenrolment-reminder/route.ts`
+- Added Brisbane timezone date handling.
+- Added reminder trigger validation:
+  - First Lesson of Next Term − 7 Days.
+- Added target-term recommendation and class schedule lookup.
+- Added exclusion rules for:
+  - Submitted re-enrolment submissions.
+  - Completed re-enrolment submissions.
+  - Existing active target-term enrolments.
+- Added duplicate-send prevention using email audit records.
+- Added `CRON_SECRET` authentication.
+- Added explicit `confirm: "SEND"` safety requirement.
+- Uses the central Email Template Service and Email Service.
+
+### Validation
+- `git diff --check` — PASS
+- `npm run build` — PASS
+
+### Status
+- Cron route implemented and build validated.
+- Production scheduler and live email testing remain pending.
+- No production deployment performed.
+
 ## 2026-09-21 — IN PROGRESS: Re-enrolment Opening Email Automation
 
 ### Re-enrolment Opening
