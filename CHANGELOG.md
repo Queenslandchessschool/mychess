@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## 2026-09-21 — IN PROGRESS: Email Cron Scheduler Integration
+
+- Added secure GET scheduler entry points for:
+  - Re-enrolment Opening Email
+  - Re-enrolment Reminder Email
+  - Class Reminder Email
+- Preserved the existing POST email processing logic and business rules.
+- Added server-side environment variable support:
+  - `REENROLMENT_ACADEMIC_YEAR`
+  - `REENROLMENT_TERM`
+- Added `vercel.json` with daily UTC schedules for the three email Cron routes.
+- Added Bearer authentication using `CRON_SECRET`.
+- Local production build: PASS.
+- `git diff --check`: PASS, with standard LF/CRLF conversion warnings.
+- Deployment and live email sending: NOT YET PERFORMED.
+
 ## 2026-09-21 — IN PROGRESS: Class Reminder Email Cron
 
 - Added Class Reminder Cron route:
