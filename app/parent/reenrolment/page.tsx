@@ -89,6 +89,14 @@ type Recommendation = {
   recommended_class_id: string;
 };
 
+type PaymentSettings = {
+  account_name: string | null;
+  bsb: string | null;
+  account_number: string | null;
+  payment_reference_instruction: string | null;
+  payment_reference_example: string | null;
+};
+
 type ReenrolmentSubmission = {
   id: string;
   student_id: string;
@@ -142,6 +150,54 @@ function getClassDisplayName(classInfo: ClassInfo | null): string {
   }
 
   return level || suffix || "—";
+}
+
+
+function getPaymentReference(
+  classInfo: ClassInfo | null,
+  student: Student | null
+): string {
+  if (!classInfo || !student) return "—";
+
+  const campus = Array.isArray(classInfo.campuses)
+    ? classInfo.campuses[0]
+    : classInfo.campuses;
+
+  const campusRaw = (
+    campus?.campus_code ||
+    campus?.short_name ||
+    campus?.campus_name ||
+    ""
+  )
+    .trim()
+    .toUpperCase();
+
+  const campusReference =
+    campusRaw.includes("MACG") || campusRaw.includes("MACGREGOR")
+      ? "MacG"
+      : campusRaw.includes("TOOW")
+        ? "TOOW"
+        : campusRaw.includes("WRSS") ||
+            campusRaw.includes("WARRIGAL")
+          ? "WRSS"
+          : campusRaw.includes("ONLINE")
+            ? "ONLINE"
+            : campusRaw;
+
+  const levelRaw = classInfo.level?.trim().toLowerCase() ?? "";
+
+  const classReference =
+    levelRaw === "advanced"
+      ? "A"
+      : levelRaw === "intermediate"
+        ? "I"
+        : levelRaw === "novice"
+          ? "N"
+          : levelRaw === "beginner"
+            ? "B"
+            : classInfo.class_suffix?.trim() || levelRaw;
+
+  return `${campusReference} ${classReference} ${getStudentDisplayName(student)}`.trim();
 }
 
 function getCampusDisplayName(classInfo: ClassInfo | null): string {
@@ -349,7 +405,13 @@ const [attendedLessons, setAttendedLessons] =
   const [calculatedTuition, setCalculatedTuition] = useState(0);
 const [standardTuition, setStandardTuition] = useState(0);
   const [financialLoading, setFinancialLoading] = useState(false);
+
+  const [paymentSettings, setPaymentSettings] = useState<PaymentSettings | null>(null);
+  const [paymentSettingsLoading, setPaymentSettingsLoading] = useState(false);
+  const [paymentSettingsError, setPaymentSettingsError] = useState<string | null>(null);
   const [declarationConfirmed, setDeclarationConfirmed] = useState(false);
+  const [termsPoliciesConfirmed, setTermsPoliciesConfirmed] = useState(false);
+  const [legalModal, setLegalModal] = useState<"terms" | "policies" | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submissionId, setSubmissionId] = useState<string | null>(null);
@@ -704,7 +766,7 @@ const [standardTuition, setStandardTuition] = useState(0);
           .eq("class_id", currentClassId)
           .eq("academic_year", Number(selectedStudent.enrollment.academic_year))
           .eq("term", Number(selectedStudent.enrollment.term))
-          .eq("status", "Active")
+          .in("status", ["Active", "Completed"])
           .limit(1)
           .maybeSingle(),
         supabase
@@ -794,7 +856,7 @@ const [standardTuition, setStandardTuition] = useState(0);
             .eq("class_id", classId)
             .eq("academic_year", Number(academicYear))
             .eq("term", Number(term))
-            .eq("status", "Active")
+            .in("status", ["Active", "Completed"])
             .limit(1)
             .maybeSingle();
           if (error) throw error;
@@ -973,6 +1035,9 @@ if (targetEnrollment) {
       setRecommendedClassInfo(
         classData ? (classData as unknown as ClassInfo) : null
       );
+      if (classData) {
+  setSelectedClassId(nextRecommendation.recommended_class_id);
+}
     } catch (recommendationError: any) {
       console.error(
         "RE-ENROLMENT RECOMMENDATION LOAD ERROR:",
@@ -1180,7 +1245,7 @@ const effectiveRemainingLessons =
 
 const isMidTerm =
   hasGeneratedLessons &&
-  remainingChargeableLessons < chargeableLessons.length;
+  remainingChargeableLessons < configuredTotalLessons;
 
 /*
  * Late Re-enrolment tuition =
@@ -1331,6 +1396,16 @@ const amountPayable = tuitionConfig
     async function handleSubmit() {
     setError(null);
 
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      setError("Your session has expired. Please sign in again.");
+      return;
+    }
+
     if (!selectedStudent) {
       setError("Please select a student.");
       return;
@@ -1377,6 +1452,13 @@ const amountPayable = tuitionConfig
 
     if (!declarationConfirmed) {
       setError("Please confirm that the above information is correct.");
+      return;
+    }
+
+    if (!termsPoliciesConfirmed) {
+      setError(
+        "Please confirm that you have read and agree to comply with the Queensland Chess School Terms of Use and Policies."
+      );
       return;
     }
 
@@ -1559,6 +1641,8 @@ const amountPayable = tuitionConfig
           payment_status: "Pending",
           status: "Submitted",
           submitted_at: submittedAt,
+          submitted_by: user.id,
+          submission_source: "Parent",
         })
         .select("id")
         .single();
@@ -1594,6 +1678,41 @@ const amountPayable = tuitionConfig
         targetAcademicYear,
         targetTerm
       );
+
+            // Synchronise Student Master class snapshot
+      if (selectedClassInfo) {
+        const campus = Array.isArray(selectedClassInfo.campuses)
+          ? selectedClassInfo.campuses[0]
+          : selectedClassInfo.campuses;
+
+        const campusLabel =
+          campus?.campus_code ||
+          campus?.short_name ||
+          campus?.campus_name ||
+          "";
+
+        const classLabel = [
+          campusLabel,
+          selectedClassInfo.day,
+          selectedClassInfo.level,
+        ]
+          .map((value) => value?.trim())
+          .filter(Boolean)
+          .join(" | ");
+
+        const { error: snapshotError } = await supabase
+          .from("students")
+          .update({
+            current_level: selectedClassInfo.level,
+            current_class: classLabel || null,
+            current_class_id: selectedClassInfo.id,
+          })
+          .eq("id", selectedStudent.student.id);
+
+        if (snapshotError) {
+          throw snapshotError;
+        }
+      }
 
       /*
        * ----------------------------------------------------------
@@ -1775,6 +1894,49 @@ return "OPEN";
     isSchoolProgram && isClassroomPickupAllowed(effectiveSchoolYear);
 
   useEffect(() => {
+    async function loadPaymentSettings() {
+      setPaymentSettingsLoading(true);
+      setPaymentSettingsError(null);
+
+      try {
+        const { data, error: paymentError } = await supabase
+          .from("payment_settings")
+          .select(
+            `
+            account_name,
+            bsb,
+            account_number,
+            payment_reference_instruction,
+            payment_reference_example
+          `
+          )
+          .eq("status", "Active")
+          .maybeSingle();
+
+        if (paymentError) throw paymentError;
+
+        if (!data) {
+          setPaymentSettings(null);
+          setPaymentSettingsError("No active payment settings found.");
+          return;
+        }
+
+        setPaymentSettings(data as PaymentSettings);
+      } catch (paymentError: any) {
+        console.error("PARENT RE-ENROLMENT PAYMENT SETTINGS LOAD ERROR:", paymentError);
+        setPaymentSettings(null);
+        setPaymentSettingsError(
+          paymentError?.message ?? "Unable to load payment settings."
+        );
+      } finally {
+        setPaymentSettingsLoading(false);
+      }
+    }
+
+    void loadPaymentSettings();
+  }, []);
+
+  useEffect(() => {
     loadFamily();
   }, []);
 
@@ -1783,6 +1945,7 @@ return "OPEN";
     setSubmitted(false);
     setSubmissionId(null);
     setDeclarationConfirmed(false);
+    setTermsPoliciesConfirmed(false);
     setSpecialRequest({
       classroom_pickup: false,
       ymca_dropoff: false,
@@ -1879,7 +2042,8 @@ useEffect(() => {
   }
 
   return (
-    <main className="min-h-screen text-[#10213A]">
+    <>
+      <main className="min-h-screen text-[#10213A]">
       <div className="mx-auto w-full max-w-[1500px] px-4 py-8 sm:px-6 lg:px-8">
 
         {/* Header */}
@@ -2834,15 +2998,45 @@ useEffect(() => {
                     <InfoField label="Amount Payable (incl. GST)" value={tuitionConfig ? `$${amountPayable.toFixed(2)}` : "—"} />
                   </div>
 
-                  <label className="mt-6 flex items-start gap-3 rounded-xl border border-[#D3E0EC] bg-[#EEF5FB] px-4 py-4 text-sm text-[#31445B]">
-                    <input
-                      type="checkbox"
-                      checked={declarationConfirmed}
-                      onChange={(event) => setDeclarationConfirmed(event.target.checked)}
-                      className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-[#D4AF37]"
-                    />
-                    <span>I confirm that the above information is correct.</span>
-                  </label>
+                  <div className="mt-6 space-y-3">
+                    <label className="flex items-start gap-3 rounded-xl border border-[#D3E0EC] bg-[#EEF5FB] px-4 py-4 text-sm text-[#31445B]">
+                      <input
+                        type="checkbox"
+                        checked={declarationConfirmed}
+                        onChange={(event) => setDeclarationConfirmed(event.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-[#D4AF37]"
+                      />
+                      <span>I confirm that the above information is correct.</span>
+                    </label>
+
+                    <label className="flex items-start gap-3 rounded-xl border border-[#D3E0EC] bg-[#EEF5FB] px-4 py-4 text-sm text-[#31445B]">
+                      <input
+                        type="checkbox"
+                        checked={termsPoliciesConfirmed}
+                        onChange={(event) => setTermsPoliciesConfirmed(event.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-[#D4AF37]"
+                      />
+                      <span className="leading-6">
+                        I have read and agree to comply with the Queensland Chess School{" "}
+                        <button
+                          type="button"
+                          onClick={() => setLegalModal("terms")}
+                          className="font-semibold text-[#8A6A0A] underline underline-offset-2 hover:text-[#10213A]"
+                        >
+                          Terms of Use
+                        </button>{" "}
+                        and{" "}
+                        <button
+                          type="button"
+                          onClick={() => setLegalModal("policies")}
+                          className="font-semibold text-[#8A6A0A] underline underline-offset-2 hover:text-[#10213A]"
+                        >
+                          Policies
+                        </button>
+                        .
+                      </span>
+                    </label>
+                  </div>
                 </div>
               </section>
             )}
@@ -2879,12 +3073,37 @@ useEffect(() => {
                         Your place will be secured once payment is received. Please make payment to:
                       </p>
 
-                      <div className="mt-5 rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] px-4 py-4 text-sm leading-6 text-[#31445B]">
-                        <div><span className="font-semibold">Account Name:</span> [YOUR ACCOUNT NAME]</div>
-                        <div><span className="font-semibold">BSB:</span> [YOUR BSB]</div>
-                        <div><span className="font-semibold">Account Number:</span> [YOUR ACCOUNT NUMBER]</div>
-                        <div><span className="font-semibold">Reference:</span> Student Name</div>
-                      </div>
+                      {paymentSettingsLoading ? (
+                        <div className="mt-5 rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] px-4 py-4 text-sm text-[#64748B]">
+                          Loading payment details…
+                        </div>
+                      ) : paymentSettings ? (
+                        <div className="mt-5 rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] px-4 py-4 text-sm leading-6 text-[#31445B]">
+                          <div>
+                            <span className="font-semibold">Account Name:</span>{" "}
+                            {paymentSettings.account_name || "—"}
+                          </div>
+                          <div>
+                            <span className="font-semibold">BSB:</span>{" "}
+                            {paymentSettings.bsb || "—"}
+                          </div>
+                          <div>
+                            <span className="font-semibold">Account Number:</span>{" "}
+                            {paymentSettings.account_number || "—"}
+                          </div>
+                          <div>
+                            <span className="font-semibold">Payment Reference:</span>{" "}
+                            {getPaymentReference(
+                              selectedClassInfo,
+                              selectedStudent?.student ?? null
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">
+                          {paymentSettingsError || "Payment settings are not available."}
+                        </div>
+                      )}
 
                       {error && (
                         <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">
@@ -2896,7 +3115,7 @@ useEffect(() => {
                         <button
                           type="button"
                           onClick={handleSubmit}
-                          disabled={submitting || financialLoading || !tuitionConfig || !declarationConfirmed}
+                          disabled={submitting || financialLoading || !tuitionConfig || !declarationConfirmed || !termsPoliciesConfirmed}
                           className="rounded-xl bg-[#10213A] px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-[#173456] disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {submitting ? "Submitting…" : "Submit Re-enrolment"}
@@ -2912,6 +3131,72 @@ useEffect(() => {
         )}
       </div>
     </main>
+
+      {legalModal && (
+        <div
+          className="fixed inset-0 z-[110] flex items-center justify-center bg-[#07172B]/60 px-4 py-6 backdrop-blur-[2px]"
+          onClick={() => setLegalModal(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="legal-modal-title"
+            className="flex h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-[#D9E0E8] bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="h-1 bg-[#D4AF37]" />
+            <div className="flex items-center justify-between border-b border-[#E5EAF0] px-5 py-4">
+              <h2 id="legal-modal-title" className="text-lg font-semibold text-[#10213A]">
+                {legalModal === "terms" ? "Terms of Use" : "Policies"}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setLegalModal(null)}
+                aria-label="Close"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-xl text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#10213A]"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 bg-[#F8FAFC]">
+              <iframe
+                title={legalModal === "terms" ? "Queensland Chess School Terms of Use" : "Queensland Chess School Policies"}
+                src={
+                  legalModal === "terms"
+                    ? "https://queenslandchessschool.com.au/terms-of-use"
+                    : "https://queenslandchessschool.com.au/policies"
+                }
+                className="h-full w-full border-0"
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 border-t border-[#E5EAF0] bg-white px-5 py-3">
+              <a
+                href={
+                  legalModal === "terms"
+                    ? "https://queenslandchessschool.com.au/terms-of-use"
+                    : "https://queenslandchessschool.com.au/policies"
+                }
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-semibold text-[#8A6A0A] underline underline-offset-2 hover:text-[#10213A]"
+              >
+                Open in a new tab
+              </a>
+              <button
+                type="button"
+                onClick={() => setLegalModal(null)}
+                className="min-h-[42px] rounded-xl bg-[#10213A] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#1A3154]"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </>
   );
 }
 

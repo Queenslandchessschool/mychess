@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## 2026-09-23 — Re-enrolment End-to-End Pilot & Parent Flow PASS
+
+### Re-enrolment
+- Completed successful Re-enrolment pilot testing.
+- Verified Parent Re-enrolment opening logic after current-term class schedule becomes Completed.
+- Fixed Family Re-enrolment status so current-term Completed schedules can still determine the opening date.
+- Verified Family child cards correctly display Open without requiring the child to be opened first.
+- Verified Recommended Class is automatically selected as the default when a recommendation exists.
+- Verified Parent can still select the Current Class instead.
+- Verified Parent Re-enrolment submission creates the correct target-term enrolment and submission records.
+- Verified Parent submission source is recorded as `Parent`.
+
+### Tuition
+- Fixed Parent Re-enrolment tuition calculation for terms containing non-chargeable lessons.
+- Tuition now compares remaining chargeable lessons against the configured total lesson count.
+- Verified 9 configured lessons with 1 non-chargeable lesson correctly calculates tuition from 8 chargeable lessons.
+- Verified test case calculated Standard Tuition / Amount Payable as $240.
+
+### Student Master Synchronisation
+- Verified Parent Re-enrolment updates Student Master class snapshot after class change.
+- Verified `current_level`, `current_class_id`, and `current_class` synchronise to the selected target class.
+- Verified class snapshot format:
+  `CAMPUS CODE | DAY | LEVEL`
+- Verified test case updated Student Master to:
+  `MACG | Saturday | Advanced`
+
+### Verification
+- Parent Re-enrolment Build: PASS
+- End-to-end Parent Re-enrolment submission: PASS
+- Recommended Class default selection: PASS
+- Tuition calculation: PASS
+- Student Master Snapshot synchronisation: PASS
+- Database verification of Submission / Enrollment / Student Master: PASS
+
+### Next
+- Continue MyCHESS data cleanup.
+- Complete remaining data cleanup and validation.
+- Prepare Re-enrolment Confirmation Email for deployment stage.
+
 ## 2026-09-21 — IN PROGRESS: Class Reminder Email Cron
 
 - Added Class Reminder Cron route:
