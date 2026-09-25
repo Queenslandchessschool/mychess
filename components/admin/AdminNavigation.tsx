@@ -113,6 +113,11 @@ const navigationGroups = [
       icon: "↺",
     },
     {
+  label: "Assisted Re-enrolment",
+  href: "/admin/reenrolment/assisted",
+  icon: "↺",
+},
+    {
       label: "Trial Management",
       href: "/admin/trials",
       icon: "★",

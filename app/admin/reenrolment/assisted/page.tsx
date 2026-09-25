@@ -214,6 +214,7 @@ export default function AdminAssistedReenrolmentPage() {
   const [currentClassSingleLessonFee, setCurrentClassSingleLessonFee] = useState(0);
   const [availableMakeupCredits, setAvailableMakeupCredits] = useState(0);
   const [availableTuitionCredit, setAvailableTuitionCredit] = useState(0);
+  const [pendingAdditionalPayment, setPendingAdditionalPayment] = useState(0);
   const [remainingLessons, setRemainingLessons] = useState(0);
   const [attendedLessons, setAttendedLessons] = useState(0);
   const [calculatedTuition, setCalculatedTuition] = useState(0);
@@ -281,8 +282,14 @@ export default function AdminAssistedReenrolmentPage() {
     ? Math.min(availableTuitionCredit, Math.max(0, standardTuition - redeemAmount))
     : 0;
   const amountPayable = tuitionConfig
-    ? Math.max(0, standardTuition - redeemAmount - tuitionCreditApplied)
-    : 0;
+  ? Math.max(
+      0,
+      standardTuition -
+        redeemAmount -
+        tuitionCreditApplied +
+        pendingAdditionalPayment
+    )
+  : 0;
 
   useEffect(() => {
     async function loadData() {
@@ -387,9 +394,10 @@ export default function AdminAssistedReenrolmentPage() {
     setRecommendation(null);
     setRecommendedClassInfo(null);
     setTuitionConfig(null);
-    setAvailableMakeupCredits(0);
-    setAvailableTuitionCredit(0);
-    setShowForm(false);
+setAvailableMakeupCredits(0);
+setAvailableTuitionCredit(0);
+setPendingAdditionalPayment(0);
+setShowForm(false);
   }, [studentId]);
 
   useEffect(() => {
@@ -617,6 +625,24 @@ export default function AdminAssistedReenrolmentPage() {
         setAvailableTuitionCredit(
           (tuitionCreditData ?? []).reduce((sum, row) => sum + Math.abs(Number(row.adjustment_amount ?? 0)), 0)
         );
+        const { data: additionalPaymentData, error: additionalPaymentError } =
+  await supabase
+    .from("tuition_adjustments")
+    .select("id, adjustment_amount")
+    .eq("student_id", studentId)
+    .eq("adjustment_type", "Additional Payment")
+    .eq("status", "Pending")
+    .gt("adjustment_amount", 0)
+    .order("created_at", { ascending: true });
+
+if (additionalPaymentError) throw additionalPaymentError;
+
+setPendingAdditionalPayment(
+  (additionalPaymentData ?? []).reduce(
+    (sum, row) => sum + Number(row.adjustment_amount ?? 0),
+    0
+  )
+);
       } catch (financialError) {
         console.error("ADMIN ASSISTED FINANCIAL LOAD ERROR:", financialError);
         setTuitionConfig(null);
@@ -1353,16 +1379,13 @@ export default function AdminAssistedReenrolmentPage() {
                     <InfoField label="Standard Tuition (incl. GST)" value={`$${standardTuition.toFixed(2)}`} />
                     {redeemAmount > 0 && <InfoField label="Make-up Credit" value={`-$${redeemAmount.toFixed(2)}`} />}
                     {tuitionCreditApplied > 0 && <InfoField label="Tuition Credit" value={`-$${tuitionCreditApplied.toFixed(2)}`} />}
+                    {pendingAdditionalPayment > 0 && <InfoField label="Transfer Adjustment" value={`+$${pendingAdditionalPayment.toFixed(2)}`} />}
                     <InfoField label="Amount Payable (incl. GST)" value={`$${amountPayable.toFixed(2)}`} />
                   </div>
                 ) : (
                   <div className="mt-6 rounded-xl border border-[#D4AF37]/40 bg-[#FFF8DC] px-4 py-5 text-sm text-[#64748B]">Tuition configuration is not available for the selected class and term.</div>
                 )}
 
-                <div className="mt-6 rounded-xl border border-[#E4E9EF] bg-[#F8FAFC] p-4 text-sm text-[#64748B]">
-                  Available Make-up Credits: <span className="font-semibold text-[#10213A]">{availableMakeupCredits}</span>
-                </div>
-                {calculatedTuition > 0 && <div className="mt-3 text-xs text-[#64748B]">Calculated tuition before applicable credits: ${calculatedTuition.toFixed(2)}</div>}
               </div>
             </section>
 

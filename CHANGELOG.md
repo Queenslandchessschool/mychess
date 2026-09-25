@@ -4,6 +4,43 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## 2026-09-25 — Re-enrolment, Transfer Tuition Adjustment & Parent Tuition UAT
+
+### Completed
+- Completed and verified Transfer Tuition Adjustment workflow:
+  - System Calculated Amount
+  - Admin Override Amount
+  - Override Reason
+  - Final Adjustment Amount
+  - Adjustment Type
+  - Pending status
+- Confirmed Admin Override preserves the System Calculated Amount while storing the final override result separately.
+- Completed Parent Tuition Transfer Adjustment attribution logic.
+- Pending Transfer Adjustment is now attributed only to the student's next formal academic term.
+- Current and historical tuition records do not display a pending transfer adjustment prematurely.
+- Prevented Transfer Adjustment from being double-counted through Re-enrolment and Parent Tuition display logic.
+- Completed Parent Re-enrolment tuition calculation and submission integration.
+- Completed Assisted Re-enrolment tuition calculation and Transfer Adjustment display.
+- Added Assisted Re-enrolment navigation entry to the Admin navigation.
+
+### UAT / Verification
+- Build: PASS
+- `git diff --check`: PASS
+- Roy / STU0061 transfer UAT:
+  - System Calculated Adjustment: $16.50
+  - Override Amount: $16.50
+  - Final Adjustment: $16.50
+  - Adjustment Type: Additional Payment
+  - Status: Pending
+- Confirmed Roy's T3 transfer enrollment is active and no T4 enrollment or re-enrolment submission currently exists.
+- Confirmed the $16.50 Pending Additional Payment must remain pending and be applied to the next formal tuition rather than the current T3 tuition.
+- No test Parent account or temporary T4 enrollment/submission was created.
+
+### Data Integrity
+- Existing Transfer Core, Re-enrolment, Attendance and Make-up business rules remain unchanged.
+- Existing PASSed modules were not redesigned.
+- Backup `.bak` / `.backup` / `.working.bak` files remain untracked and are not included in the release commit.
+
 ## 2026-09-23 — Re-enrolment End-to-End Pilot & Parent Flow PASS
 
 ### Re-enrolment

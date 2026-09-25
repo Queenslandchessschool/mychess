@@ -399,6 +399,7 @@ export default function ParentReenrolmentPage() {
   const [availableMakeupCredits, setAvailableMakeupCredits] = useState(0);
   const [availableTuitionCredit, setAvailableTuitionCredit] =
   useState(0);
+  const [pendingAdditionalPayment, setPendingAdditionalPayment] = useState(0);
   const [remainingLessons, setRemainingLessons] = useState(0);
 const [attendedLessons, setAttendedLessons] =
   useState(0);
@@ -1347,6 +1348,28 @@ const dynamicCalculatedTuition =
       );
 
     setAvailableTuitionCredit(totalTuitionCredit);
+    const { data: additionalPaymentData, error: additionalPaymentError } =
+  await supabase
+    .from("tuition_adjustments")
+    .select("id, adjustment_amount")
+    .eq("student_id", selectedStudentId)
+    .eq("adjustment_type", "Additional Payment")
+    .eq("status", "Pending")
+    .gt("adjustment_amount", 0)
+    .order("created_at", { ascending: true });
+
+if (additionalPaymentError) {
+  throw additionalPaymentError;
+}
+
+const totalAdditionalPayment =
+  (additionalPaymentData ?? []).reduce(
+    (sum, row) =>
+      sum + Number(row.adjustment_amount ?? 0),
+    0
+  );
+
+setPendingAdditionalPayment(totalAdditionalPayment);
   } catch (financialError: any) {
     console.error(
       "RE-ENROLMENT FINANCIAL LOAD ERROR:",
@@ -1389,7 +1412,8 @@ const amountPayable = tuitionConfig
       0,
       standardTuition -
         redeemAmount -
-        tuitionCreditApplied
+        tuitionCreditApplied +
+        pendingAdditionalPayment
     )
   : 0;
 
@@ -2945,6 +2969,13 @@ useEffect(() => {
   <InfoField
     label="Tuition Credit"
     value={`-$${tuitionCreditApplied.toFixed(2)}`}
+  />
+)}
+
+{pendingAdditionalPayment > 0 && (
+  <InfoField
+    label="Transfer Adjustment"
+    value={`+$${pendingAdditionalPayment.toFixed(2)}`}
   />
 )}
 

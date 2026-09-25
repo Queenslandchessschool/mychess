@@ -56,6 +56,7 @@ type DisplayRecord = TuitionRecord & {
   classRecord: ClassRecord | null;
   campus: Campus | null;
   isUpcoming?: boolean;
+  transferAdjustment?: number;
   tuitionOpen?: boolean;
   tuitionOpeningAt?: string | null;
   availableCredits?: number;
@@ -196,6 +197,25 @@ export default function ParentTuitionPage() {
         setRecords([]);
         return;
       }
+
+      const { data: adjustmentRows, error: adjustmentError } = await supabase
+  .from("tuition_adjustments")
+  .select("id, student_id, adjustment_amount, adjustment_type, status")
+  .in("student_id", studentIds)
+  .eq("status", "Pending")
+  .in("adjustment_type", ["Additional Payment", "Tuition Credit"]);
+
+if (adjustmentError) throw adjustmentError;
+const pendingAdjustmentMap = new Map<string, number>();
+
+for (const adjustment of adjustmentRows ?? []) {
+  const amount = Number(adjustment.adjustment_amount ?? 0);
+
+  if (!amount) continue;
+
+  const current = pendingAdjustmentMap.get(adjustment.student_id) ?? 0;
+  pendingAdjustmentMap.set(adjustment.student_id, current + amount);
+}
 
       const { data: enrolmentRows, error: enrolmentError } = await supabase
         .from("student_enrolments")
@@ -481,32 +501,55 @@ export default function ParentTuitionPage() {
       }
 
       const displayRows = tuitionRows
-        .map((row) => {
-          const student = studentMap.get(row.student_id);
-          if (!student) return null;
+  .map((row) => {
+    const student = studentMap.get(row.student_id);
+    if (!student) return null;
 
-          const classRecord = row.class_id
-            ? classMap.get(row.class_id) ?? null
-            : null;
+    const classRecord = row.class_id
+      ? classMap.get(row.class_id) ?? null
+      : null;
 
-          const campus = classRecord?.campus_id
-            ? campusMap.get(classRecord.campus_id) ?? null
-            : null;
+    const campus = classRecord?.campus_id
+      ? campusMap.get(classRecord.campus_id) ?? null
+      : null;
 
-          const configuredTuition = row.class_id
-            ? tuitionConfigMap.get(
-                tuitionConfigKey(row.academic_year, row.term, row.class_id)
-              )?.standard_tuition ?? null
-            : null;
+    const configuredTuition = row.class_id
+      ? tuitionConfigMap.get(
+          tuitionConfigKey(row.academic_year, row.term, row.class_id)
+        )?.standard_tuition ?? null
+      : null;
 
-          return {
-            ...row,
-            standard_tuition: row.standard_tuition ?? configuredTuition,
-            student,
-            classRecord,
-            campus,
-          };
-        })
+    const current = activeFormalByStudent.get(row.student_id);
+
+    const nextAcademicYear = current
+      ? current.term >= 4
+        ? current.academic_year + 1
+        : current.academic_year
+      : null;
+
+    const nextTerm = current
+      ? current.term >= 4
+        ? 1
+        : current.term + 1
+      : null;
+
+    const isNextTerm =
+      nextAcademicYear !== null &&
+      nextTerm !== null &&
+      row.academic_year === nextAcademicYear &&
+      row.term === nextTerm;
+
+    return {
+      ...row,
+      standard_tuition: row.standard_tuition ?? configuredTuition,
+      transferAdjustment: isNextTerm
+        ? pendingAdjustmentMap.get(row.student_id) ?? 0
+        : 0,
+      student,
+      classRecord,
+      campus,
+    };
+  })
         .filter(Boolean) as DisplayRecord[];
 
       const upcomingRows: DisplayRecord[] = [];
@@ -576,7 +619,8 @@ export default function ParentTuitionPage() {
           payment_amount: null,
           standard_tuition: submission.standard_tuition ?? configuredTuition,
           redeem_amount: submission.redeem_amount,
-          amount_payable: submission.amount_payable,
+          amount_payable: Number(submission.amount_payable ?? 0),
+transferAdjustment: pendingAdjustmentMap.get(student.id) ?? 0,
           created_at: submission.submitted_at,
           student,
           classRecord: selectedClass,
@@ -689,6 +733,13 @@ export default function ParentTuitionPage() {
         .breakdown { line-height:1.65; white-space:normal; overflow-wrap:anywhere; }
         .breakdown .label { color:#71869d; }
         .breakdown .redeem { color:#2f6c55; }
+        .transfer-adjustment {
+  margin-top: 6px;
+  color: #71869d;
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: normal;
+}
         .opening-note { margin-top:6px; color:#8a6500; font-size:12px; line-height:1.45; white-space:normal; }
         .pay-status { display:inline-flex; align-items:center; min-height:30px; padding:0 11px; border-radius:999px; font-size:12px; font-weight:700; white-space:nowrap; }
         .pay-status.paid { background:#eaf9f0; color:#008447; }
@@ -848,8 +899,19 @@ export default function ParentTuitionPage() {
                                 )}
                               </td>
                               <td className="amount">
-                                {formatMoney(record.amount_payable)}
-                              </td>
+  <div>
+    {formatMoney(record.amount_payable)}
+  </div>
+
+  {record.transferAdjustment !== undefined &&
+    record.transferAdjustment !== 0 && (
+      <div className="transfer-adjustment">
+        Transfer Adjustment:{" "}
+        {record.transferAdjustment > 0 ? "+" : ""}
+        {formatMoney(record.transferAdjustment)}
+      </div>
+    )}
+</td>
                               <td>
                                 <span className={`pay-status ${statusClass}`}>
                                   {paymentStatus}
@@ -910,11 +972,21 @@ export default function ParentTuitionPage() {
                               <div className="mobile-field-value">{paymentStatus}</div>
                             </div>
                             <div className="mobile-payable">
-                              <div className="mobile-field-label">Amount Payable</div>
-                              <div className="mobile-field-value">
-                                {formatMoney(record.amount_payable)}
-                              </div>
-                            </div>
+  <div className="mobile-field-label">Amount Payable</div>
+
+  <div className="mobile-field-value">
+    {formatMoney(record.amount_payable)}
+  </div>
+
+  {record.transferAdjustment !== undefined &&
+    record.transferAdjustment !== 0 && (
+      <div className="transfer-adjustment">
+        Transfer Adjustment:{" "}
+        {record.transferAdjustment > 0 ? "+" : ""}
+        {formatMoney(record.transferAdjustment)}
+      </div>
+    )}
+</div>
                           </div>
                         </article>
                       );

@@ -59,6 +59,9 @@ type TransferHistoryRow = {
   adjustmentAmount: number;
   adjustmentType: string;
   status: string;
+  systemCalculatedAmount: number | null;
+  overrideAmount: number | null;
+  overrideReason: string | null;
 };
 
 type PopupState = {
@@ -125,6 +128,10 @@ const [effectiveDate, setEffectiveDate] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [overrideId, setOverrideId] = useState<string | null>(null);
+const [overrideAmount, setOverrideAmount] = useState("");
+const [overrideReason, setOverrideReason] = useState("");
+const [overrideSaving, setOverrideSaving] = useState(false);
 
   const [popup, setPopup] = useState<PopupState>({
     open: false,
@@ -239,15 +246,18 @@ const [effectiveDate, setEffectiveDate] = useState("");
       await supabase
         .from("tuition_adjustments")
         .select(`
-          id,
-          student_id,
-          original_enrollment_id,
-          new_enrollment_id,
-          adjustment_amount,
-          adjustment_type,
-          status,
-          created_at
-        `)
+  id,
+  student_id,
+  original_enrollment_id,
+  new_enrollment_id,
+  adjustment_amount,
+  adjustment_type,
+  status,
+  system_calculated_amount,
+  override_amount,
+  override_reason,
+  created_at
+`)
         .order("created_at", { ascending: false });
 
     if (adjustmentError) {
@@ -427,14 +437,24 @@ const [effectiveDate, setEffectiveDate] = useState("");
               newClass,
               campusMap
             ),
-            adjustmentAmount:
-              Number(
-                item.adjustment_amount ?? 0
-              ),
-            adjustmentType:
-              item.adjustment_type,
-            status:
-              item.status,
+           adjustmentAmount:
+  Number(
+    item.adjustment_amount ?? 0
+  ),
+adjustmentType:
+  item.adjustment_type,
+status:
+  item.status,
+systemCalculatedAmount:
+  item.system_calculated_amount !== null
+    ? Number(item.system_calculated_amount)
+    : null,
+overrideAmount:
+  item.override_amount !== null
+    ? Number(item.override_amount)
+    : null,
+overrideReason:
+  item.override_reason ?? null,
           };
         });
 
@@ -522,7 +542,137 @@ const [effectiveDate, setEffectiveDate] = useState("");
         : today
     );
   }
+function openOverride(item: TransferHistoryRow) {
+  if (item.status !== "Pending") {
+    return;
+  }
 
+  setOverrideId(item.id);
+  setOverrideAmount(
+    item.adjustmentAmount.toFixed(2)
+  );
+  setOverrideReason("");
+  setErrorMessage("");
+}
+  async function saveOverride() {
+    if (!overrideId) {
+      return;
+    }
+
+    const parsedAmount = Number(
+      overrideAmount.trim()
+    );
+
+    if (!Number.isFinite(parsedAmount)) {
+      setErrorMessage(
+        "Please enter a valid override amount."
+      );
+      return;
+    }
+
+    if (!overrideReason.trim()) {
+      setErrorMessage(
+        "Please provide an override reason."
+      );
+      return;
+    }
+
+    setOverrideSaving(true);
+    setErrorMessage("");
+
+    try {
+      const { data: adjustment, error: loadError } =
+        await supabase
+          .from("tuition_adjustments")
+          .select(`
+            id,
+            status,
+            original_tuition,
+            system_calculated_amount
+          `)
+          .eq("id", overrideId)
+          .maybeSingle();
+
+      if (loadError) {
+        throw loadError;
+      }
+
+      if (!adjustment) {
+        throw new Error(
+          "Tuition adjustment not found."
+        );
+      }
+
+      if (adjustment.status !== "Pending") {
+        throw new Error(
+          "Only Pending tuition adjustments can be overridden."
+        );
+      }
+
+      const finalAmount = Number(
+        parsedAmount.toFixed(2)
+      );
+
+      const adjustmentType =
+        finalAmount > 0
+          ? "Additional Payment"
+          : finalAmount < 0
+            ? "Tuition Credit"
+            : "No Adjustment";
+
+      const revisedTuition = Number(
+        (
+          Number(
+            adjustment.original_tuition ?? 0
+          ) + finalAmount
+        ).toFixed(2)
+      );
+
+      const { error: updateError } =
+        await supabase
+          .from("tuition_adjustments")
+          .update({
+            override_amount: finalAmount,
+            override_reason:
+              overrideReason.trim(),
+            adjustment_amount: finalAmount,
+            adjustment_type:
+              adjustmentType,
+            revised_tuition:
+              revisedTuition,
+          })
+          .eq("id", overrideId)
+          .eq("status", "Pending");
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      setOverrideId(null);
+      setOverrideAmount("");
+      setOverrideReason("");
+
+      await loadPage();
+
+      showPopup(
+        "Override Saved",
+        "The tuition adjustment override has been saved.",
+        "success"
+      );
+    } catch (error: any) {
+      console.error(
+        "TRANSFER ADJUSTMENT OVERRIDE ERROR:",
+        error
+      );
+
+      setErrorMessage(
+        error?.message ??
+          "Unable to save the tuition adjustment override."
+      );
+    } finally {
+      setOverrideSaving(false);
+    }
+  }
   async function handleStudentChange(
     studentId: string
   ) {
@@ -982,7 +1132,12 @@ payment_amount:
                 originalPaidAmount.toFixed(2)
               ),
 
-            adjustment_amount:
+                        adjustment_amount:
+              Number(
+                adjustmentAmount.toFixed(2)
+              ),
+
+            system_calculated_amount:
               Number(
                 adjustmentAmount.toFixed(2)
               ),
@@ -1158,7 +1313,7 @@ payment_amount:
   return (
     <ChessboardBackground>
       <main className="min-h-screen">
-        <div className="mx-auto w-full max-w-[1100px] px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-[1500px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
 
           <div className="mb-6">
             <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#D4AF37]">
@@ -1487,6 +1642,92 @@ payment_amount:
                     </p>
                   </div>
                 </div>
+                              {item.status === "Pending" && (
+                <div className="border-t border-[#E2E8F0] pt-3">
+                  {overrideId === item.id ? (
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-[#64748B]">
+                          System Calculated
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-[#10213A]">
+                          {item.systemCalculatedAmount !== null
+                            ? item.systemCalculatedAmount > 0
+                              ? `+$${item.systemCalculatedAmount.toFixed(2)}`
+                              : item.systemCalculatedAmount < 0
+                                ? `-$${Math.abs(item.systemCalculatedAmount).toFixed(2)}`
+                                : "$0.00"
+                            : "—"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-medium uppercase tracking-[0.16em] text-[#64748B]">
+                          Override Amount
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={overrideAmount}
+                          onChange={(e) =>
+                            setOverrideAmount(e.target.value)
+                          }
+                          className="mt-1 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#10213A] outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/30"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-medium uppercase tracking-[0.16em] text-[#64748B]">
+                          Override Reason
+                        </label>
+                        <textarea
+                          value={overrideReason}
+                          onChange={(e) =>
+                            setOverrideReason(e.target.value)
+                          }
+                          rows={3}
+                          className="mt-1 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#10213A] outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/30"
+                          placeholder="Enter reason for override..."
+                        />
+                      </div>
+
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void saveOverride()}
+                          disabled={overrideSaving}
+                          className="rounded-lg bg-[#D4AF37] px-3 py-2 text-xs font-semibold text-[#10213A] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {overrideSaving
+                            ? "Saving..."
+                            : "Save Override"}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOverrideId(null);
+                            setOverrideAmount("");
+                            setOverrideReason("");
+                          }}
+                          disabled={overrideSaving}
+                          className="rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-xs font-semibold text-[#475569] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => openOverride(item)}
+                      className="w-full rounded-lg border border-[#D4AF37]/50 bg-[#D4AF37]/10 px-3 py-2 text-xs font-semibold text-[#8A6D1D] transition hover:bg-[#D4AF37]/20"
+                    >
+                      Override Adjustment
+                    </button>
+                  )}
+                </div>
+              )}
               </div>
             </div>
           ))}
@@ -1498,33 +1739,37 @@ payment_amount:
             <table className="w-full table-fixed border-collapse">
               <thead className="sticky top-0 z-10 bg-[#F8FAFC]">
                 <tr className="border-b border-[#E2E8F0]">
-                  <th className="w-[17%] px-3 py-3 text-left text-xs font-semibold uppercase tracking-[0.12em] text-[#64748B]">
+                  <th className="w-[14%] px-3 py-3 text-left text-xs font-semibold uppercase tracking-[0.12em] text-[#64748B]">
                     Student
                   </th>
 
-                  <th className="w-[12%] px-3 py-3 text-left text-xs font-semibold uppercase tracking-[0.12em] text-[#64748B]">
+                  <th className="w-[11%] px-3 py-3 text-left text-xs font-semibold uppercase tracking-[0.12em] text-[#64748B]">
                     Transfer Date
                   </th>
 
-                  <th className="w-[20%] px-3 py-3 text-left text-xs font-semibold uppercase tracking-[0.12em] text-[#64748B]">
+                  <th className="w-[15%] px-3 py-3 text-left text-xs font-semibold uppercase tracking-[0.12em] text-[#64748B]">
                     From
                   </th>
 
-                  <th className="w-[20%] px-3 py-3 text-left text-xs font-semibold uppercase tracking-[0.12em] text-[#64748B]">
+                  <th className="w-[15%] px-3 py-3 text-left text-xs font-semibold uppercase tracking-[0.12em] text-[#64748B]">
                     To
                   </th>
 
-                  <th className="w-[11%] px-3 py-3 text-right text-xs font-semibold uppercase tracking-[0.12em] text-[#64748B]">
+                  <th className="w-[10%] px-3 py-3 text-right text-xs font-semibold uppercase tracking-[0.12em] text-[#64748B]">
                     Adjustment
                   </th>
 
-                  <th className="w-[12%] px-3 py-3 text-left text-xs font-semibold uppercase tracking-[0.12em] text-[#64748B]">
+                  <th className="w-[10%] px-3 py-3 text-left text-xs font-semibold uppercase tracking-[0.12em] text-[#64748B]">
                     Type
                   </th>
 
-                  <th className="w-[8%] px-3 py-3 text-left text-xs font-semibold uppercase tracking-[0.12em] text-[#64748B]">
-                    Status
-                  </th>
+                  <th className="w-[7%] px-3 py-3 text-left text-xs font-semibold uppercase tracking-[0.12em] text-[#64748B]">
+  Status
+</th>
+
+<th className="w-[18%] px-3 py-3 text-left text-xs font-semibold uppercase tracking-[0.12em] text-[#64748B]">
+  Override
+</th>
                 </tr>
               </thead>
 
@@ -1572,6 +1817,99 @@ payment_amount:
 
                     <td className="break-words px-3 py-4 text-sm font-semibold text-[#475569]">
                       {item.status}
+                    </td>
+                                        <td className="px-3 py-4 text-sm">
+                      {item.status === "Pending" ? (
+                        overrideId === item.id ? (
+                          <div className="min-w-[220px] space-y-3">
+                            <div>
+                              <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-[#64748B]">
+                                System Calculated
+                              </p>
+
+                              <p className="mt-1 font-semibold text-[#10213A]">
+                                {item.systemCalculatedAmount !== null
+                                  ? item.systemCalculatedAmount > 0
+                                    ? `+$${item.systemCalculatedAmount.toFixed(2)}`
+                                    : item.systemCalculatedAmount < 0
+                                      ? `-$${Math.abs(item.systemCalculatedAmount).toFixed(2)}`
+                                      : "$0.00"
+                                  : "—"}
+                              </p>
+                            </div>
+
+                            <div>
+                              <label className="text-[10px] font-medium uppercase tracking-[0.16em] text-[#64748B]">
+                                Override Amount
+                              </label>
+
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={overrideAmount}
+                                onChange={(e) =>
+                                  setOverrideAmount(e.target.value)
+                                }
+                                className="mt-1 w-full rounded-lg border border-[#CBD5E1] bg-white px-2 py-1.5 text-sm text-[#10213A] outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/30"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-[10px] font-medium uppercase tracking-[0.16em] text-[#64748B]">
+                                Override Reason
+                              </label>
+
+                              <textarea
+                                value={overrideReason}
+                                onChange={(e) =>
+                                  setOverrideReason(e.target.value)
+                                }
+                                rows={3}
+                                className="mt-1 w-full rounded-lg border border-[#CBD5E1] bg-white px-2 py-1.5 text-sm text-[#10213A] outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/30"
+                                placeholder="Enter reason..."
+                              />
+                            </div>
+
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => void saveOverride()}
+                                disabled={overrideSaving}
+                                className="rounded-lg bg-[#D4AF37] px-3 py-2 text-xs font-semibold text-[#10213A] disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                {overrideSaving
+                                  ? "Saving..."
+                                  : "Save"}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOverrideId(null);
+                                  setOverrideAmount("");
+                                  setOverrideReason("");
+                                }}
+                                disabled={overrideSaving}
+                                className="rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-xs font-semibold text-[#475569] disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => openOverride(item)}
+                            className="rounded-lg border border-[#D4AF37]/50 bg-[#D4AF37]/10 px-3 py-2 text-xs font-semibold text-[#8A6D1D] transition hover:bg-[#D4AF37]/20"
+                          >
+                            Override
+                          </button>
+                        )
+                      ) : (
+                        <span className="text-xs text-[#94A3B8]">
+                          —
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}
