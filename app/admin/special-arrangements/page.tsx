@@ -4,6 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 
 import { supabase } from "@/lib/supabase";
 import { recalculateSpecialArrangementTuition } from "@/lib/tuition/specialArrangementTuition";
+import {
+  syncSpecialArrangementAttendance,
+  clearSpecialArrangementAttendance,
+} from "@/lib/specialArrangementAttendanceSync";
 import { getCurrentUser } from "@/lib/currentUser";
 
 // ======================================================
@@ -1166,6 +1170,10 @@ export default function SpecialArrangementsPage() {
           }
         }
 
+        await syncSpecialArrangementAttendance(
+  editingArrangement.id
+);
+
         showPopup(
           "Arrangement Updated",
           "The Special Arrangement has been updated successfully.",
@@ -1244,6 +1252,10 @@ export default function SpecialArrangementsPage() {
             throw mapError;
           }
         }
+
+        await syncSpecialArrangementAttendance(
+  arrangement.id
+);
 
         showPopup(
           "Arrangement Created",
@@ -1414,7 +1426,11 @@ export default function SpecialArrangementsPage() {
         throw error;
       }
 
-            await recalculateSpecialArrangementTuition(
+      await clearSpecialArrangementAttendance(
+  arrangement.id
+);
+
+      await recalculateSpecialArrangementTuition(
         arrangement.student_enrolment_id
       );
 

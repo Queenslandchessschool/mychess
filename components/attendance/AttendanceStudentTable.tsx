@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { AttendanceStudent } from "./types";
 
 interface Props {
@@ -135,7 +135,7 @@ export default function AttendanceStudentTable({
                   text-[#64748B]
                 "
               >
-                Leave
+                Remark
               </th>
             </tr>
           </thead>
@@ -218,6 +218,18 @@ function StudentRow({
 
 const [showLeaveConfirm, setShowLeaveConfirm] =
   useState(false);
+const [showHolidayConfirm, setShowHolidayConfirm] =
+  useState(false);
+
+const [holidayConfirmed, setHolidayConfirmed] = useState(
+  student.specialArrangementAttended ?? false
+);
+
+useEffect(() => {
+  setHolidayConfirmed(
+    student.specialArrangementAttended ?? false
+  );
+}, [student.specialArrangementAttended]);
 
   return (
     <tr
@@ -235,85 +247,111 @@ const [showLeaveConfirm, setShowLeaveConfirm] =
           student={student}
           onStudentClick={onStudentClick}
         />
-
-        {isHoliday && (
-  <SpecialStatus
-    type="Holiday"
-  />
-)}
       </td>
 
       {/* Present */}
 <td className="px-2 py-3.5 text-center">
-  {!isLeave && (
-    <StatusButton
-      active={
-        student.attendance_status ===
-        "Present"
-      }
-      color="green"
-      disabled={locked}
-      onClick={() =>
-        onStatusChange(
-          student.student_id,
+  {!isLeave && (!isHoliday || holidayConfirmed) && (
+      <StatusButton
+        active={
+          student.attendance_status ===
           "Present"
-        )
-      }
-    />
-  )}
+        }
+        color="green"
+        disabled={locked}
+        onClick={() =>
+          onStatusChange(
+            student.student_id,
+            "Present"
+          )
+        }
+      />
+    )}
 </td>
 
       {/* Absent */}
       <td className="px-2 py-3.5 text-center">
-  {!isLeave && (
-    <StatusButton
-      active={
-        student.attendance_status ===
-        "Absent"
-      }
-      color="red"
-      disabled={locked}
-      onClick={() =>
-        onStatusChange(
-          student.student_id,
+  {!isLeave &&
+  !isHoliday && (
+      <StatusButton
+        active={
+          student.attendance_status ===
           "Absent"
-        )
-      }
-    />
-  )}
+        }
+        color="red"
+        disabled={locked}
+        onClick={() =>
+          onStatusChange(
+            student.student_id,
+            "Absent"
+          )
+        }
+      />
+    )}
 </td>
 
       {/* Late */}
       <td className="px-2 py-3.5 text-center">
-  {!isLeave && (
-    <StatusButton
-      active={
-        student.attendance_status ===
-        "Late"
-      }
-      color="orange"
-      disabled={locked}
-      onClick={() =>
-        onStatusChange(
-          student.student_id,
+  {!isLeave && (!isHoliday || holidayConfirmed) && (
+      <StatusButton
+        active={
+          student.attendance_status ===
           "Late"
-        )
-      }
-    />
-  )}
+        }
+        color="orange"
+        disabled={locked}
+        onClick={() =>
+          onStatusChange(
+            student.student_id,
+            "Late"
+          )
+        }
+      />
+    )}
 </td>
 
       {/* Leave */}
 <td className="px-2 py-3.5 text-center">
-  {isLeave && (
-    <StatusButton
-      active
-      color="blue"
-      disabled={locked}
-      onClick={() => setShowLeaveConfirm(true)}
-    />
-  )}
-
+  {isHoliday && !holidayConfirmed ? (
+  <button
+    type="button"
+    disabled={locked}
+    onClick={() =>
+      setShowHolidayConfirm(true)
+    }
+    className="
+  inline-flex
+  items-center
+  justify-center
+  rounded-full
+  border
+  border-[#D9E3ED]
+  bg-[#F5F9FD]
+  px-2
+  py-1
+  text-[10px]
+  font-semibold
+  uppercase
+  tracking-[0.06em]
+  text-[#64748B]
+  transition-colors
+  duration-150
+  hover:border-[#D4AF37]
+  hover:bg-[#FFF4CC]
+  hover:text-[#9A7415]
+"
+    title="Special Arrangement"
+  >
+    Holiday
+  </button>
+) : isLeave ? (
+  <StatusButton
+    active
+    color="blue"
+    disabled={locked}
+    onClick={() => setShowLeaveConfirm(true)}
+  />
+) : null}
   {showLeaveConfirm && (
     <div
       className="
@@ -435,7 +473,158 @@ const [showLeaveConfirm, setShowLeaveConfirm] =
       </div>
     </div>
   )}
-</td>
+
+{showHolidayConfirm && (
+  <div
+    className="
+      fixed
+      inset-0
+      z-50
+      flex
+      items-center
+      justify-center
+      bg-[#10213A]/50
+      px-4
+    "
+  >
+    <div
+      className="
+        w-full
+        max-w-sm
+        rounded-2xl
+        border
+        border-[#D4AF37]/40
+        bg-[#FFFDF8]
+        p-6
+        shadow-2xl
+      "
+    >
+      <div className="text-center">
+        <div
+          className="
+            mx-auto
+            mb-4
+            flex
+            h-12
+            w-12
+            items-center
+            justify-center
+            rounded-full
+            bg-[#FFF4CC]
+            text-2xl
+          "
+        >
+          ⚠️
+        </div>
+
+        <h3
+          className="
+            text-lg
+            font-semibold
+            text-[#10213A]
+          "
+        >
+          Special Arrangement
+        </h3>
+
+        <p
+          className="
+            mt-2
+            text-sm
+            leading-6
+            text-[#64748B]
+          "
+        >
+          This student is currently marked for a Special Arrangement.
+          <br />
+          Has this student attended the lesson?
+        </p>
+      </div>
+
+      <div className="mt-6 grid grid-cols-3 gap-2">
+        <button
+          type="button"
+          onClick={() =>
+            setShowHolidayConfirm(false)
+          }
+          className="
+            min-h-[42px]
+            rounded-lg
+            border
+            border-[#D9E3ED]
+            bg-white
+            px-3
+            text-sm
+            font-medium
+            text-[#64748B]
+            transition
+            hover:bg-[#F5F9FD]
+          "
+        >
+          Keep Holiday
+        </button>
+
+        <button
+          type="button"
+          disabled={locked}
+          onClick={() => {
+            setShowHolidayConfirm(false);
+            setHolidayConfirmed(true);
+
+            if (!locked) {
+              onStatusChange(
+                student.student_id,
+                "Present"
+              );
+            }
+          }}
+          className="
+            min-h-[42px]
+            rounded-lg
+            bg-green-600
+            px-3
+            text-sm
+            font-medium
+            text-white
+            transition
+            hover:bg-green-700
+          "
+        >
+          Present
+        </button>
+
+        <button
+          type="button"
+          disabled={locked}
+          onClick={() => {
+            setShowHolidayConfirm(false);
+            setHolidayConfirmed(true);
+
+            if (!locked) {
+              onStatusChange(
+                student.student_id,
+                "Late"
+              );
+            }
+          }}
+          className="
+            min-h-[42px]
+            rounded-lg
+            bg-orange-500
+            px-3
+            text-sm
+            font-medium
+            text-white
+            transition
+            hover:bg-orange-600
+          "
+        >
+          Late
+        </button>
+      </div>
+    </div>
+  </div>
+)}</td>
     </tr>
   );
 }
@@ -472,12 +661,27 @@ function MobileStudentCard({
 
   const [showLeaveConfirm, setShowLeaveConfirm] =
   useState(false);
+const [showHolidayConfirm, setShowHolidayConfirm] =
+  useState(false);
+
+const [holidayConfirmed, setHolidayConfirmed] = useState(
+  student.specialArrangementAttended ?? false
+);
+
+useEffect(() => {
+  setHolidayConfirmed(
+    student.specialArrangementAttended ?? false
+  );
+}, [student.specialArrangementAttended]);
 
   const currentStatus =
   student.attendance_status ?? "Present";
 
-const nextStatus =
-  currentStatus === "Present"
+const nextStatus = isHoliday
+  ? currentStatus === "Present"
+    ? "Late"
+    : "Present"
+  : currentStatus === "Present"
     ? "Absent"
     : currentStatus === "Absent"
       ? "Late"
@@ -518,11 +722,11 @@ student.leave_status === "Submitted" ? (
     color="blue"
     compact
     disabled={locked}
-   onClick={() =>
-  setShowLeaveConfirm(true)
-}
+    onClick={() =>
+      setShowLeaveConfirm(true)
+    }
   />
-) : !isHoliday ? (
+) : (!isHoliday || holidayConfirmed) ? (
   <StatusButton
     active
     color={statusColor}
@@ -536,10 +740,20 @@ student.leave_status === "Submitted" ? (
     }
   />
 ) : null}
-  {isHoliday && (
-  <SpecialStatus
-    type="Holiday"
-  />
+  {isHoliday && !holidayConfirmed && (
+  <button
+    type="button"
+    disabled={locked}
+    onClick={() =>
+      setShowHolidayConfirm(true)
+    }
+    className="cursor-pointer"
+    title="Special Arrangement"
+  >
+    <SpecialStatus
+      type="Holiday"
+    />
+  </button>
 )}
 
 {showLeaveConfirm && (
@@ -659,6 +873,157 @@ student.leave_status === "Submitted" ? (
     </div>
   </div>
 )}
+{showHolidayConfirm && (
+  <div
+    className="
+      fixed
+      inset-0
+      z-50
+      flex
+      items-center
+      justify-center
+      bg-[#10213A]/50
+      px-4
+    "
+  >
+    <div
+      className="
+        w-full
+        max-w-sm
+        rounded-2xl
+        border
+        border-[#D4AF37]/40
+        bg-[#FFFDF8]
+        p-6
+        shadow-2xl
+      "
+    >
+      <div className="text-center">
+        <div
+          className="
+            mx-auto
+            mb-4
+            flex
+            h-12
+            w-12
+            items-center
+            justify-center
+            rounded-full
+            bg-[#FFF4CC]
+            text-2xl
+          "
+        >
+          ⚠️
+        </div>
+
+        <h3
+          className="
+            text-lg
+            font-semibold
+            text-[#10213A]
+          "
+        >
+          Special Arrangement
+        </h3>
+
+        <p
+          className="
+            mt-2
+            text-sm
+            leading-6
+            text-[#64748B]
+          "
+        >
+          This student is currently marked for a Special Arrangement.
+          <br />
+          Has this student attended the lesson?
+        </p>
+      </div>
+
+      <div className="mt-6 grid grid-cols-3 gap-2">
+        <button
+          type="button"
+          onClick={() =>
+            setShowHolidayConfirm(false)
+          }
+          className="
+            min-h-[42px]
+            rounded-lg
+            border
+            border-[#D9E3ED]
+            bg-white
+            px-3
+            text-sm
+            font-medium
+            text-[#64748B]
+            transition
+            hover:bg-[#F5F9FD]
+          "
+        >
+          Keep Holiday
+        </button>
+
+        <button
+          type="button"
+          disabled={locked}
+          onClick={() => {
+            setShowHolidayConfirm(false);
+            setHolidayConfirmed(true);
+
+            if (!locked) {
+              onStatusChange(
+                student.student_id,
+                "Present"
+              );
+            }
+          }}
+          className="
+            min-h-[42px]
+            rounded-lg
+            bg-green-600
+            px-3
+            text-sm
+            font-medium
+            text-white
+            transition
+            hover:bg-green-700
+          "
+        >
+          Present
+        </button>
+
+        <button
+          type="button"
+          disabled={locked}
+          onClick={() => {
+            setShowHolidayConfirm(false);
+            setHolidayConfirmed(true);
+
+            if (!locked) {
+              onStatusChange(
+                student.student_id,
+                "Late"
+              );
+            }
+          }}
+          className="
+            min-h-[42px]
+            rounded-lg
+            bg-orange-500
+            px-3
+            text-sm
+            font-medium
+            text-white
+            transition
+            hover:bg-orange-600
+          "
+        >
+          Late
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 </div>
 
     </div>
@@ -686,7 +1051,6 @@ function StudentIdentity({
 
   const isHoliday =
     student.attendance_type === "Holiday";
-
   return (
     <div className="flex min-w-0 items-center gap-2">
       {/* Trial / Leave / Holiday / Make-up icon */}
@@ -722,10 +1086,9 @@ function StudentIdentity({
           title="Holiday"
           className="shrink-0 text-base leading-none"
         >
-          🏖
+          🏖️
         </span>
       )}
-
       {/* Student Name */}
       <button
         type="button"

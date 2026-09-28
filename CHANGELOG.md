@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## 2026-09-29 — Special Arrangement Attendance & Actual Attendance Tuition UAT
+
+### Special Arrangement Attendance
+- Completed shared Special Arrangement → Attendance synchronization for future affected lessons.
+- Special Arrangement lessons are represented as `Holiday` Attendance.
+- Existing Attendance records are preserved and are not overwritten unnecessarily.
+- Preserved the existing Brisbane lesson-start timing and Attendance lifecycle rules.
+- Coach and Admin Attendance use the same shared Special Arrangement Attendance business logic.
+
+### Actual Attendance During Special Arrangement
+- Added shared business logic for a Special Arrangement student who actually attends a Holiday lesson.
+- Coach and Admin can change the Attendance status to `Present` or `Late`.
+- Actual attendance does not create a Make-up Credit.
+- Actual attendance creates one Pending `Additional Payment` using the existing single-lesson fee.
+- Reused the existing Mid-term Transfer tuition adjustment mechanism and data structure.
+- Prevented a subsequent Attendance refresh/reconciliation from reverting an actual `Present` / `Late` attendance back to `Holiday`.
+- Admin and Coach actual-attendance fee handling is aligned through the same shared tuition helper.
+
+### UAT / Verification
+- Special Arrangement Holiday Attendance: PASS
+- Actual Attendance `Present`: PASS
+- Actual Attendance `Late`: PASS
+- Actual Attendance tuition adjustment: PASS
+- Multiple actual-attendance adjustments: PASS
+- Coach / Admin business logic alignment: PASS
+- `npm run build`: PASS
+- `git diff --check`: PASS
+
+### Frozen Baseline
+- Existing Attendance Engine, Attendance Runner and Attendance Time Engine were not redesigned.
+- Existing PASSed Attendance, Special Arrangement, Tuition and Mid-term Transfer business rules remain unchanged.
+- No new duplicate Admin / Coach business logic was introduced.
+
 ## 2026-09-25 — Re-enrolment, Transfer Tuition Adjustment & Parent Tuition UAT
 
 ### Completed

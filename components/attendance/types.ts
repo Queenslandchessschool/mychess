@@ -77,6 +77,8 @@ export interface AttendanceStudent {
     | "Make-up"
     | "Excused"
     | "Holiday";
+      isSpecialArrangement?: boolean;
+      specialArrangementAttended?: boolean;
       leave_status?: "Submitted" | "Cancelled";
 
   arrival_time?: string;

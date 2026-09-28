@@ -1,5 +1,6 @@
 "use client";
 
+import { syncSpecialArrangementAttendanceForLesson } from "@/lib/specialArrangementAttendanceSync";
 import { useEffect, useState } from "react";
 
 import { supabase } from "@/lib/supabase";
@@ -398,6 +399,31 @@ const [coachGreetingName, setCoachGreetingName] =
       return;
     }
 
+        // ----------------------------------------------------
+    // Special Arrangement → Actual Attendance
+    // ----------------------------------------------------
+
+    if (
+  status === "Present" ||
+  status === "Late"
+) {
+      try {
+        const { createSpecialArrangementAttendanceFee } =
+          await import(
+            "@/lib/tuition/specialArrangementAttendanceFee"
+          );
+
+        await createSpecialArrangementAttendanceFee(
+          studentId,
+          selectedLesson.id
+        );
+      } catch (feeError) {
+        console.error(
+          "SPECIAL ARRANGEMENT ATTENDANCE FEE ERROR:",
+          feeError
+        );
+      }
+    }
 
     // ----------------------------------------------------
     // Audit Log
@@ -997,7 +1023,7 @@ if (!runnerResult.executed) {
   );
 }
 
-
+await syncSpecialArrangementAttendanceForLesson(lessonId);
 // --------------------------------------------------
 // 4. Sync submitted Leave
 // --------------------------------------------------
@@ -1085,6 +1111,33 @@ for (
           )
           .filter(Boolean);
 
+      const attendanceIds = (data ?? [])
+  .map((row: any) => row.id)
+  .filter(Boolean);
+
+let specialArrangementAttendedIds = new Set<string>();
+
+if (attendanceIds.length > 0) {
+  const {
+    data: attendanceLogs,
+    error: attendanceLogsError,
+  } = await supabase
+    .from("attendance_logs")
+    .select("attendance_id, action, new_status")
+    .in("attendance_id", attendanceIds)
+    .eq("action", "Status Change")
+    .in("new_status", ["Present", "Late"]);
+
+  if (attendanceLogsError) {
+    throw attendanceLogsError;
+  }
+
+  specialArrangementAttendedIds = new Set(
+    (attendanceLogs ?? [])
+      .map((log: any) => log.attendance_id)
+      .filter(Boolean)
+  );
+}
 
       let enrollmentMap =
         new Map<string, any>();
@@ -1098,6 +1151,7 @@ for (
         } = await supabase
           .from("student_enrolments")
           .select(`
+            id,
             student_id,
             special_request_snapshot,
             medical_snapshot,
@@ -1137,6 +1191,47 @@ for (
           enrollmentMap.set(
             enrolment.student_id,
             enrolment
+          );
+        }
+      }
+
+            let specialArrangementStudentIds = new Set<string>();
+
+      const {
+        data: arrangementLessons,
+        error: arrangementLessonError,
+      } = await supabase
+        .from("special_arrangement_lessons")
+        .select(`
+          special_arrangement_id,
+          special_arrangements:special_arrangement_id (
+            student_enrolment_id,
+            status
+          )
+        `)
+        .eq("lesson_id", lessonId);
+
+      if (arrangementLessonError) {
+        throw arrangementLessonError;
+      }
+
+      const activeEnrolmentIds = new Set(
+        (arrangementLessons ?? [])
+          .filter(
+            (row: any) =>
+              row.special_arrangements?.status === "Active"
+          )
+          .map(
+            (row: any) =>
+              row.special_arrangements?.student_enrolment_id
+          )
+          .filter(Boolean)
+      );
+
+      for (const enrolment of enrollmentMap.values()) {
+        if (activeEnrolmentIds.has(enrolment.id)) {
+          specialArrangementStudentIds.add(
+            enrolment.student_id
           );
         }
       }
@@ -1262,6 +1357,9 @@ for (
               attendance_type:
                 row.attendance_type,
 
+              specialArrangementAttended:
+  specialArrangementAttendedIds.has(row.id),
+
               leave_status:
   leaveMap.get(row.student_id),
 
@@ -1288,6 +1386,9 @@ for (
                   "Trial" ||
                 enrollment
                   ?.is_trial === true,
+
+              isSpecialArrangement:
+  specialArrangementStudentIds.has(row.student_id),
 
               needsPickup:
                 snapshot.classroom_pickup ??
