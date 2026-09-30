@@ -874,6 +874,27 @@ setPendingAdditionalPayment(
         throw submissionError;
       }
 
+            const emailResponse = await fetch(
+        "/api/email/reenrolment-confirmation",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            enrollmentId: createdEnrollmentId,
+            submissionId: insertedSubmission.id,
+          }),
+        }
+      );
+
+      if (!emailResponse.ok) {
+        const emailError = await emailResponse.json().catch(() => ({}));
+        throw new Error(
+          emailError.error ?? "Re-enrolment confirmation email failed."
+        );
+      }
+
       await synchroniseStudentStage(
         selectedStudent.student.id,
         Number(academicYear),

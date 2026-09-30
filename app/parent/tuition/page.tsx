@@ -171,7 +171,7 @@ export default function ParentTuitionPage() {
       const { data: parentRows, error: parentError } = await supabase
         .from("parents")
         .select("family_id")
-        .eq("email", email)
+        .ilike("email", email)
         .limit(1);
 
       if (parentError) throw parentError;

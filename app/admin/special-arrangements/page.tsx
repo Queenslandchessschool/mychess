@@ -180,6 +180,14 @@ export default function SpecialArrangementsPage() {
   const [enrolmentSearchTerm, setEnrolmentSearchTerm] =
     useState("");
 
+  const [firstEnrolledLessonDate, setFirstEnrolledLessonDate] =
+    useState<string | null>(null);
+
+    const [
+    firstEnrolledLessonDates,
+    setFirstEnrolledLessonDates,
+  ] = useState<Record<string, string | null>>({});
+
   const [statusFilter, setStatusFilter] =
     useState("All");
 
@@ -574,6 +582,172 @@ export default function SpecialArrangementsPage() {
         form.student_enrolment_id,
       ]
     );
+      // ======================================================
+  // Resolve First Enrolled Lesson
+  //
+  // New Registration:
+  // - join_date is authoritative.
+  //
+  // Re-enrolment:
+  // - join_date may be NULL.
+  // - Resolve the first non-cancelled lesson
+  //   for the target class / academic year / term.
+  // ======================================================
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadFirstEnrolledLessonDate() {
+      setFirstEnrolledLessonDate(null);
+
+      if (!selectedEnrolment) {
+        return;
+      }
+
+      if (selectedEnrolment.join_date) {
+        setFirstEnrolledLessonDate(
+          selectedEnrolment.join_date
+        );
+        return;
+      }
+
+      const {
+        data,
+        error,
+      } = await supabase
+        .from("lessons")
+        .select("lesson_date, status")
+        .eq(
+          "class_id",
+          selectedEnrolment.class_id
+        )
+        .eq(
+          "academic_year",
+          selectedEnrolment.academic_year
+        )
+        .eq(
+          "term",
+          selectedEnrolment.term
+        )
+        .neq(
+          "status",
+          "Cancelled"
+        )
+        .order(
+          "lesson_date",
+          {
+            ascending: true,
+          }
+        )
+        .limit(1);
+
+      if (cancelled) {
+        return;
+      }
+
+      if (error) {
+        console.error(
+          "SPECIAL ARRANGEMENT → FIRST LESSON LOAD ERROR:",
+          error
+        );
+        return;
+      }
+
+      setFirstEnrolledLessonDate(
+        data?.[0]?.lesson_date ?? null
+      );
+    }
+
+    void loadFirstEnrolledLessonDate();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedEnrolment]);
+
+    async function resolveFirstEnrolledLessonDate(
+    enrolment: EnrolmentOption
+  ): Promise<string | null> {
+    if (enrolment.join_date) {
+      return enrolment.join_date;
+    }
+
+    const {
+      data,
+      error,
+    } = await supabase
+      .from("lessons")
+      .select("lesson_date, status")
+      .eq(
+        "class_id",
+        enrolment.class_id
+      )
+      .eq(
+        "academic_year",
+        enrolment.academic_year
+      )
+      .eq(
+        "term",
+        enrolment.term
+      )
+      .neq(
+        "status",
+        "Cancelled"
+      )
+      .order(
+        "lesson_date",
+        {
+          ascending: true,
+        }
+      )
+      .limit(1);
+
+    if (error) {
+      console.error(
+        "SPECIAL ARRANGEMENT → FIRST LESSON RESOLVE ERROR:",
+        error
+      );
+      return null;
+    }
+
+    return data?.[0]?.lesson_date ?? null;
+  }
+  useEffect(() => {
+  let cancelled = false;
+
+  async function loadFirstEnrolledLessonDates() {
+    if (enrolments.length === 0) {
+      setFirstEnrolledLessonDates({});
+      return;
+    }
+
+    const entries = await Promise.all(
+      enrolments.map(async (enrolment) => {
+        const date =
+          await resolveFirstEnrolledLessonDate(
+            enrolment
+          );
+
+        return [
+          enrolment.id,
+          date,
+        ] as const;
+      })
+    );
+
+    if (cancelled) return;
+
+    setFirstEnrolledLessonDates(
+      Object.fromEntries(entries)
+    );
+  }
+
+  void loadFirstEnrolledLessonDates();
+
+  return () => {
+    cancelled = true;
+  };
+}, [enrolments]);
 
   // ======================================================
   // Pre-First-Lesson Gate
@@ -583,16 +757,19 @@ export default function SpecialArrangementsPage() {
   // join_date is the authoritative enrolment start date.
   // ======================================================
 
-  function isPreFirstLessonWindow(
+    function isPreFirstLessonWindow(
     enrolment: EnrolmentOption | null
   ): boolean {
-    if (!enrolment?.join_date) {
+    if (
+      !enrolment ||
+      !firstEnrolledLessonDate
+    ) {
       return false;
     }
 
     return (
       getBrisbaneToday() <
-      enrolment.join_date
+      firstEnrolledLessonDate
     );
   }
 
@@ -860,10 +1037,6 @@ export default function SpecialArrangementsPage() {
 
     if (!enrolment) {
       return "The selected formal enrolment is no longer available.";
-    }
-
-    if (!enrolment.join_date) {
-      return "The selected enrolment does not have a Join Date. A Special Arrangement can only be recorded when the first enrolled lesson date is known.";
     }
 
     if (!isPreFirstLessonWindow(enrolment)) {
@@ -1307,9 +1480,9 @@ export default function SpecialArrangementsPage() {
   // Edit
   // ======================================================
 
-  function startEdit(
-    arrangement: ArrangementRecord
-  ) {
+  async function startEdit(
+  arrangement: ArrangementRecord
+) {
     if (
       arrangement.status ===
       "Cancelled"
@@ -1324,18 +1497,29 @@ export default function SpecialArrangementsPage() {
           arrangement.student_enrolment_id
       ) ?? null;
 
-    if (!isPreFirstLessonWindow(enrolment)) {
-      showPopup(
-        "Special Arrangement Locked",
-        enrolment?.join_date
-          ? `This Special Arrangement can no longer be edited because the student's first enrolled lesson begins on ${formatDate(
-              enrolment.join_date
-            )}.`
-          : "This Special Arrangement can no longer be edited because the enrolment Join Date is unavailable.",
-        "info"
-      );
-      return;
-    }
+    const firstLessonDate =
+  enrolment
+    ? await resolveFirstEnrolledLessonDate(
+        enrolment
+      )
+    : null;
+
+if (
+  !enrolment ||
+  !firstLessonDate ||
+  getBrisbaneToday() >= firstLessonDate
+) {
+  showPopup(
+    "Special Arrangement Locked",
+    firstLessonDate
+      ? `This Special Arrangement can no longer be edited because the student's first enrolled lesson begins on ${formatDate(
+          firstLessonDate
+        )}.`
+      : "The student's first enrolled lesson could not be determined, so this Special Arrangement cannot be edited.",
+    "info"
+  );
+  return;
+}
 
     setEditingArrangement(
       arrangement
@@ -1769,11 +1953,11 @@ export default function SpecialArrangementsPage() {
                         <span className="font-medium text-slate-800">
                           First Enrolled Lesson:
                         </span>{" "}
-                        {selectedEnrolment.join_date
-                          ? formatDate(
-                              selectedEnrolment.join_date
-                            )
-                          : "—"}
+                        {firstEnrolledLessonDate
+  ? formatDate(
+      firstEnrolledLessonDate
+    )
+  : "—"}
                       </div>
 
                       {!isPreFirstLessonWindow(
@@ -2122,15 +2306,17 @@ export default function SpecialArrangementsPage() {
                                   )
                                 }
                                 disabled={
-                                  saving ||
-                                  !isPreFirstLessonWindow(
-                                    enrolments.find(
-                                      (enrolment) =>
-                                        enrolment.id ===
-                                        item.student_enrolment_id
-                                    ) ?? null
-                                  )
-                                }
+  saving ||
+  Boolean(
+    firstEnrolledLessonDates[
+      item.student_enrolment_id
+    ] &&
+      getBrisbaneToday() >=
+        firstEnrolledLessonDates[
+          item.student_enrolment_id
+        ]!
+  )
+}
                                 className="min-h-[44px] flex-1 rounded-xl border border-slate-300 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                               >
                                 Edit
@@ -2260,15 +2446,17 @@ export default function SpecialArrangementsPage() {
                                             )
                                           }
                                           disabled={
-                                            saving ||
-                                            !isPreFirstLessonWindow(
-                                              enrolments.find(
-                                                (enrolment) =>
-                                                  enrolment.id ===
-                                                  item.student_enrolment_id
-                                              ) ?? null
-                                            )
-                                          }
+  saving ||
+  Boolean(
+    firstEnrolledLessonDates[
+      item.student_enrolment_id
+    ] &&
+      getBrisbaneToday() >=
+        firstEnrolledLessonDates[
+          item.student_enrolment_id
+        ]!
+  )
+}
                                           className="min-h-[40px] rounded-xl border border-slate-300 px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                                         >
                                           Edit

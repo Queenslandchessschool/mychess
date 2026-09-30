@@ -242,37 +242,52 @@ export async function createEnrollment(
     );
   }
 
-    const { data: chargeableLessons, error: lessonsError } =
-    await supabase
-      .from("lessons")
-      .select("id, lesson_date, status")
-      .eq("class_id", data.enrollment.class_id)
-      .eq("academic_year", data.enrollment.academic_year)
-      .eq("term", data.enrollment.term)
-      .in("status", ["Planned", "Completed"]);
+    const { data: lessons, error: lessonsError } =
+  await supabase
+    .from("lessons")
+    .select("id, lesson_date, status")
+    .eq("class_id", data.enrollment.class_id)
+    .eq("academic_year", data.enrollment.academic_year)
+    .eq("term", data.enrollment.term);
 
-  if (lessonsError) {
-    throw lessonsError;
-  }
+if (lessonsError) {
+  throw lessonsError;
+}
 
-  const standardTuition = Number(
-    tuitionConfig.standard_tuition ?? 0
+const standardTuition = Number(
+  tuitionConfig.standard_tuition ?? 0
+);
+
+const singleLessonFee = Number(
+  tuitionConfig.single_lesson_fee ?? 0
+);
+
+const joinDate = data.enrollment.join_date;
+
+const chargeableLessonsBeforeJoinDate =
+  (lessons ?? []).filter(
+    (lesson) =>
+      lesson.status !== "Cancelled" &&
+      Boolean(joinDate) &&
+      lesson.lesson_date < joinDate
   );
 
-  const singleLessonFee = Number(
-    tuitionConfig.single_lesson_fee ?? 0
+const cancelledLessonsAfterJoinDate =
+  (lessons ?? []).filter(
+    (lesson) =>
+      lesson.status === "Cancelled" &&
+      Boolean(joinDate) &&
+      lesson.lesson_date >= joinDate
   );
 
-  const joinDate = data.enrollment.join_date;
-
-  const remainingChargeableLessons =
-    (chargeableLessons ?? []).filter(
-      (lesson) =>
-        !joinDate || lesson.lesson_date >= joinDate
-    );
-
-  const amountPayable =
-    remainingChargeableLessons.length * singleLessonFee;
+const amountPayable = Math.max(
+  0,
+  standardTuition -
+    chargeableLessonsBeforeJoinDate.length *
+      singleLessonFee -
+    cancelledLessonsAfterJoinDate.length *
+      singleLessonFee
+);
   const { data: enrollment, error } = await supabase
     .from("student_enrolments")
     .insert({

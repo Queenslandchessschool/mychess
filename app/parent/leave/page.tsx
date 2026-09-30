@@ -376,11 +376,10 @@ export default function ParentLeavePage() {
           family_id,
           student_id
         `)
-        .eq(
-          "email",
-          email
-        );
-
+        .ilike(
+  "email",
+  email
+);
       if (parentError) {
         throw parentError;
       }

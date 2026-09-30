@@ -88,7 +88,7 @@ const [confirmCancel, setConfirmCancel] =
       .select(
         "family_id, student_id"
       )
-      .eq("email", email);
+      .ilike("email", email);
 
     if (parentError) {
       console.error(parentError);

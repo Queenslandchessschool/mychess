@@ -374,7 +374,7 @@ export default function ParentFamilyPage() {
           family_id,
           student_id
         `)
-        .eq("email", email);
+        .ilike("email", email);
 
       if (parentError) {
         throw parentError;

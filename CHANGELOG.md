@@ -4,6 +4,58 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+### 2026-10-01 — New Registration Tuition & Parent Re-enrolment UI Fix — PASS
+
+#### New Registration Tuition
+- Fixed Regular New Registration Amount Payable calculation.
+- Standard Tuition remains the official configured tuition amount and is not replaced by `Single Lesson Fee × lesson count`.
+- Chargeable lessons before Join Date are deducted from Standard Tuition.
+- Cancelled / non-chargeable lessons on or after Join Date are deducted from Standard Tuition.
+- Special Arrangement is not included in the initial New Registration calculation and continues to use the existing Special Arrangement tuition recalculation workflow.
+- Verified WRSS New Registration:
+  - Standard Tuition: $149.00
+  - Join Date: 10/10/2026
+  - Amount Payable: $132.50 — PASS
+- Verified MacGregor New Registration:
+  - Standard Tuition: $225.00
+  - Join Date: 10/11/2026
+  - 10/10/2026 lesson before Join Date: deducted
+  - 10/17/2026 cancelled lesson: deducted
+  - Amount Payable: $175.00 — PASS
+- `npm run build`: PASS
+
+#### Parent Re-enrolment UI
+- Removed the internal Submission ID from the Parent Re-enrolment success modal.
+- Submission ID remains available internally for the Re-enrolment workflow and confirmation email.
+- No change to Re-enrolment submission, database, email, or payment logic.
+- `npm run build`: PASS
+
+- **New Registration Tuition Calculation: PASS**
+- **Parent Re-enrolment Success Modal: PASS**
+
+### 2026-09-30 — Special Arrangement — Re-enrolment First Lesson Gate Fix — PASS
+
+- Fixed Special Arrangement first-lesson gating for re-enrolled students whose target-term `student_enrolments.join_date` is `NULL`.
+- New Registration continues to use `join_date` as the authoritative first enrolled date.
+- Re-enrolment now resolves the first enrolled lesson from:
+  - `class_id`
+  - `academic_year`
+  - `term`
+  - first non-cancelled lesson
+- Updated Special Arrangement Create/Edit gating to correctly support both new registrations and re-enrolments.
+- Updated Existing Arrangements Mobile and Desktop Edit gating to use the resolved first enrolled lesson date for the corresponding enrolment.
+- `startEdit()` performs an additional authoritative first-lesson check before allowing an arrangement to be edited.
+- Confirmed Aiden Rong, 2026 Term 4:
+  - `join_date = NULL`
+  - First Enrolled Lesson correctly resolved as `08/10/2026`
+  - Special Arrangement creation: PASS
+  - Existing Arrangement Edit: PASS
+  - Special Arrangement confirmation email: PASS
+  - Admin BCC email delivery: PASS
+- `npm run build`: PASS
+- No changes to the existing Special Arrangement business rules, affected-lesson mapping, attendance sync, leave-conflict protection, tuition recalculation, or email workflow.
+- **Special Arrangement Re-enrolment First Lesson Gate: PASS**
+
 ## 2026-09-29 — Special Arrangement Attendance & Actual Attendance Tuition UAT
 
 ### Special Arrangement Attendance

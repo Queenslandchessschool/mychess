@@ -13,6 +13,7 @@ export type SendEmailResult = {
 };
 
 const FROM_EMAIL = "MyCHESS <noreply@queenslandchessschool.com.au>";
+const ADMIN_BCC = "kqchessclub@gmail.com";
 
 export async function sendEmail(
   input: SendEmailInput
@@ -30,11 +31,13 @@ export async function sendEmail(
     const resend = new Resend(apiKey);
 
     const { data, error } = await resend.emails.send({
-      from: FROM_EMAIL,
-      to: Array.isArray(input.to) ? input.to : [input.to],
-      subject: input.subject,
-      html: input.html,
-    });
+  from: FROM_EMAIL,
+  to: Array.isArray(input.to) ? input.to : [input.to],
+  bcc: [ADMIN_BCC],
+  replyTo: ADMIN_BCC,
+  subject: input.subject,
+  html: input.html,
+});
 
     if (error) {
       console.error("CENTRAL EMAIL SERVICE ERROR:", error);

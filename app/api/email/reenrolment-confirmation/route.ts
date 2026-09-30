@@ -4,7 +4,7 @@ import { getRenderedEmailTemplate } from "@/lib/email/templateService";
 import { sendEmail } from "@/lib/email/emailService";
 import { logEmailAudit } from "@/lib/email/emailAudit";
 
-const BUSINESS_EVENT = "ENROLMENT_CONFIRMED";
+const BUSINESS_EVENT = "REENROLMENT_CONFIRMED";
 
 function formatDate(value: string | null | undefined): string {
   if (!value) return "";
@@ -34,13 +34,21 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     const enrollmentId = String(body.enrollmentId ?? "").trim();
+const submissionId = String(body.submissionId ?? "").trim();
 
-    if (!enrollmentId) {
+if (!enrollmentId) {
       return NextResponse.json(
         { error: "enrollmentId is required." },
         { status: 400 }
       );
     }
+
+if (!submissionId) {
+  return NextResponse.json(
+    { error: "submissionId is required." },
+    { status: 400 }
+  );
+}
 
     const { data: enrollment, error: enrollmentError } =
       await supabaseServer
@@ -58,8 +66,6 @@ export async function POST(request: Request) {
           standard_tuition,
           redeem_amount,
           amount_payable,
-          medical_snapshot,
-          special_request_snapshot,
           students:student_id (
             id,
             first_name,
@@ -102,6 +108,39 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "Enrolment not found." },
         { status: 404 }
+      );
+    }
+
+        const { data: submission, error: submissionError } =
+      await supabaseServer
+        .from("re_enrolment_submissions")
+        .select(
+          "id, student_id, academic_year, term, submission_source, medical_snapshot, special_request_snapshot"
+        )
+        .eq("id", submissionId)
+        .maybeSingle();
+
+    if (submissionError) {
+      throw new Error(
+        `Failed to load re-enrolment submission: ${submissionError.message}`
+      );
+    }
+
+    if (!submission) {
+      return NextResponse.json(
+        { error: "Re-enrolment submission not found." },
+        { status: 404 }
+      );
+    }
+
+    if (
+      submission.student_id !== enrollment.student_id ||
+      Number(submission.academic_year) !== Number(enrollment.academic_year) ||
+      Number(submission.term) !== Number(enrollment.term)
+    ) {
+      return NextResponse.json(
+        { error: "Re-enrolment submission does not match the enrolment." },
+        { status: 400 }
       );
     }
 
@@ -291,18 +330,12 @@ const paymentReference =
     }
 
     const specialRequestData =
-  enrollment.special_request_snapshot as Record<string, unknown> | null;
+  submission.special_request_snapshot as Record<string, unknown> | null;
 
 const specialRequestItems = [
-  specialRequestData?.classroom_pickup === true
-    ? "Classroom Pickup"
-    : "",
-  specialRequestData?.ymca_dropoff === true
-    ? "YMCA Drop-off"
-    : "",
-  specialRequestData?.walk_home === true
-    ? "Walk Home"
-    : "",
+  specialRequestData?.classroom_pickup === true ? "Classroom Pickup" : "",
+  specialRequestData?.ymca_dropoff === true ? "YMCA Drop-off" : "",
+  specialRequestData?.walk_home === true ? "Walk Home" : "",
   specialRequestData?.school_year
     ? "School Year: " + String(specialRequestData.school_year)
     : "",
@@ -313,27 +346,25 @@ const specialRequestItems = [
   .filter(Boolean)
   .join("; ");
 
-const medicalInformation = String(
-  enrollment.medical_snapshot ?? ""
-).trim();
+const medicalInformation = String(submission.medical_snapshot ?? "").trim();
 
 const specialRequestSection = specialRequestItems
-  ? "<p><strong>Special Request</strong><br />" +
-    specialRequestItems +
-    "</p>"
+  ? "<p><strong>Special Request</strong><br />" + specialRequestItems + "</p>"
   : "";
 
 const medicalInformationSection = medicalInformation
-  ? "<p><strong>Medical Information</strong><br />" +
-    medicalInformation +
-    "</p>"
+  ? "<p><strong>Medical Information</strong><br />" + medicalInformation + "</p>"
   : "";
 
-const variables = {
+    const variables = {
+  "Submission Source Notice":
+    submission.submission_source === "Admin"
+      ? "This re-enrolment was submitted by the Queensland Chess School Admin Team on behalf of the parent."
+      : "",
   "Parent Name": String(parent.parent1_name ?? ""),
   "Student Name": studentName,
-  "Special Request Section": specialRequestSection,
-  "Medical Information Section": medicalInformationSection,
+      "Special Request Section": specialRequestSection,
+"Medical Information Section": medicalInformationSection,
       "Class Name": className,
       "Campus Name": campusName,
       "Campus Address": campusAddress,
@@ -426,7 +457,7 @@ const variables = {
     });
   } catch (error) {
     console.error(
-      "ENROLMENT CONFIRMATION EMAIL EXCEPTION:",
+      "REENROLMENT CONFIRMATION EMAIL EXCEPTION:",
       error
     );
 

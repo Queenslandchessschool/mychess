@@ -258,7 +258,7 @@ export default function ParentDashboard() {
     student_id,
     parent1_name
   `)
-  .eq("email", email);
+  .ilike("email", email);
 
       if (parentError) {
         throw parentError;

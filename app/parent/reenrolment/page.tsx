@@ -492,7 +492,7 @@ const [standardTuition, setStandardTuition] = useState(0);
           family_id,
           student_id
         `)
-        .eq("email", email);
+        .ilike("email", email);
 
       if (parentError) {
         throw parentError;
@@ -1765,6 +1765,28 @@ const amountPayable = tuitionConfig
             )
         ),
       ]);
+
+      const emailResponse = await fetch(
+  "/api/email/reenrolment-confirmation",
+  {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      enrollmentId: createdEnrollmentId,
+      submissionId: insertedSubmission.id,
+    }),
+  }
+);
+
+if (!emailResponse.ok) {
+  const emailError = await emailResponse.json().catch(() => ({}));
+
+  throw new Error(
+    emailError.error ?? "Re-enrolment confirmation email failed."
+  );
+}
 
       setSubmissionId(insertedSubmission.id);
       setSubmitted(true);
@@ -3084,21 +3106,6 @@ useEffect(() => {
                     Payment & Enrolment
                   </h2>
 
-                  {submitted ? (
-                    <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-5">
-                      <div className="text-lg font-semibold text-emerald-900">
-                        Re-enrolment Submitted
-                      </div>
-                      <p className="mt-2 text-sm leading-6 text-emerald-800">
-                        Your Re-enrolment has been submitted successfully and is now pending payment verification.
-                      </p>
-                      {submissionId && (
-                        <p className="mt-2 text-xs text-emerald-700">
-                          Submission ID: {submissionId}
-                        </p>
-                      )}
-                    </div>
-                  ) : (
                     <>
                       <p className="mt-2 text-sm leading-6 text-[#64748B]">
                         Your place will be secured once payment is received. Please make payment to:
@@ -3153,7 +3160,6 @@ useEffect(() => {
                         </button>
                       </div>
                     </>
-                  )}
                 </div>
               </section>
             )}
@@ -3162,6 +3168,131 @@ useEffect(() => {
         )}
       </div>
     </main>
+
+    {submitted && (
+  <>
+    <div
+      className="
+        fixed
+        inset-0
+        z-50
+        flex
+        items-center
+        justify-center
+        bg-[#071A2F]/65
+        px-4
+        backdrop-blur-[2px]
+      "
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="reenrolment-success-title"
+    >
+      <div
+        className="
+          relative
+          w-full
+          max-w-md
+          overflow-hidden
+          rounded-2xl
+          border
+          border-[#D4AF37]/30
+          bg-[#FFFDF8]
+          text-[#10213A]
+          shadow-2xl
+        "
+      >
+        <div
+          aria-hidden="true"
+          className="
+            pointer-events-none
+            absolute
+            left-0
+            right-0
+            top-0
+            h-[6px]
+            bg-gradient-to-r
+            from-[#F7D968]
+            via-[#D4AF37]/75
+            to-transparent
+          "
+          style={{
+            clipPath:
+              "polygon(0 0, 100% 42%, 100% 58%, 0 100%)",
+          }}
+        />
+
+        <div className="p-6 sm:p-7">
+          <p
+            className="
+              text-[11px]
+              font-semibold
+              uppercase
+              tracking-[0.2em]
+              text-[#B28A22]
+            "
+          >
+            RE-ENROLMENT
+          </p>
+
+          <h2
+            id="reenrolment-success-title"
+            className="
+              mt-2
+              text-2xl
+              font-semibold
+              text-[#10213A]
+            "
+          >
+            Re-enrolment Submitted
+          </h2>
+
+          <p className="mt-4 text-sm leading-6 text-[#64748B]">
+            Thank you for your support. We have received your
+            re-enrolment information.
+          </p>
+
+          <p className="mt-3 text-sm leading-6 text-[#64748B]">
+            A confirmation email containing your re-enrolment
+            details, class information, tuition fee and payment
+            instructions has been sent to your email address.
+            Please check your inbox.
+          </p>
+          <div className="mt-6 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setSubmitted(false)}
+              className="
+                inline-flex
+                min-h-[44px]
+                items-center
+                justify-center
+                rounded-xl
+                border
+                border-[#D4AF37]
+                bg-[#D4AF37]
+                px-6
+                py-2.5
+                text-sm
+                font-semibold
+                text-[#10213A]
+                shadow-sm
+                transition-all
+                duration-200
+                hover:bg-[#F4D35E]
+                active:scale-[0.98]
+                focus:outline-none
+                focus:ring-2
+                focus:ring-[#D4AF37]/30
+              "
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </>
+  )}
 
       {legalModal && (
         <div
