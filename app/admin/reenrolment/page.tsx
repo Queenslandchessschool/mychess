@@ -880,18 +880,50 @@ const redeemAmount =
 
     try {
       if (paymentStatus === "Pending") {
-        // Payment Pending is a reminder action only.
-        // It must NOT change Submission, Enrollment, or Payment status.
-        // Email sending will be connected when the central Email module is implemented.
+  const enrollment = enrollmentRows.find(
+    (item) =>
+      item.student_id === submission.student_id &&
+      Number(item.academic_year) === Number(submission.academic_year) &&
+      Number(item.term) === Number(submission.term) &&
+      item.class_id === submission.selected_class_id
+  );
 
-        showPopup(
-          "Payment Reminder",
-          "The overdue tuition reminder email service is not yet available. No payment or enrolment status has been changed.",
-          "info"
-        );
+  if (!enrollment?.id) {
+    throw new Error(
+      "The formal Enrollment for this Re-enrolment could not be found."
+    );
+  }
 
-        return;
-      }
+  const response = await fetch(
+    "/api/email/pending-payment",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        enrollmentId: enrollment.id,
+      }),
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      result?.error ??
+        "Unable to send the payment reminder email."
+    );
+  }
+
+  showPopup(
+    "Payment Reminder Sent",
+    "The payment reminder email has been sent. No payment or enrolment status has been changed.",
+    "success"
+  );
+
+  return;
+}
 
       // Payment Received will be implemented separately.
       // Parent Submit already creates the formal Enrollment, so this action
@@ -1924,13 +1956,53 @@ function handleAcademicYearChange(value: string) {
       disabled={
         submissionActionLoading === item.id
       }
-      onClick={() => {
-        showPopup(
-          "Payment Reminder",
-          "The overdue tuition reminder email service is not yet available. No payment or enrolment status has been changed.",
-          "info"
-        );
-      }}
+      onClick={async () => {
+  setSubmissionActionLoading(item.id);
+
+  try {
+    const response = await fetch(
+      "/api/email/pending-payment",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          enrollmentId: item.id,
+        }),
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        result?.error ??
+          "Unable to send the payment reminder email."
+      );
+    }
+
+    showPopup(
+      "Payment Reminder Sent",
+      "The payment reminder email has been sent. No payment or enrolment status has been changed.",
+      "success"
+    );
+  } catch (error: any) {
+    console.error(
+      "REGULAR ENROLMENT PAYMENT REMINDER ERROR:",
+      error
+    );
+
+    showPopup(
+      "Payment Reminder Failed",
+      error?.message ??
+        "Unable to send the payment reminder email.",
+      "error"
+    );
+  } finally {
+    setSubmissionActionLoading(null);
+  }
+}}
       className="whitespace-nowrap text-xs font-semibold text-[#64748B] hover:text-[#10213A] disabled:opacity-50"
     >
       Mark Payment Pending
@@ -2120,13 +2192,53 @@ function handleAcademicYearChange(value: string) {
       disabled={
         submissionActionLoading === item.id
       }
-      onClick={() => {
-        showPopup(
-          "Payment Reminder",
-          "The overdue tuition reminder email service is not yet available. No payment or enrolment status has been changed.",
-          "info"
-        );
-      }}
+      onClick={async () => {
+  setSubmissionActionLoading(item.id);
+
+  try {
+    const response = await fetch(
+      "/api/email/pending-payment",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          enrollmentId: item.id,
+        }),
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        result?.error ??
+          "Unable to send the payment reminder email."
+      );
+    }
+
+    showPopup(
+      "Payment Reminder Sent",
+      "The payment reminder email has been sent. No payment or enrolment status has been changed.",
+      "success"
+    );
+  } catch (error: any) {
+    console.error(
+      "REGULAR ENROLMENT PAYMENT REMINDER ERROR:",
+      error
+    );
+
+    showPopup(
+      "Payment Reminder Failed",
+      error?.message ??
+        "Unable to send the payment reminder email.",
+      "error"
+    );
+  } finally {
+    setSubmissionActionLoading(null);
+  }
+}}
       className="min-h-[44px] w-full rounded-xl border border-[#D9E0E8] bg-white px-4 text-sm font-semibold text-[#10213A] disabled:opacity-50"
     >
       Mark Payment Pending

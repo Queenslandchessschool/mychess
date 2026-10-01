@@ -4,6 +4,59 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+### 2026-10-01 — PENDING_PAYMENT Email — PASS
+
+#### PENDING_PAYMENT Email
+- Added the `PENDING_PAYMENT` business event and `PENDING_PAYMENT_TEMPLATE`.
+- Added dedicated `/api/email/pending-payment` API route.
+- Reused the Central Email Template Service, Central Email Sending Service and Email Audit mechanism.
+- Payment reminder email dynamically loads:
+  - Student Name
+  - Parent Name
+  - Academic Year
+  - Term
+  - Class Name
+  - Campus Name
+  - Tuition Fee
+  - Account Name
+  - BSB
+  - Account Number
+  - Payment Reference
+- Tuition Fee uses the authoritative Enrollment `amount_payable`.
+- Payment details are loaded from the active Central Payment Settings.
+- Payment Reference is generated from Campus + Class + Student Name.
+- Existing Paid Enrolments are protected from accidental reminder sending.
+- PENDING_PAYMENT does not modify Payment Status or Enrolment Status.
+
+#### Enrollment Entry Points
+- Confirmed PENDING_PAYMENT coverage for the unified Admin Enrollment page.
+- New Enrollment / New Registration:
+  - Desktop: PASS
+  - Mobile: covered by the existing responsive Enrollment workflow
+- Re-enrolment:
+  - Desktop: PASS
+  - Mobile: covered by the shared Payment Status handler
+- Parent Re-enrolment and Admin Assisted Re-enrolment ultimately use the same Admin Enrollment payment workflow.
+
+#### End-to-End Verification
+- New Enrollment PENDING_PAYMENT email: PASS.
+- Re-enrolment PENDING_PAYMENT email: PASS.
+- Real email delivery through Resend: PASS.
+- Email template variables rendered correctly: PASS.
+- Payment Settings data rendered correctly: PASS.
+- Payment Reference rendered correctly: PASS.
+- New Enrollment Email Audit: `Success` — PASS.
+- Re-enrolment Email Audit: `Success` — PASS.
+- Resend Message ID recorded successfully: PASS.
+- `error_message` recorded as `null` for successful sends: PASS.
+- Payment / Enrolment status remained unchanged after sending the reminder: PASS.
+- PENDING_PAYMENT workflow is now treated as PASS / FROZEN.
+
+#### Scope Boundary
+- No changes were made to the existing Payment Received business logic.
+- No changes were made to existing tuition calculation, Make-up Credit, Attendance or Re-enrolment business rules.
+- Payment Received confirmation email will be implemented as the next separate business event.
+
 ### 2026-10-01 — New Registration Tuition & Parent Re-enrolment UI Fix — PASS
 
 #### New Registration Tuition
