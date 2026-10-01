@@ -4,6 +4,70 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+### 2026-10-02 — PAYMENT_RECEIVED_PLACE_CONFIRMED Email + Payment Reference Fix — PASS
+
+#### PAYMENT_RECEIVED_PLACE_CONFIRMED Email
+- Added the `PAYMENT_RECEIVED_PLACE_CONFIRMED` business event and email template.
+- Added dedicated `/api/email/payment-received-place-confirmed` API route.
+- Reused the Central Email Template Service, Central Email Sending Service and Email Audit mechanism.
+- Confirmation email dynamically renders:
+  - Parent Name
+  - Student Name
+  - Academic Year
+  - Term
+  - Class Name
+  - Campus Name
+  - Tuition Fee
+- Payment Settings information is intentionally excluded from the confirmation email:
+  - Account Name
+  - BSB
+  - Account Number
+  - Payment Reference
+- Confirmation email wording confirms that payment has been received and the enrolment is successfully confirmed.
+- Confirmation email includes:
+  - "Thank you for your support."
+  - "Your child's place in the class has now been confirmed."
+  - "We look forward to a wonderful learning experience with your child ahead."
+
+#### Payment Received Integration
+- Integrated `PAYMENT_RECEIVED_PLACE_CONFIRMED` email into the existing New Enrollment Payment Received workflow.
+- Integrated `PAYMENT_RECEIVED_PLACE_CONFIRMED` email into the existing Re-enrolment Payment Received workflow.
+- Existing Payment Received business logic was preserved.
+- Payment / enrolment processing is not rolled back when confirmation email delivery fails.
+- Desktop and Mobile workflows use the shared Payment Received handlers and are therefore covered by the same confirmation email integration.
+
+#### End-to-End Verification
+- New Enrollment → Payment Received → Paid: PASS.
+- New Enrollment confirmation email delivery through Resend: PASS.
+- Re-enrolment → Payment Received → Paid / Completed: PASS.
+- Re-enrolment confirmation email delivery through Resend: PASS.
+- Parent Portal Re-enrolment status synchronisation verified for Parent Self-Service Re-enrolment:
+  - Submitted / Pending → Enrolled / Paid: PASS.
+- Confirmation email content and variables verified: PASS.
+- Confirmation email contains no Payment Settings or Payment Reference fields: PASS.
+- Email Audit records created with `Success`: PASS.
+- Resend Message ID recorded successfully: PASS.
+- Successful email audit records have `error_message = null`: PASS.
+
+#### PENDING_PAYMENT Payment Reference Fix
+- Corrected the Payment Reference generation in `/api/email/pending-payment`.
+- Applied the existing class-level shorthand rules:
+  - Advanced → `A`
+  - Intermediate → `I`
+  - Novice → `N`
+  - Beginner → `B`
+- Payment Reference now uses:
+  - Campus Code + Class Level Code + Student Name
+- Example:
+  - `MACG I Zeqi Xing`
+- Re-tested `PENDING_PAYMENT` email delivery after the fix: PASS.
+- Verified that the Payment Reference is rendered using the correct class-level shorthand.
+
+#### Scope Boundary
+- Existing Payment Received, Tuition, Make-up Credit, Attendance and Re-enrolment business rules were not redesigned.
+- `PAYMENT_RECEIVED_PLACE_CONFIRMED` is now treated as PASS / FROZEN.
+- `PENDING_PAYMENT` Payment Reference shorthand rule is now treated as PASS / FROZEN.
+
 ### 2026-10-01 — PENDING_PAYMENT Email — PASS
 
 #### PENDING_PAYMENT Email

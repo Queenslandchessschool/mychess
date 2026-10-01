@@ -1003,9 +1003,40 @@ const redeemAmount =
         throw error;
       }
 
+      let confirmationEmailWarning = "";
+
+      try {
+        const emailResponse = await fetch(
+          "/api/email/payment-received-place-confirmed",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              enrollmentId: enrollment.id,
+            }),
+          }
+        );
+
+        const emailResult = await emailResponse.json();
+
+        if (!emailResponse.ok) {
+          confirmationEmailWarning =
+            emailResult?.error ??
+            "The payment was received, but the confirmation email could not be sent.";
+        }
+      } catch (emailError: any) {
+        confirmationEmailWarning =
+          emailError?.message ??
+          "The payment was received, but the confirmation email could not be sent.";
+      }
+
       showPopup(
         "Payment Received",
-        "The New Enrolment payment has been marked as Paid.",
+        confirmationEmailWarning
+          ? `The New Enrolment payment has been marked as Paid. However, the confirmation email could not be sent: ${confirmationEmailWarning}`
+          : "The New Enrolment payment has been marked as Paid and the confirmation email has been sent.",
         "success"
       );
 
@@ -1317,6 +1348,35 @@ if (tuitionCreditAppliedAmount > 0) {
         submission.academic_year,
         submission.term
       );
+
+      let confirmationEmailWarning = "";
+
+      try {
+        const emailResponse = await fetch(
+          "/api/email/payment-received-place-confirmed",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              enrollmentId: existingEnrollment.id,
+            }),
+          }
+        );
+
+        const emailResult = await emailResponse.json();
+
+        if (!emailResponse.ok) {
+          confirmationEmailWarning =
+            emailResult?.error ??
+            "The payment was received, but the confirmation email could not be sent.";
+        }
+      } catch (emailError: any) {
+        confirmationEmailWarning =
+          emailError?.message ??
+          "The payment was received, but the confirmation email could not be sent.";
+      }
 
       setSubmissions((previous) =>
         previous.map((item) =>

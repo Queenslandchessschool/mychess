@@ -4,7 +4,7 @@ import { getRenderedEmailTemplate } from "@/lib/email/templateService";
 import { sendEmail } from "@/lib/email/emailService";
 import { logEmailAudit } from "@/lib/email/emailAudit";
 
-const BUSINESS_EVENT = "PENDING_PAYMENT";
+const BUSINESS_EVENT = "PAYMENT_RECEIVED_PLACE_CONFIRMED";
 
 export async function POST(request: Request) {
   try {
@@ -66,11 +66,11 @@ export async function POST(request: Request) {
       );
     }
 
-    if (enrollment.payment_status === "Paid") {
+    if (enrollment.payment_status !== "Paid") {
       return NextResponse.json(
         {
           error:
-            "This enrolment payment is already marked as Paid.",
+            "This enrolment payment has not been marked as Paid.",
         },
         { status: 409 }
       );
@@ -137,61 +137,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: paymentSettings, error: paymentError } =
-      await supabaseServer
-        .from("payment_settings")
-        .select(
-          `
-          account_name,
-          bsb,
-          account_number,
-          payment_reference_instruction,
-          payment_reference_example
-        `
-        )
-        .eq("status", "Active")
-        .maybeSingle();
-
-    if (paymentError) {
-      throw new Error(
-        `Failed to load payment settings: ${paymentError.message}`
-      );
-    }
-
-    if (!paymentSettings) {
-      return NextResponse.json(
-        { error: "No active payment settings found." },
-        { status: 500 }
-      );
-    }
-
     const studentName =
       student.preferred_name ||
       `${student.first_name ?? ""} ${student.last_name ?? ""}`.trim();
 
     const className = String(classData.level ?? "");
-
-    const campusReference =
-      String(
-        campus.campus_code ??
-          campus.short_name ??
-          campus.campus_name ??
-          ""
-      ).trim();
-
-    const classReference =
-  className === "Advanced"
-    ? "A"
-    : className === "Intermediate"
-      ? "I"
-      : className === "Novice"
-        ? "N"
-        : className === "Beginner"
-          ? "B"
-          : className;
-
-    const paymentReference =
-      `${campusReference} ${classReference} ${studentName}`.trim();
 
     const tuitionFee = `$${Number(
       enrollment.amount_payable ?? 0
@@ -205,12 +155,6 @@ export async function POST(request: Request) {
       "Class Name": className,
       "Campus Name": String(campus.campus_name ?? ""),
       "Tuition Fee": tuitionFee,
-      "Account Name": String(paymentSettings.account_name ?? ""),
-      "BSB": String(paymentSettings.bsb ?? ""),
-      "Account Number": String(
-        paymentSettings.account_number ?? ""
-      ),
-      "Payment Reference": paymentReference,
     };
 
     let email;
@@ -278,7 +222,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error(
-      "PENDING PAYMENT EMAIL EXCEPTION:",
+      "PAYMENT RECEIVED PLACE CONFIRMED EMAIL EXCEPTION:",
       error
     );
 
