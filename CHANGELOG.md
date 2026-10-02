@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+### 2026-10-02
+- Fixed Special Arrangement tuition recalculation for Re-enrolment.
+- Re-enrolment amount payable is now used as the pre-Special-Arrangement baseline.
+- Prevented cancelled lessons and redeem amounts from being deducted a second time when applying Special Arrangement.
+- Preserved the existing tuition calculation fallback for normal Registration / legacy enrolments.
+- Verified with Ethan Bae, Elliott Kim and Abigail CHOE.
+- Production build passed.
+
 ### 2026-10-02 — PAYMENT_RECEIVED_PLACE_CONFIRMED Email + Payment Reference Fix — PASS
 
 #### PAYMENT_RECEIVED_PLACE_CONFIRMED Email
