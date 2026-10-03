@@ -15,10 +15,10 @@ All notable changes to this project will be documented in this file.
 - Core Registration / Re-enrolment / Tuition / Payment workflows.
 - Attendance / Make-up / Special Arrangement workflows.
 - Payment Email workflow is now fully completed and treated as PASS / FROZEN.
+- Re-enrolment Confirmation Email final E2E verification — PASS / FROZEN.
+- Remaining required Email workflows — PASS / FROZEN.
 
 ### Remaining for Quick Launch
-- Re-enrolment Confirmation Email final E2E verification.
-- Remaining required Email workflows, if any.
 - Production Scheduler / Cron configuration.
 - Vercel Production deployment.
 - Production Smoke / E2E verification.
