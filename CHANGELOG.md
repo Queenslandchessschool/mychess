@@ -3,6 +3,58 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## Current Launch Status — 2026-10-03
+
+### Completed / PASS
+- Special Arrangement tuition double-deduction fix.
+- Admin Special Request / Walk Home override.
+- Enrolment Admin Override audit logging.
+- PENDING_PAYMENT email.
+- PAYMENT_RECEIVED_PLACE_CONFIRMED email.
+- Payment Reference generation.
+- Core Registration / Re-enrolment / Tuition / Payment workflows.
+- Attendance / Make-up / Special Arrangement workflows.
+- Payment Email workflow is now fully completed and treated as PASS / FROZEN.
+
+### Remaining for Quick Launch
+- Re-enrolment Confirmation Email final E2E verification.
+- Remaining required Email workflows, if any.
+- Production Scheduler / Cron configuration.
+- Vercel Production deployment.
+- Production Smoke / E2E verification.
+- Final Security / RLS / Auth / Scope / ENV audit.
+- GO LIVE.
+
+### Frozen Principle
+- Existing PASS / FROZEN modules must not be redesigned.
+- Remaining work is limited to launch integration, verification, deployment and confirmed bugs.
+
+
+### CHANGELOG — 2026-10-03
+
+## Special Arrangement Tuition Double Deduction Fix — PASS
+
+- Fixed Special Arrangement tuition calculation for Re-enrolment cases where the Enrollment financial base already includes cancelled / non-chargeable lessons.
+- Re-enrolment Special Arrangement tuition now uses the stable `re_enrolment_submissions.amount_payable` baseline when available.
+- Prevented cancelled / non-chargeable lessons from being deducted a second time during Special Arrangement adjustment.
+- Verified with real Re-enrolment cases including Ethan Bae, Elliott Kim and Abigail.
+- New Registration tuition logic was not changed.
+- Production build passed.
+
+## Admin Override — Special Request / Walk Home — PASS
+
+- Added Admin Edit Special Request capability to the current-term `student_enrolments` record.
+- Added Admin override support for Classroom Pickup, YMCA Drop-off and Walk Home.
+- Preserved the frozen rule that Walk Home is mutually exclusive with Classroom Pickup and YMCA Drop-off.
+- Added mandatory Admin override Reason.
+- Added `enrolment_audit_logs` for traceable Admin enrolment changes.
+- Audit records retain Who, When, Old Value, New Value and Reason.
+- Added Admin-only RLS protection for enrolment audit log creation.
+- Desktop and Mobile Edit SR actions completed.
+- Edit SR is available for Re-enrolment Pending, New Enrolment Pending and Paid records.
+- Verified the updated Special Request snapshot is reflected from the current-term Enrollment record.
+- Desktop and Mobile UAT passed.
+- `npm run build` passed.
 
 ### 2026-10-02
 - Fixed Special Arrangement tuition recalculation for Re-enrolment.

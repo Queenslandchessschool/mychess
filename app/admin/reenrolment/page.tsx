@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/currentUser";
+import { logEnrolmentAudit } from "@/lib/enrolmentAudit";
 import { synchroniseStudentStage } from "@/lib/studentSynchronisation";
 import { getBusinessTime } from "@/lib/businessTime";
 
@@ -40,6 +41,7 @@ type StudentEnrolment = {
   standard_tuition: number | null;
   redeem_amount: number | null;
   amount_payable: number | null;
+  special_request_snapshot: Record<string, any> | null;
   status: string;
   is_trial: boolean | null;
   student_name: string;
@@ -68,6 +70,7 @@ type EnrollmentRow = {
   standard_tuition: number | null;
   redeem_amount: number | null;
   amount_payable: number | null;
+  special_request_snapshot: Record<string, any> | null;
   student_name: string;
   last_term_class_name: string;
   current_term_class_name: string;
@@ -157,6 +160,19 @@ export default function ReenrolmentPage() {
   const [submissionSearchTerm, setSubmissionSearchTerm] = useState("");
   const [submissionActionLoading, setSubmissionActionLoading] = useState<string | null>(null);
 
+  const [editingSpecialRequest, setEditingSpecialRequest] =
+  useState<EnrollmentRow | null>(null);
+
+const [specialRequestForm, setSpecialRequestForm] = useState({
+  classroom_pickup: false,
+  ymca_dropoff: false,
+  walk_home: false,
+  school_year: "",
+  school_class: "",
+});
+
+const [specialRequestReason, setSpecialRequestReason] = useState("");
+const [specialRequestSaving, setSpecialRequestSaving] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editingRecommendation, setEditingRecommendation] =
     useState<Recommendation | null>(null);
@@ -244,6 +260,7 @@ payment_status,
 standard_tuition,
 redeem_amount,
 amount_payable,
+special_request_snapshot,
 students:student_id (
             first_name,
             last_name
@@ -361,6 +378,7 @@ amount_payable:
   item.amount_payable == null
     ? null
     : Number(item.amount_payable),
+    special_request_snapshot: item.special_request_snapshot ?? null,
 
 student_name:
           `${item.students?.first_name ?? ""} ${
@@ -635,6 +653,8 @@ const redeemAmount =
       standard_tuition: standardTuition,
       redeem_amount: redeemAmount,
       amount_payable: amountPayable,
+      special_request_snapshot:
+  enrolment.special_request_snapshot ?? null,
       student_name: enrolment.student_name,
       last_term_class_name:
         previousEnrolment?.class_name ?? "—",
@@ -1747,6 +1767,128 @@ function handleAcademicYearChange(value: string) {
     resetForm();
   }
 
+  function openSpecialRequestEditor(item: EnrollmentRow) {
+  const request = item.special_request_snapshot ?? {};
+
+  setEditingSpecialRequest(item);
+
+  setSpecialRequestForm({
+    classroom_pickup: Boolean(request.classroom_pickup),
+    ymca_dropoff: Boolean(request.ymca_dropoff),
+    walk_home: Boolean(request.walk_home),
+    school_year: request.school_year ?? "",
+    school_class: request.school_class ?? "",
+  });
+
+  setSpecialRequestReason("");
+}
+
+async function handleSaveSpecialRequest() {
+  if (specialRequestSaving) return;
+
+  if (!editingSpecialRequest) {
+    return;
+  }
+
+  const reason = specialRequestReason.trim();
+
+  if (!reason) {
+    showPopup(
+      "Reason Required",
+      "Please enter a reason for this Admin change.",
+      "error"
+    );
+    return;
+  }
+
+  if (
+    specialRequestForm.walk_home &&
+    (specialRequestForm.classroom_pickup ||
+      specialRequestForm.ymca_dropoff)
+  ) {
+    showPopup(
+      "Invalid Special Request",
+      "Walk Home cannot be combined with Classroom Pick-up or YMCA Drop-off.",
+      "error"
+    );
+    return;
+  }
+
+  setSpecialRequestSaving(true);
+
+  try {
+    const currentUser = await getCurrentUser();
+
+    if (!currentUser || currentUser.role !== "admin") {
+      throw new Error("Admin access is required.");
+    }
+
+    const oldValue =
+      editingSpecialRequest.special_request_snapshot ?? null;
+
+    const newValue = {
+      classroom_pickup: specialRequestForm.classroom_pickup,
+      ymca_dropoff: specialRequestForm.ymca_dropoff,
+      walk_home: specialRequestForm.walk_home,
+      school_year: specialRequestForm.school_year.trim() || null,
+      school_class: specialRequestForm.school_class.trim() || null,
+    };
+
+    const { error } = await supabase
+      .from("student_enrolments")
+      .update({
+        special_request_snapshot: newValue,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", editingSpecialRequest.id);
+
+    if (error) {
+      throw error;
+    }
+
+    await logEnrolmentAudit({
+      studentEnrolmentId: editingSpecialRequest.id,
+      studentId: editingSpecialRequest.student_id,
+      action: "ADMIN_OVERRIDE",
+      field: "special_request_snapshot",
+      oldValue,
+      newValue,
+      reason,
+    });
+
+    setEnrollmentRows((previous) =>
+      previous.map((item) =>
+        item.id === editingSpecialRequest.id
+          ? {
+              ...item,
+              special_request_snapshot: newValue,
+            }
+          : item
+      )
+    );
+
+    setEditingSpecialRequest(null);
+    setSpecialRequestReason("");
+
+    showPopup(
+      "Special Request Updated",
+      "The current Enrolment Special Request has been updated successfully.",
+      "success"
+    );
+  } catch (error: any) {
+    console.error("SPECIAL REQUEST ADMIN OVERRIDE ERROR:", error);
+
+    showPopup(
+      "Update Failed",
+      error?.message ??
+        "Unable to update the Special Request.",
+      "error"
+    );
+  } finally {
+    setSpecialRequestSaving(false);
+  }
+}
+
   if (loading) {
     return <main className="min-h-screen px-4 py-8 sm:px-6 lg:px-8" />;
   }
@@ -1992,6 +2134,13 @@ function handleAcademicYearChange(value: string) {
     >
       Mark Payment Pending
     </button>
+        <button
+      type="button"
+      onClick={() => openSpecialRequestEditor(item)}
+      className="whitespace-nowrap text-xs font-semibold text-[#10213A] hover:text-[#D4AF37]"
+    >
+      Edit SR
+    </button>
   </div>
 ) : !item.is_reenrolment &&
   item.payment_status !== "Paid" ? (
@@ -2067,9 +2216,22 @@ function handleAcademicYearChange(value: string) {
     >
       Mark Payment Pending
     </button>
+        <button
+      type="button"
+      onClick={() => openSpecialRequestEditor(item)}
+      className="whitespace-nowrap text-xs font-semibold text-[#10213A] hover:text-[#D4AF37]"
+    >
+      Edit SR
+    </button>
   </div>
 ) : item.payment_status === "Paid" ? (
-  null
+  <button
+    type="button"
+    onClick={() => openSpecialRequestEditor(item)}
+    className="whitespace-nowrap text-xs font-semibold text-[#10213A] hover:text-[#D4AF37]"
+  >
+    Edit SR
+  </button>
 ) : (
                   <span className="text-xs text-[#94A3B8]">
                     —
@@ -2227,6 +2389,14 @@ function handleAcademicYearChange(value: string) {
       className="min-h-[44px] w-full rounded-xl border border-[#D9E0E8] bg-white px-4 text-sm font-semibold text-[#10213A] disabled:opacity-50"
     >
       Mark Payment Pending
+        </button>
+
+    <button
+      type="button"
+      onClick={() => openSpecialRequestEditor(item)}
+      className="min-h-[44px] w-full rounded-xl border border-[#D9E0E8] bg-white px-4 text-sm font-semibold text-[#10213A] hover:border-[#D4AF37] hover:text-[#A78312]"
+    >
+      Edit SR
     </button>
   </div>
 ) : !item.is_reenrolment &&
@@ -2301,7 +2471,25 @@ function handleAcademicYearChange(value: string) {
 }}
       className="min-h-[44px] w-full rounded-xl border border-[#D9E0E8] bg-white px-4 text-sm font-semibold text-[#10213A] disabled:opacity-50"
     >
-      Mark Payment Pending
+            Mark Payment Pending
+    </button>
+
+    <button
+      type="button"
+      onClick={() => openSpecialRequestEditor(item)}
+      className="min-h-[44px] w-full rounded-xl border border-[#D9E0E8] bg-white px-4 text-sm font-semibold text-[#10213A] hover:border-[#D4AF37] hover:text-[#A78312]"
+    >
+      Edit SR
+    </button>
+  </div>
+) : item.payment_status === "Paid" ? (
+  <div className="mt-4 flex flex-col gap-2">
+    <button
+      type="button"
+      onClick={() => openSpecialRequestEditor(item)}
+      className="min-h-[44px] w-full rounded-xl border border-[#D9E0E8] bg-white px-4 text-sm font-semibold text-[#10213A] hover:border-[#D4AF37] hover:text-[#A78312]"
+    >
+      Edit SR
     </button>
   </div>
 ) : null}
@@ -2748,6 +2936,195 @@ function handleAcademicYearChange(value: string) {
           </div>
         </div>
       </main>
+
+            {editingSpecialRequest && (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-[#07172B]/60 px-4 py-6 backdrop-blur-[2px]"
+          onClick={() => setEditingSpecialRequest(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="special-request-editor-title"
+            className="w-full max-w-[520px] overflow-hidden rounded-2xl border border-[#D9E0E8] bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="h-1 bg-[#D4AF37]" />
+
+            <div className="border-b border-[#E5EAF0] px-5 py-4 sm:px-6">
+              <h2
+                id="special-request-editor-title"
+                className="text-lg font-semibold text-[#10213A]"
+              >
+                Edit Special Request
+              </h2>
+
+              <p className="mt-1 text-sm text-[#64748B]">
+                {editingSpecialRequest.student_name} · Current Enrolment
+              </p>
+            </div>
+
+            <div className="space-y-5 p-5 sm:p-6">
+              <div>
+                <p className="text-sm font-semibold text-[#10213A]">
+                  Special Request
+                </p>
+
+                <p className="mt-1 text-xs leading-5 text-[#64748B]">
+                  Walk Home cannot be combined with Classroom Pick-up or YMCA
+                  Drop-off.
+                </p>
+
+                <div className="mt-4 space-y-3">
+                  <label className="flex cursor-pointer items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={specialRequestForm.classroom_pickup}
+                      onChange={(event) => {
+                        const checked = event.target.checked;
+
+                        setSpecialRequestForm((previous) => ({
+                          ...previous,
+                          classroom_pickup: checked,
+                          walk_home: checked
+                            ? false
+                            : previous.walk_home,
+                        }));
+                      }}
+                      className="h-4 w-4 rounded border-[#CBD5E1] text-[#10213A] focus:ring-[#D4AF37]"
+                    />
+                    <span className="text-sm text-[#334155]">
+                      Classroom Pick-up
+                    </span>
+                  </label>
+
+                  <label className="flex cursor-pointer items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={specialRequestForm.ymca_dropoff}
+                      onChange={(event) => {
+                        const checked = event.target.checked;
+
+                        setSpecialRequestForm((previous) => ({
+                          ...previous,
+                          ymca_dropoff: checked,
+                          walk_home: checked
+                            ? false
+                            : previous.walk_home,
+                        }));
+                      }}
+                      className="h-4 w-4 rounded border-[#CBD5E1] text-[#10213A] focus:ring-[#D4AF37]"
+                    />
+                    <span className="text-sm text-[#334155]">
+                      YMCA Drop-off
+                    </span>
+                  </label>
+
+                  <label className="flex cursor-pointer items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={specialRequestForm.walk_home}
+                      onChange={(event) => {
+                        const checked = event.target.checked;
+
+                        setSpecialRequestForm((previous) => ({
+                          ...previous,
+                          walk_home: checked,
+                          classroom_pickup: checked
+                            ? false
+                            : previous.classroom_pickup,
+                          ymca_dropoff: checked
+                            ? false
+                            : previous.ymca_dropoff,
+                        }));
+                      }}
+                      className="h-4 w-4 rounded border-[#CBD5E1] text-[#10213A] focus:ring-[#D4AF37]"
+                    />
+                    <span className="text-sm font-medium text-[#10213A]">
+                      Walk Home
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-[0.12em] text-[#64748B]">
+                    School Year
+                  </label>
+
+                  <input
+                    type="text"
+                    value={specialRequestForm.school_year}
+                    onChange={(event) =>
+                      setSpecialRequestForm((previous) => ({
+                        ...previous,
+                        school_year: event.target.value,
+                      }))
+                    }
+                    className="mt-2 min-h-[44px] w-full rounded-xl border border-[#D9E0E8] bg-white px-3 text-sm text-[#10213A] outline-none focus:border-[#D4AF37]"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-[0.12em] text-[#64748B]">
+                    School Class
+                  </label>
+
+                  <input
+                    type="text"
+                    value={specialRequestForm.school_class}
+                    onChange={(event) =>
+                      setSpecialRequestForm((previous) => ({
+                        ...previous,
+                        school_class: event.target.value,
+                      }))
+                    }
+                    className="mt-2 min-h-[44px] w-full rounded-xl border border-[#D9E0E8] bg-white px-3 text-sm text-[#10213A] outline-none focus:border-[#D4AF37]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-[0.12em] text-[#64748B]">
+                  Reason <span className="text-red-500">*</span>
+                </label>
+
+                <textarea
+                  value={specialRequestReason}
+                  onChange={(event) =>
+                    setSpecialRequestReason(event.target.value)
+                  }
+                  rows={3}
+                  placeholder="Enter the reason for this Admin correction..."
+                  className="mt-2 w-full resize-none rounded-xl border border-[#D9E0E8] bg-white px-3 py-3 text-sm text-[#10213A] outline-none focus:border-[#D4AF37]"
+                />
+              </div>
+
+              <div className="flex flex-col-reverse gap-3 border-t border-[#E5EAF0] pt-5 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setEditingSpecialRequest(null)}
+                  disabled={specialRequestSaving}
+                  className="min-h-[44px] rounded-xl border border-[#D9E0E8] px-5 text-sm font-semibold text-[#475569] hover:border-[#CBD5E1] hover:bg-[#F8FAFC] disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => void handleSaveSpecialRequest()}
+                  disabled={specialRequestSaving}
+                  className="min-h-[44px] rounded-xl bg-[#10213A] px-5 text-sm font-semibold text-white hover:bg-[#1A3152] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {specialRequestSaving ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {popup.open && (
         <div
