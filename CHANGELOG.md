@@ -29,6 +29,188 @@ All notable changes to this project will be documented in this file.
 - Existing PASS / FROZEN modules must not be redesigned.
 - Remaining work is limited to launch integration, verification, deployment and confirmed bugs.
 
+
+## 2026-10-05 — MyCHESS Portal & Authentication Experience — PASS
+
+### Completed / PASS
+
+#### 1. Portal Landing Page — `/`
+
+- Replaced the previous root redirect with the new MyCHESS Portal Landing page.
+- Implemented the unified MyCHESS visual identity:
+  - Primary Navy `#011029`
+  - Secondary Navy
+  - Gold `#D4AF37`
+  - Navy Chessboard Pattern background
+  - Gold borders and subtle Gold highlights
+- Added MyCHESS branded Hero section.
+- Integrated the MyCHESS Pawn → Queen brand animation.
+- Added:
+  - MyCHESS identity
+  - `LEARN · GROW · SUCCEED`
+  - `ENTER MyCHESS`
+- Added six public navigation cards:
+  - News
+  - Ratings
+  - Champions
+  - Puzzles
+  - Holiday Camp
+  - Events
+- Added responsive desktop/mobile interactions and touch feedback.
+- Unified Portal Footer with the established MyCHESS / Queensland Chess School branding.
+- External public resources open safely in new tabs.
+- Portal Landing remains UI-only and does not alter authentication/security logic.
+
+#### 2. Universal Login — `/login`
+
+- Rebuilt the Login page using the unified MyCHESS visual system.
+- Implemented:
+  - Navy Chessboard background
+  - Gold ambient branding
+  - MyCHESS identity
+  - Queensland Chess School branding
+  - Email / Password fields
+  - Gold Sign In button
+  - Forgot Password entry
+  - Unified MyCHESS Footer
+- Preserved existing authentication business logic.
+- Preserved Supabase `signInWithPassword` flow.
+- Preserved existing role-based routing:
+  - Admin → `/admin/dashboard`
+  - Coach → `/coach/dashboard`
+  - Parent → `/parent/family`
+- Preserved invalid-user and unknown-role handling.
+- Preserved `router.refresh()` behaviour.
+- No changes made to frozen authentication / authorization rules.
+
+#### 3. Login Brand Animation
+
+- Implemented the MyCHESS brand story:
+  - Pawn
+  - Glow / promotion transition
+  - Queen
+- Tested the animation across desktop and mobile/iPhone environments.
+- Reworked the animation implementation to use native SVG animation for improved mobile compatibility.
+- Final Login experience uses the MyCHESS Pawn → Queen visual language without changing authentication behaviour.
+
+#### 4. Forgot Password — `/forgot-password`
+
+- Rebuilt the Forgot Password page using the same MyCHESS authentication design system.
+- Added:
+  - Navy Chessboard background
+  - MyCHESS branding
+  - Static Pawn identity
+  - Queensland Chess School branding
+  - `Reset your password`
+  - Email input
+  - `Enter your email registered with us`
+  - Gold `Send Reset Link` button
+  - Error state
+  - Success state
+  - Back to Sign In
+  - Unified Footer
+- Preserved the existing Supabase `resetPasswordForEmail` implementation.
+- Preserved the existing `redirectTo` → `/reset-password` flow.
+- No authentication business logic was changed.
+
+#### 5. Reset Password — `/reset-password`
+
+- Rebuilt the Reset Password page using the unified MyCHESS authentication design.
+- Introduced the Queen / Promotion visual identity for successful account recovery.
+- Added:
+  - Navy Chessboard background
+  - MyCHESS branding
+  - Queensland Chess School branding
+  - `Set a new password`
+  - New password field
+  - Confirm password field
+  - Password validation
+  - Gold Reset Password button
+  - Error / success states
+  - Invalid / expired recovery-link handling
+  - Back to Forgot Password
+  - Unified MyCHESS Footer
+- Preserved existing Supabase recovery-session detection.
+- Preserved `PASSWORD_RECOVERY` handling.
+- Preserved recovery-session timeout / invalid-link protection.
+- Preserved `supabase.auth.updateUser({ password })`.
+- Preserved successful reset → Login redirection.
+- No password-reset business logic was changed.
+
+#### 6. MyCHESS Email Brand Standard
+
+- Unified authentication email branding with the existing MyCHESS Enrollment Confirmation email design.
+- Established consistent email Header:
+  - MyCHESS
+  - Gold divider
+  - `LEARN · GROW · SUCCEED`
+  - `QUEENSLAND CHESS SCHOOL`
+- Established consistent MyCHESS Contact Footer.
+- Established consistent MyCHESS Brand Footer:
+  - `MyCHESS · Every move matters`
+  - `A brighter mind for a brighter future.`
+- Authentication email visual language now matches the wider MyCHESS system.
+
+#### 7. Supabase Auth Custom SMTP / Resend
+
+- Enabled Supabase Auth Custom SMTP for production authentication emails.
+- Integrated Resend SMTP with Supabase Auth.
+- Production sender configured as:
+  - `MyCHESS <noreply@queenslandchessschool.com.au>`
+- SMTP configuration:
+  - Host: `smtp.resend.com`
+  - Port: `465`
+  - Username: `resend`
+- Resend API Key configured securely as the SMTP password.
+- Supabase default authentication email branding replaced by the MyCHESS branded template.
+
+#### 8. Branded Reset Password Email
+
+- Replaced the default Supabase Reset Password email with the MyCHESS branded version.
+- Subject updated to:
+  - `Reset your MyCHESS password`
+- Added branded MyCHESS Reset Password content.
+- Added Gold `RESET MYCHESS PASSWORD` CTA.
+- Preserved:
+  - `{{ .ConfirmationURL }}`
+- No change to the underlying Supabase recovery-link mechanism.
+- Removed Supabase default visual identity from the user-facing email.
+- Final email Preview reviewed and approved.
+
+#### 9. End-to-End Verification
+
+- Successfully verified the complete production password recovery flow:
+  - Forgot Password
+  - Supabase Auth
+  - Custom SMTP
+  - Resend
+  - MyCHESS branded email
+  - Reset Password link
+  - `/reset-password`
+  - New password submission
+  - Successful password reset
+- Verified final email Header and Footer.
+- Verified final Reset Password email CTA.
+- Verified final Portal / Login / Forgot Password / Reset Password visual consistency.
+
+### Frozen / Baseline Protection
+
+- Existing authentication business logic preserved.
+- Existing role-based routing preserved.
+- Existing Supabase Auth flow preserved.
+- Existing password recovery logic preserved.
+- Existing reset-link mechanism preserved.
+- No changes made to frozen business rules.
+- No changes made to existing production scheduler or attendance logic.
+
+### Status
+
+**PASS / PRODUCTION BASELINE**
+
+The MyCHESS Portal, Login, Forgot Password, Reset Password and authentication email experience are now treated as the approved production baseline.
+
+Future changes should be limited to confirmed bugs or explicit design / business requests.
+
 ## 2026-10-04 — PASS: Re-enrolment Opening / Vercel Cron
 
 ### Scheduler
