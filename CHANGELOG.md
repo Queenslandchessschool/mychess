@@ -30,6 +30,17 @@ All notable changes to this project will be documented in this file.
 - Remaining work is limited to launch integration, verification, deployment and confirmed bugs.
 
 
+## 2026-10-05 — MyCHESS Production Domain & Browser Branding — PASS
+
+- Production custom domain `mychess.queenslandchessschool.com.au` successfully connected to Vercel MyCHESS Production.
+- DNS CNAME verified and production domain configuration PASS.
+- Browser title updated to `MyCHESS | Queensland Chess School`.
+- MyCHESS browser favicon updated to the Queensland Chess School Navy/Gold emblem.
+- Production build verified successfully with `npm run build`.
+- No business logic, authentication logic, attendance rules, or frozen modules changed.
+
+**Status: PASS / PRODUCTION BASELINE**
+
 ## 2026-10-05 — MyCHESS Portal & Authentication Experience — PASS
 
 ### Completed / PASS
