@@ -29,6 +29,70 @@ All notable changes to this project will be documented in this file.
 - Existing PASS / FROZEN modules must not be redesigned.
 - Remaining work is limited to launch integration, verification, deployment and confirmed bugs.
 
+## 2026-10-04 — PASS: Attendance Scheduler / Vercel Cron
+
+### Scheduler
+- Added the Vercel Cron trigger for Attendance Reconciliation.
+- Preserved the existing 04:00 Brisbane Attendance Generation scheduler.
+- Attendance Generation remains scheduled at 04:00 Brisbane time.
+- Attendance Reconciliation is scheduled to run every 15 minutes as the external trigger.
+- Reconciliation continues to use the existing Attendance Runner / Time Engine for lesson-level timing decisions.
+
+### Architecture
+- Preserved the existing Attendance lifecycle and Frozen Attendance Core.
+- Kept Scheduled Generation, Realtime Business Sync, T-30 Reconciliation and Lesson Start / T-0 Final Reconciliation as separate mechanisms.
+- Preserved Lazy Load as a fallback / projection mechanism only; it does not replace scheduled reconciliation.
+- No changes made to `attendanceTime.ts`, `attendanceRunner.ts` or `attendanceEngine.ts`.
+
+### Security
+- Cron requests continue to use `CRON_SECRET`.
+- Existing GET Cron wrappers continue to forward trusted requests to the existing POST Attendance APIs.
+
+### Validation
+- Attendance Generation Cron configuration: PASS
+- Attendance Reconciliation Cron configuration: PASS
+- Brisbane timezone scheduling: PASS
+- Existing Attendance Runner integration: PASS
+- Frozen Attendance Core preserved: PASS
+- Realtime / Lazy Load architecture preserved: PASS
+
+### Frozen Baseline
+The Attendance Scheduler is now connected to the Vercel Cron infrastructure without changing the Frozen Attendance Core. Future changes should be additive and should not modify the established Attendance lifecycle, timing engine, Runner or Engine without an explicit confirmed requirement.
+
+### Date: 2026-10-03 Changelog — Vercel Production Migration / Scheduler Foundation
+
+Version: v0.7.x（暂不正式定版本号）
+
+Completed:
+
+Vercel Pro production environment established for MyCHESS.
+Production environment variables configured.
+GitHub → Vercel automatic deployment connected.
+queenslandchessschool.com.au successfully migrated to Vercel.
+Production build verified successfully.
+Added Vercel Cron GET wrapper for Attendance Generation:
+/api/cron/attendance-generate
+invokes existing /api/attendance/generate POST endpoint.
+Existing Attendance Generation business logic remains unchanged.
+vercel.json added with Attendance Generation schedule:
+0 18 * * * UTC
+equivalent to 04:00 Australia/Brisbane.
+Local wrapper execution verified successfully.
+npm run build verified successfully.
+
+Pending:
+
+Add remaining Vercel Scheduler wrappers.
+Configure remaining Vercel Cron schedules.
+Deploy Scheduler configuration to Production.
+Complete Production Scheduler smoke tests.
+Keep Netlify available as fallback until migration verification is complete.
+
+Important:
+
+Existing MyCHESS business rules and PASS modules remain frozen.
+No existing business logic was redesigned as part of the Vercel migration.
+
 
 ### CHANGELOG — 2026-10-03
 
