@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   title: "MyCHESS | Queensland Chess School",
   description: "MyCHESS — Queensland Chess School",
   icons: {
-    icon: "/favicon.png",
+    icon: "/mychess-favicon.png",
   },
 };
 

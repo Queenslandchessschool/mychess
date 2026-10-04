@@ -40,6 +40,7 @@ All notable changes to this project will be documented in this file.
 - No business logic, authentication logic, attendance rules, or frozen modules changed.
 
 - Removed the default Next.js `app/favicon.ico` so the MyCHESS/QCS branded favicon is used consistently.
+- Corrected the browser favicon metadata to reference `/mychess-favicon.png`.
 
 **Status: PASS / PRODUCTION BASELINE**
 
