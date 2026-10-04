@@ -29,6 +29,30 @@ All notable changes to this project will be documented in this file.
 - Existing PASS / FROZEN modules must not be redesigned.
 - Remaining work is limited to launch integration, verification, deployment and confirmed bugs.
 
+## 2026-10-04 — PASS: Class Reminder / Vercel Cron
+
+### Scheduler
+- Added the Vercel Cron trigger for Class Reminder.
+- Class Reminder is scheduled daily at 12:00 Brisbane time.
+- The existing Class Reminder business logic remains responsible for checking the First Lesson − 1 day timing rule.
+- The existing Class Reminder POST route was preserved without changing its business logic.
+
+### Architecture
+- Added a thin GET Cron wrapper at `/api/cron/email/class-reminder-get`.
+- The wrapper securely forwards the Vercel Cron request to the existing Class Reminder POST API using `CRON_SECRET`.
+- Term 4 2026 is supplied to the existing Class Reminder API for the current production launch period.
+- No changes were made to the existing first-lesson calculation or email eligibility logic.
+
+### Validation
+- Class Reminder Cron wrapper: PASS
+- Next.js production build: PASS
+- Vercel Cron configuration: PASS
+- Existing Class Reminder business logic preserved: PASS
+- Real email sending was not manually triggered during holiday / pre-Term 4 validation.
+
+### Frozen Baseline
+The existing Class Reminder business logic remains the baseline. Future changes should be additive and should not modify the established first-lesson calculation, eligibility rules or email audit protection without an explicit confirmed requirement.
+
 ## 2026-10-04 — PASS: Attendance Scheduler / Vercel Cron
 
 ### Scheduler
