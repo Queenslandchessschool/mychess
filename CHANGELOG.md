@@ -29,6 +29,30 @@ All notable changes to this project will be documented in this file.
 - Existing PASS / FROZEN modules must not be redesigned.
 - Remaining work is limited to launch integration, verification, deployment and confirmed bugs.
 
+## 2026-10-04 — PASS: Re-enrolment Reminder / Vercel Cron
+
+### Scheduler
+- Added the Vercel Cron trigger for Re-enrolment Reminder.
+- Re-enrolment Reminder is scheduled daily at 12:00 Brisbane time.
+- The existing Re-enrolment Reminder business logic remains responsible for checking the First Lesson − 7 days timing rule.
+- The existing Re-enrolment Reminder POST route was preserved without changing its business logic.
+
+### Architecture
+- Added a thin GET Cron wrapper at `/api/cron/email/reenrolment-reminder-get`.
+- The wrapper securely forwards the Vercel Cron request to the existing Re-enrolment Reminder POST API using `CRON_SECRET`.
+- Term 4 2026 is supplied to the existing Re-enrolment Reminder API for the current production launch period.
+- No changes were made to the existing first-lesson calculation, eligibility logic or email audit protection.
+
+### Validation
+- Re-enrolment Reminder Cron wrapper: PASS
+- Next.js production build: PASS
+- Vercel Cron configuration: PASS
+- Existing Re-enrolment Reminder business logic preserved: PASS
+- Real email sending was not manually triggered during holiday / pre-Term 4 validation.
+
+### Frozen Baseline
+The existing Re-enrolment Reminder business logic remains the baseline. Future changes should be additive and should not modify the established First Lesson − 7 days calculation, eligibility rules or email audit protection without an explicit confirmed requirement.
+
 ## 2026-10-04 — PASS: Class Reminder / Vercel Cron
 
 ### Scheduler
