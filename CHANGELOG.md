@@ -29,6 +29,30 @@ All notable changes to this project will be documented in this file.
 - Existing PASS / FROZEN modules must not be redesigned.
 - Remaining work is limited to launch integration, verification, deployment and confirmed bugs.
 
+## 2026-10-04 — PASS: Re-enrolment Opening / Vercel Cron
+
+### Scheduler
+- Added the Vercel Cron trigger for Re-enrolment Opening.
+- Re-enrolment Opening is scheduled daily at 12:00 Brisbane time.
+- The existing Re-enrolment Opening business logic remains responsible for checking Final Lesson + 1 day and the 08:00 Brisbane opening time.
+- The existing Re-enrolment Opening POST route was preserved without changing its business logic.
+
+### Architecture
+- Added a thin GET Cron wrapper at `/api/cron/email/reenrolment-opening-get`.
+- The wrapper securely forwards the Vercel Cron request to the existing Re-enrolment Opening POST API using `CRON_SECRET`.
+- Term 4 2026 is supplied to the existing Re-enrolment Opening API for the current production launch period.
+- No changes were made to the existing Final Lesson calculation, opening-time logic, eligibility logic or email audit protection.
+
+### Validation
+- Re-enrolment Opening Cron wrapper: PASS
+- Next.js production build: PASS
+- Vercel Cron configuration: PASS
+- Existing Re-enrolment Opening business logic preserved: PASS
+- Real email sending was not manually triggered during holiday / pre-Term 4 validation.
+
+### Frozen Baseline
+The existing Re-enrolment Opening business logic remains the baseline. Future changes should be additive and should not modify the established Final Lesson + 1 day calculation, 08:00 Brisbane opening rule, eligibility rules or email audit protection without an explicit confirmed requirement.
+
 ## 2026-10-04 — PASS: Re-enrolment Reminder / Vercel Cron
 
 ### Scheduler
