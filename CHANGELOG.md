@@ -39,6 +39,8 @@ All notable changes to this project will be documented in this file.
 - Production build verified successfully with `npm run build`.
 - No business logic, authentication logic, attendance rules, or frozen modules changed.
 
+- Removed the default Next.js `app/favicon.ico` so the MyCHESS/QCS branded favicon is used consistently.
+
 **Status: PASS / PRODUCTION BASELINE**
 
 ## 2026-10-05 — MyCHESS Portal & Authentication Experience — PASS
