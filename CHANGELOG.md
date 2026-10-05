@@ -208,7 +208,7 @@ All notable changes to this project will be documented in this file.
   - Host: `smtp.resend.com`
   - Port: `465`
   - Username: `resend`
-- Resend API Key configured securely as the SMTP password.
+  - SMTP credentials are securely managed through the authentication provider configuration.
 - Supabase default authentication email branding replaced by the MyCHESS branded template.
 
 #### 8. Branded Reset Password Email
