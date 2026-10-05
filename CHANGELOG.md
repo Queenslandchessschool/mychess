@@ -1,3 +1,27 @@
+## 2026-10-06 — PASS: Email Scheduler Production Deployment Fix
+
+### Email Scheduler
+- Completed the Production deployment fix for the Email Scheduler GET wrappers.
+- Updated Class Reminder, Re-enrolment Opening and Re-enrolment Reminder scheduler wrappers to call the Production deployment URL through `VERCEL_PROJECT_PRODUCTION_URL`.
+- Preserved the existing business POST routes and frozen email business logic.
+- Resolved the Production Cron self-call path that could be blocked by Vercel Deployment Protection on generated deployment URLs.
+
+### Production URL Audit
+- Updated the Class Reminder Parent Portal link to `https://mychess.queenslandchessschool.com.au/parent/reenrolment`.
+- Confirmed the Production MyCHESS domain is used for the Re-enrolment Portal CTA.
+- No test recipient, test bypass or temporary email logic remains in the Production code.
+
+### Validation
+- Class Reminder scheduler wrapper: PASS
+- Re-enrolment Opening scheduler wrapper: PASS
+- Re-enrolment Reminder scheduler wrapper: PASS
+- Email sending chain: PASS
+- Production URL correction: PASS
+- Build validation: PASS
+
+### Frozen Baseline
+The existing email business routes, recipient logic, timing rules, template rendering and audit logic remain unchanged. The scheduler changes are limited to the Production execution path and URL correction. Future changes should not modify the frozen email business logic without an explicit requirement.
+
 # MyChess Changelog
 
 All notable changes to this project will be documented in this file.

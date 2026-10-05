@@ -10,8 +10,23 @@ export async function GET(request: Request) {
     );
   }
 
+  const productionUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+
+  if (!productionUrl) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "VERCEL_PROJECT_PRODUCTION_URL is not configured",
+      },
+      { status: 500 }
+    );
+  }
+
   const response = await fetch(
-    new URL("/api/cron/email/reenrolment-reminder", request.url),
+    new URL(
+      "/api/cron/email/reenrolment-reminder",
+      `https://${productionUrl}`
+    ),
     {
       method: "POST",
       headers: {

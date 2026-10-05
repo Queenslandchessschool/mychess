@@ -7,7 +7,7 @@ import { logEmailAudit } from "@/lib/email/emailAudit";
 
 const BUSINESS_EVENT = "CLASS_REMINDER";
 const PORTAL_LINK =
-  "https://queenslandchessschool.com.au/parent/reenrolment";
+  "https://mychess.queenslandchessschool.com.au/parent/reenrolment";
 
 type Student = {
   first_name: string | null;
