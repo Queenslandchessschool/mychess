@@ -58,7 +58,7 @@ export default function LoginPage() {
     } else if (currentUser.role === "coach") {
       router.push("/coach/dashboard");
     } else if (currentUser.role === "parent") {
-      router.push("/parent/family");
+      router.push("/parent/dashboard");
     } else {
       await supabase.auth.signOut();
 

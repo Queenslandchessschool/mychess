@@ -29,6 +29,39 @@ All notable changes to this project will be documented in this file.
 - Existing PASS / FROZEN modules must not be redesigned.
 - Remaining work is limited to launch integration, verification, deployment and confirmed bugs.
 
+## 2026-10-05 — Parent Dashboard & Login Routing — PASS
+
+### Completed / PASS
+
+#### 1. Parent Dashboard — `/parent/dashboard`
+- Completed the Parent Portal Dashboard using the established MyCHESS / Queensland Chess School visual system.
+- Added dynamic Current Term date handling based on Brisbane date and the Academic Calendar.
+- Current Term is determined as:
+  - the active term when today falls within a term;
+  - otherwise, the next future term during a gap between terms.
+- Current Term family date range is based on actual enrolment information.
+- Latest target-term enrolment takes priority when a student changes class.
+- Previous-term class information is used as the fallback when a student has not yet enrolled in the target term.
+- Upcoming Lessons now display future lessons only.
+- Past lesson dates are automatically excluded.
+- Upcoming Lessons are no longer limited to four lessons.
+- Future active enrolment lessons are displayed across the relevant enrolment periods.
+- Preserved the established mobile-first MyCHESS UI / VI.
+- No frozen business rules or core enrolment / attendance logic were changed.
+
+#### 2. Parent Login Routing
+- Updated successful Parent login routing from `/parent/family` to `/parent/dashboard`.
+- Preserved existing Supabase authentication and role-based access logic.
+- Admin and Coach login routing remain unchanged.
+
+#### 3. Verification
+- `npm run build` — PASS.
+- Parent Dashboard build verification completed successfully.
+- Parent Dashboard and authentication routing are ready for production smoke / E2E verification.
+
+### Status
+**PASS / PRODUCTION CANDIDATE**
+
 
 ## 2026-10-05 — MyCHESS Production Domain & Browser Branding — PASS
 

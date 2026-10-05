@@ -5,44 +5,40 @@ import { supabase } from "@/lib/supabase";
 
 /**
  * ============================================================
- * MyCHESS — Parent Portal — Dashboard v1.0
+ * MyCHESS — Parent Portal — Dashboard
  * ============================================================
  *
- * Frozen architecture:
+ * Parent Dashboard rules:
  *
- * Authenticated Parent
- *        ↓
- * Parent Email
- *        ↓
- * Family ID
- *        ↓
- * Family Children
- *        ↓
- * Active Current-Term Enrolment
- *        ↓
- * Current Class
- *        ↓
- * class_schedule
+ * 1. Academic Calendar determines which Term the Dashboard
+ *    should currently display.
  *
- * IMPORTANT:
- * - Academic Calendar determines the current Year / Term only.
- * - Family displayed Start / End dates come from the actual
- *   class schedules of all current-term children.
- * - Family Start = earliest First Lesson.
- * - Family End   = latest Final Lesson.
+ * 2. If today is inside a configured Term:
+ *      → display that Term.
  *
- * Child label rule:
- * - One child  → do NOT display "Child 1"
- * - 2+ children → display "Child 1", "Child 2", etc.
+ * 3. If there is a gap between Terms:
+ *      → display the next Term.
  *
- * Upcoming lesson rule:
- * - Each child is calculated independently.
- * - Uses actual class_schedule first_lesson / final_lesson.
- * - Lessons repeat weekly.
- * - Does NOT use School Week.
+ * 4. Current Term family dates:
+ *      → use current-term Active Enrolment schedule first.
+ *      → if the child has not enrolled in the target Term,
+ *        use the previous Term class and find that class's
+ *        schedule in the target Term.
  *
- * Time / date interpretation:
- * - Australia/Brisbane
+ * 5. Upcoming Lessons:
+ *      → only actual Active Enrolments.
+ *      → all future enrolled lessons are displayed.
+ *
+ * 6. Class schedule dates are always sourced from:
+ *      class_schedule.first_lesson
+ *      class_schedule.final_lesson
+ *
+ * 7. Business timezone:
+ *      Australia/Brisbane
+ *
+ * 8. Mobile first.
+ * 9. No horizontal scrolling.
+ * 10. Upcoming Lessons uses vertical scrolling.
  *
  * ============================================================
  */
@@ -68,6 +64,7 @@ type Enrollment = {
   academic_year: number | string | null;
   term: number | string | null;
   status: string | null;
+  created_at: string | null;
 };
 
 type ClassInfo = {
@@ -98,20 +95,23 @@ type ClassSchedule = {
 
 type FamilyChild = {
   student: Student;
-  enrollment: Enrollment | null;
-  classInfo: ClassInfo | null;
-  schedule: ClassSchedule | null;
+  currentEnrollment: Enrollment | null;
+  currentClassInfo: ClassInfo | null;
+  currentSchedule: ClassSchedule | null;
 };
 
 type UpcomingLesson = {
   id: string;
   studentId: string;
+  academicYear: number;
+  term: number;
   lessonDate: string;
   startTime: string;
   endTime: string;
   campus: string;
   level: string;
   suffix: string;
+  weekday: string;
 };
 
 type ChildUpcoming = {
@@ -121,10 +121,12 @@ type ChildUpcoming = {
 
 export default function ParentDashboard() {
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] =
+    useState<string | null>(null);
 
-  const [parentEmail, setParentEmail] = useState("");
-  const [parentName, setParentName] = useState("");
+  const [parentName, setParentName] =
+    useState("");
+
   const [currentTerm, setCurrentTerm] =
     useState<AcademicCalendar | null>(null);
 
@@ -146,9 +148,10 @@ export default function ParentDashboard() {
 
   /**
    * ==========================================================
-   * Load Parent Dashboard
+   * LOAD DASHBOARD
    * ==========================================================
    */
+
   async function loadDashboard() {
     setLoading(true);
     setError(null);
@@ -184,81 +187,25 @@ export default function ParentDashboard() {
         );
       }
 
-      setParentEmail(email);
-
       /**
        * ------------------------------------------------------
-       * 2. Current Academic Term
-       *
-       * Academic Calendar determines:
-       * - Academic Year
-       * - Term
-       *
-       * It does NOT determine the Family displayed dates.
+       * 2. Parent / Family
        * ------------------------------------------------------
        */
 
-      const today = getBrisbaneToday();
-
       const {
-        data: calendarData,
-        error: calendarError,
+        data: parentRecords,
+        error: parentError,
       } = await supabase
-        .from("academic_calendar")
-        .select(`
-          academic_year,
-          term,
-          start_date,
-          end_date
-        `)
-        .lte("start_date", today)
-        .gte("end_date", today)
-        .order("academic_year", {
-          ascending: false,
-        })
-        .order("term", {
-          ascending: false,
-        })
-        .limit(1)
-        .maybeSingle();
-
-      if (calendarError) {
-        throw calendarError;
-      }
-
-      if (!calendarData) {
-        setCurrentTerm(null);
-        setFamilyChildren([]);
-        setUpcomingByChild([]);
-        setFamilyStartDate(null);
-        setFamilyEndDate(null);
-        return;
-      }
-
-      const termData =
-        calendarData as AcademicCalendar;
-
-      setCurrentTerm(termData);
-
-      /**
-       * ------------------------------------------------------
-       * 3. Resolve Family
-       *
-       * Same Family Scope architecture as MyFAMILY.
-       * ------------------------------------------------------
-       */
-
-      const {
-  data: parentRecords,
-  error: parentError,
-} = await supabase
-  .from("parents")
-  .select(`
-    family_id,
-    student_id,
-    parent1_name
-  `)
-  .ilike("email", email);
+        .from("parents")
+        .select(
+          `
+            family_id,
+            student_id,
+            parent1_name
+          `
+        )
+        .ilike("email", email);
 
       if (parentError) {
         throw parentError;
@@ -273,18 +220,17 @@ export default function ParentDashboard() {
         );
       }
 
-      const parentRecord = parentRecords.find(
-  (row) => row.family_id
-);
-
-setParentName(
-  parentRecord?.parent1_name?.trim() ?? ""
-);
-
-      const familyId =
+      const parentRecord =
         parentRecords.find(
           (row) => row.family_id
-        )?.family_id ?? null;
+        );
+
+      setParentName(
+        parentRecord?.parent1_name?.trim() ?? ""
+      );
+
+      const familyId =
+        parentRecord?.family_id ?? null;
 
       if (!familyId) {
         throw new Error(
@@ -294,7 +240,7 @@ setParentName(
 
       /**
        * ------------------------------------------------------
-       * 4. Family Children
+       * 3. Family Children
        * ------------------------------------------------------
        */
 
@@ -303,37 +249,33 @@ setParentName(
         error: familyError,
       } = await supabase
         .from("parents")
-        .select(`
-          student_id
-        `)
+        .select("student_id")
         .eq("family_id", familyId);
 
       if (familyError) {
         throw familyError;
       }
 
-      const studentIds =
-        Array.from(
-          new Set(
-            (familyParents ?? [])
-              .map(
-                (row) => row.student_id
-              )
-              .filter(Boolean)
-          )
-        );
+      const studentIds = Array.from(
+        new Set(
+          (familyParents ?? [])
+            .map((row) => row.student_id)
+            .filter(Boolean)
+        )
+      );
 
       if (studentIds.length === 0) {
+        setCurrentTerm(null);
         setFamilyChildren([]);
-        setUpcomingByChild([]);
         setFamilyStartDate(null);
         setFamilyEndDate(null);
+        setUpcomingByChild([]);
         return;
       }
 
       /**
        * ------------------------------------------------------
-       * 5. Student Master
+       * 4. Student Master
        * ------------------------------------------------------
        */
 
@@ -342,12 +284,14 @@ setParentName(
         error: studentError,
       } = await supabase
         .from("students")
-        .select(`
-          id,
-          first_name,
-          preferred_name,
-          last_name
-        `)
+        .select(
+          `
+            id,
+            first_name,
+            preferred_name,
+            last_name
+          `
+        )
         .in("id", studentIds)
         .order("student_code");
 
@@ -360,10 +304,83 @@ setParentName(
 
       /**
        * ------------------------------------------------------
-       * 6. Current-Term Active Enrolment
+       * 5. Academic Calendar
        *
-       * Important:
-       * We only use the current Academic Year / Term.
+       * Determine the Dashboard target Term:
+       *
+       * A. Today inside a Term
+       *    → that Term
+       *
+       * B. Between Terms
+       *    → next Term
+       *
+       * This prevents the Dashboard from showing the previous
+       * Term during a school holiday gap.
+       * ------------------------------------------------------
+       */
+
+      const today =
+        getBrisbaneToday();
+
+      const {
+        data: calendarData,
+        error: calendarError,
+      } = await supabase
+        .from("academic_calendar")
+        .select(
+          `
+            academic_year,
+            term,
+            start_date,
+            end_date
+          `
+        )
+        .order("academic_year", {
+          ascending: true,
+        })
+        .order("term", {
+          ascending: true,
+        });
+
+      if (calendarError) {
+        throw calendarError;
+      }
+
+      const calendars =
+        (calendarData ?? []) as AcademicCalendar[];
+
+      const targetTermIndex =
+        resolveTargetTermIndex(
+          calendars,
+          today
+        );
+
+      const targetTerm =
+        targetTermIndex >= 0
+          ? calendars[targetTermIndex]
+          : null;
+
+      const previousTerm =
+        targetTermIndex > 0
+          ? calendars[targetTermIndex - 1]
+          : null;
+
+      setCurrentTerm(targetTerm);
+
+      /**
+       * ------------------------------------------------------
+       * 6. ALL Family Enrolments
+       *
+       * We intentionally load historical enrolments as well.
+       *
+       * Why?
+       *
+       * If a child has NOT enrolled in the target Term,
+       * we need the previous Term's class so that we can find
+       * the corresponding target-Term class schedule.
+       *
+       * Active enrolments are separately used for actual
+       * Upcoming Lessons.
        * ------------------------------------------------------
        */
 
@@ -372,44 +389,91 @@ setParentName(
         error: enrollmentError,
       } = await supabase
         .from("student_enrolments")
-        .select(`
-          id,
-          student_id,
-          class_id,
-          academic_year,
-          term,
-          status
-        `)
+        .select(
+          `
+            id,
+            student_id,
+            class_id,
+            academic_year,
+            term,
+            status,
+            created_at
+          `
+        )
         .in("student_id", studentIds)
-        .eq("academic_year", termData.academic_year)
-        .eq("term", termData.term)
-        .eq("status", "Active");
+        .order("created_at", {
+          ascending: false,
+        });
 
       if (enrollmentError) {
         throw enrollmentError;
       }
 
-      const enrollments =
+      const allEnrollments =
         (enrollmentData ?? []) as Enrollment[];
+
+      const activeEnrollments =
+        allEnrollments.filter(
+          (item) =>
+            item.status === "Active"
+        );
 
       /**
        * ------------------------------------------------------
-       * 7. Current Classes
+       * 7. Class IDs
+       *
+       * Include:
+       * - all Active Enrolment classes
+       * - target-term selected classes
+       * - previous-term fallback classes
        * ------------------------------------------------------
        */
 
-      const classIds =
-        Array.from(
-          new Set(
-            enrollments
-              .map(
-                (item) => item.class_id
-              )
-              .filter(Boolean)
-          )
-        ) as string[];
+      const targetActiveEnrollments =
+        targetTerm
+          ? activeEnrollments.filter(
+              (item) =>
+                Number(item.academic_year) ===
+                  targetTerm.academic_year &&
+                Number(item.term) ===
+                  targetTerm.term
+            )
+          : [];
 
-      let classMap =
+      const previousEnrollments =
+        targetTerm && previousTerm
+          ? allEnrollments.filter(
+              (item) =>
+                Number(item.academic_year) ===
+                  previousTerm.academic_year &&
+                Number(item.term) ===
+                  previousTerm.term
+            )
+          : [];
+
+      const classIds = Array.from(
+        new Set(
+          [
+            ...activeEnrollments.map(
+              (item) => item.class_id
+            ),
+            ...targetActiveEnrollments.map(
+              (item) => item.class_id
+            ),
+            ...previousEnrollments.map(
+              (item) => item.class_id
+            ),
+          ].filter(Boolean)
+        )
+      ) as string[];
+
+      /**
+       * ------------------------------------------------------
+       * 8. Classes
+       * ------------------------------------------------------
+       */
+
+      const classMap =
         new Map<string, ClassInfo>();
 
       if (classIds.length > 0) {
@@ -418,17 +482,19 @@ setParentName(
           error: classError,
         } = await supabase
           .from("classes")
-          .select(`
-            id,
-            day,
-            start_time,
-            end_time,
-            level,
-            class_suffix,
-            campus:campuses(
-              campus_code
-            )
-          `)
+          .select(
+            `
+              id,
+              day,
+              start_time,
+              end_time,
+              level,
+              class_suffix,
+              campus:campuses(
+                campus_code
+              )
+            `
+          )
           .in("id", classIds);
 
         if (classError) {
@@ -445,18 +511,17 @@ setParentName(
 
       /**
        * ------------------------------------------------------
-       * 8. Actual Class Schedules
+       * 9. Class Schedules
        *
-       * THIS is the source for:
-       * - Family Start
-       * - Family End
-       * - Upcoming Lessons
+       * We load schedules for all relevant classes and terms.
        *
-       * NOT academic_calendar.start_date/end_date.
+       * Schedule is the authoritative source for:
+       * - first_lesson
+       * - final_lesson
        * ------------------------------------------------------
        */
 
-      let scheduleMap =
+      const scheduleMap =
         new Map<string, ClassSchedule>();
 
       if (classIds.length > 0) {
@@ -465,66 +530,142 @@ setParentName(
           error: scheduleError,
         } = await supabase
           .from("class_schedule")
-          .select(`
-            id,
-            class_id,
-            academic_year,
-            term,
-            first_lesson,
-            final_lesson
-          `)
-          .in("class_id", classIds)
-          .eq(
-            "academic_year",
-            termData.academic_year
+          .select(
+            `
+              id,
+              class_id,
+              academic_year,
+              term,
+              first_lesson,
+              final_lesson
+            `
           )
-          .eq("term", termData.term);
+          .in("class_id", classIds);
 
         if (scheduleError) {
           throw scheduleError;
         }
 
         for (const item of scheduleData ?? []) {
+          const schedule =
+            item as ClassSchedule;
+
           scheduleMap.set(
-            item.class_id,
-            item as ClassSchedule
+            buildScheduleKey(
+              schedule.class_id,
+              schedule.academic_year,
+              schedule.term
+            ),
+            schedule
           );
         }
       }
 
       /**
        * ------------------------------------------------------
-       * 9. Build Family View
+       * 10. Resolve Current Dashboard Class / Schedule
+       *
+       * Priority:
+       *
+       * 1. Target Term Active Enrolment
+       * 2. Previous Term Enrolment's Class
+       *    → target Term schedule
+       *
+       * This is ONLY for the Current Term card.
+       *
+       * It does NOT create Upcoming Lessons for an
+       * unregistered child.
        * ------------------------------------------------------
        */
 
       const result: FamilyChild[] =
         students.map((student) => {
-          const enrollment =
-            enrollments.find(
-              (item) =>
-                item.student_id === student.id
-            ) ?? null;
-
-          const classInfo =
-            enrollment?.class_id
-              ? classMap.get(
-                  enrollment.class_id
-                ) ?? null
+          const targetEnrollment =
+            targetTerm
+              ? getLatestEnrollment(
+                  targetActiveEnrollments,
+                  student.id,
+                  targetTerm
+                )
               : null;
 
-          const schedule =
-            enrollment?.class_id
-              ? scheduleMap.get(
-                  enrollment.class_id
-                ) ?? null
-              : null;
+          let currentEnrollment =
+            targetEnrollment;
+
+          let currentClassInfo:
+            | ClassInfo
+            | null = null;
+
+          let currentSchedule:
+            | ClassSchedule
+            | null = null;
+
+          if (
+            targetEnrollment?.class_id &&
+            targetTerm
+          ) {
+            currentClassInfo =
+              classMap.get(
+                targetEnrollment.class_id
+              ) ?? null;
+
+            currentSchedule =
+              scheduleMap.get(
+                buildScheduleKey(
+                  targetEnrollment.class_id,
+                  targetTerm.academic_year,
+                  targetTerm.term
+                )
+              ) ?? null;
+          }
+
+          /**
+           * No target-term enrolment:
+           *
+           * Find the latest previous-term enrolment
+           * for this child.
+           */
+
+          if (
+            !currentEnrollment &&
+            previousTerm
+          ) {
+            const previousEnrollment =
+              getLatestEnrollment(
+                previousEnrollments,
+                student.id,
+                previousTerm
+              );
+
+            if (
+              previousEnrollment?.class_id &&
+              targetTerm
+            ) {
+              currentEnrollment =
+                previousEnrollment;
+
+              currentClassInfo =
+                classMap.get(
+                  previousEnrollment.class_id
+                ) ?? null;
+
+              currentSchedule =
+                scheduleMap.get(
+                  buildScheduleKey(
+                    previousEnrollment.class_id,
+                    targetTerm.academic_year,
+                    targetTerm.term
+                  )
+                ) ?? null;
+            }
+          }
 
           return {
             student,
-            enrollment,
-            classInfo,
-            schedule,
+            currentEnrollment:
+              targetEnrollment,
+            currentClassInfo,
+            currentSchedule,
           };
         });
 
@@ -532,17 +673,23 @@ setParentName(
 
       /**
        * ------------------------------------------------------
-       * 10. Family Start / End
+       * 11. Current Term Family Course Range
        *
-       * Earliest actual First Lesson
-       * +
-       * Latest actual Final Lesson
+       * IMPORTANT:
+       *
+       * Dates come from the actual target-term class
+       * schedules resolved above.
+       *
+       * This prevents mixing Term 3 and Term 4 dates.
        * ------------------------------------------------------
        */
 
-      const validSchedules =
+      const currentSchedules =
         result
-          .map((item) => item.schedule)
+          .map(
+            (item) =>
+              item.currentSchedule
+          )
           .filter(
             (
               item
@@ -551,25 +698,25 @@ setParentName(
               !!item?.final_lesson
           );
 
-      if (validSchedules.length > 0) {
+      if (currentSchedules.length > 0) {
         const starts =
-          validSchedules.map(
+          currentSchedules.map(
             (item) =>
               item.first_lesson as string
           );
 
         const ends =
-          validSchedules.map(
+          currentSchedules.map(
             (item) =>
               item.final_lesson as string
           );
 
         setFamilyStartDate(
-          starts.sort()[0] ?? null
+          [...starts].sort()[0] ?? null
         );
 
         setFamilyEndDate(
-          ends.sort().at(-1) ?? null
+          [...ends].sort().at(-1) ?? null
         );
       } else {
         setFamilyStartDate(null);
@@ -578,107 +725,261 @@ setParentName(
 
       /**
        * ------------------------------------------------------
-       * 11. Upcoming Lessons
+       * 12. UPCOMING LESSONS
        *
-       * Calculate independently for every child.
+       * Actual Active Enrolments only.
+       *
+       * Every future enrolled class schedule is included.
+       *
+       * There is NO 2-lesson or 4-lesson limit.
        * ------------------------------------------------------
        */
 
-      const upcomingGroups: ChildUpcoming[] =
-        result.map((child) => {
-          const schedule =
-            child.schedule;
+      const latestActiveByStudentTerm =
+        new Map<string, Enrollment>();
 
-          const classInfo =
-            child.classInfo;
+      for (const enrollment of activeEnrollments) {
+        if (
+          enrollment.academic_year == null ||
+          enrollment.term == null
+        ) {
+          continue;
+        }
 
-          if (
-            !schedule?.first_lesson ||
-            !schedule?.final_lesson ||
-            !classInfo
-          ) {
-            return {
-              child,
-              lessons: [],
-            };
-          }
+        const key =
+          `${enrollment.student_id}|` +
+          `${enrollment.academic_year}|` +
+          `${enrollment.term}`;
 
-          const firstDate =
-            parseLocalDate(
-              schedule.first_lesson
-            );
+        const existing =
+          latestActiveByStudentTerm.get(key);
 
-          const finalDate =
-            parseLocalDate(
-              schedule.final_lesson
-            );
+        if (
+          !existing ||
+          compareCreatedAt(
+            enrollment.created_at,
+            existing.created_at
+          ) > 0
+        ) {
+          latestActiveByStudentTerm.set(
+            key,
+            enrollment
+          );
+        }
+      }
 
-          let nextDate =
-            new Date(firstDate);
+      const lessonsByStudent =
+        new Map<
+          string,
+          UpcomingLesson[]
+        >();
 
-          const todayDate =
-            parseLocalDate(today);
+      for (
+        const enrollment of
+        latestActiveByStudentTerm.values()
+      ) {
+        if (
+          !enrollment.class_id ||
+          enrollment.academic_year == null ||
+          enrollment.term == null
+        ) {
+          continue;
+        }
 
-          while (
-            nextDate < todayDate &&
-            nextDate <= finalDate
-          ) {
-            nextDate = new Date(nextDate);
-            nextDate.setDate(
-              nextDate.getDate() + 7
-            );
-          }
-
-          const lessons: UpcomingLesson[] = [];
-
-          for (
-            let date = new Date(nextDate);
-            date <= finalDate &&
-            lessons.length < 4;
-            date.setDate(
-              date.getDate() + 7
+        const schedule =
+          scheduleMap.get(
+            buildScheduleKey(
+              enrollment.class_id,
+              enrollment.academic_year,
+              enrollment.term
             )
-          ) {
-            const campusValue: any =
-              classInfo.campus;
+          );
 
-            const campus =
-              Array.isArray(campusValue)
-                ? campusValue[0]
-                    ?.campus_code ?? ""
-                : campusValue?.campus_code ??
-                  "";
+        const classInfo =
+          classMap.get(
+            enrollment.class_id
+          );
 
-            lessons.push({
-              id: `${schedule.id}-${formatISODate(
-                date
-              )}`,
-              studentId:
-                child.student.id,
-              lessonDate:
-                formatISODate(date),
-              startTime:
-                formatTime(
-                  classInfo.start_time
-                ),
-              endTime:
-                formatTime(
-                  classInfo.end_time
-                ),
-              campus,
-              level:
-                classInfo.level ?? "",
-              suffix:
-                classInfo.class_suffix?.trim() ??
-                "",
-            });
-          }
+        if (
+          !schedule?.first_lesson ||
+          !schedule?.final_lesson ||
+          !classInfo
+        ) {
+          continue;
+        }
 
-          return {
-            child,
-            lessons,
-          };
-        });
+        const firstDate =
+          parseLocalDate(
+            schedule.first_lesson
+          );
+
+        const finalDate =
+          parseLocalDate(
+            schedule.final_lesson
+          );
+
+        const todayDate =
+          parseLocalDate(today);
+
+        let nextDate =
+          new Date(firstDate);
+
+        /**
+         * Keep today's lesson.
+         * Skip only dates strictly before today.
+         */
+        while (
+          nextDate < todayDate &&
+          nextDate <= finalDate
+        ) {
+          nextDate = new Date(nextDate);
+
+          nextDate.setDate(
+            nextDate.getDate() + 7
+          );
+        }
+
+        if (
+          nextDate > finalDate
+        ) {
+          continue;
+        }
+
+        const campusValue: any =
+          classInfo.campus;
+
+        const campus =
+          Array.isArray(campusValue)
+            ? campusValue[0]
+                ?.campus_code ?? ""
+            : campusValue?.campus_code ??
+              "";
+
+        const lessons =
+          lessonsByStudent.get(
+            enrollment.student_id
+          ) ?? [];
+
+        for (
+          let date =
+            new Date(nextDate);
+          date <= finalDate;
+          date.setDate(
+            date.getDate() + 7
+          )
+        ) {
+          lessons.push({
+            id:
+              `${schedule.id}-` +
+              `${formatISODate(date)}`,
+            studentId:
+              enrollment.student_id,
+            academicYear:
+              Number(
+                enrollment.academic_year
+              ),
+            term:
+              Number(
+                enrollment.term
+              ),
+            lessonDate:
+              formatISODate(date),
+            startTime:
+              formatTime(
+                classInfo.start_time
+              ),
+            endTime:
+              formatTime(
+                classInfo.end_time
+              ),
+            campus,
+            level:
+              classInfo.level ?? "",
+            suffix:
+              classInfo.class_suffix?.trim() ??
+              "",
+            weekday:
+              formatWeekday(date),
+          });
+        }
+
+        lessonsByStudent.set(
+          enrollment.student_id,
+          lessons
+        );
+      }
+
+      /**
+       * ------------------------------------------------------
+       * 13. Build Upcoming Groups
+       * ------------------------------------------------------
+       */
+
+      const upcomingGroups =
+        students
+          .map((student) => {
+            const lessons =
+              (
+                lessonsByStudent.get(
+                  student.id
+                ) ?? []
+              ).sort((a, b) => {
+                if (
+                  a.lessonDate !==
+                  b.lessonDate
+                ) {
+                  return a.lessonDate.localeCompare(
+                    b.lessonDate
+                  );
+                }
+
+                return a.startTime.localeCompare(
+                  b.startTime
+                );
+              });
+
+            const familyChild =
+              result.find(
+                (item) =>
+                  item.student.id ===
+                  student.id
+              );
+
+            if (!familyChild) {
+              return null;
+            }
+
+            return {
+              child: familyChild,
+              lessons,
+            };
+          })
+          .filter(
+            (
+              item
+            ): item is ChildUpcoming =>
+              !!item &&
+              item.lessons.length > 0
+          );
+
+      /**
+       * Sort children by their first upcoming lesson.
+       */
+      upcomingGroups.sort(
+        (a, b) => {
+          const aDate =
+            a.lessons[0]?.lessonDate ??
+            "9999-12-31";
+
+          const bDate =
+            b.lessons[0]?.lessonDate ??
+            "9999-12-31";
+
+          return (
+            aDate.localeCompare(bDate)
+          );
+        }
+      );
 
       setUpcomingByChild(
         upcomingGroups
@@ -691,7 +992,7 @@ setParentName(
 
       setError(
         loadError?.message ??
-          "Unable to load the Parent Dashboard."
+          "Unable to load your Parent Dashboard."
       );
     } finally {
       setLoading(false);
@@ -700,40 +1001,67 @@ setParentName(
 
   /**
    * ==========================================================
-   * Error
+   * LOADING
+   * ==========================================================
+   */
+
+  if (loading) {
+    return (
+      <main className="min-h-screen w-full overflow-x-hidden text-[#10213A]">
+        <div className="mx-auto w-full max-w-[1500px] px-4 py-8 sm:px-6 lg:px-8">
+          <section className="overflow-hidden rounded-2xl border border-[#D4AF37]/35 bg-[#152F50]">
+            <div className="h-[3px] bg-gradient-to-r from-[#D4AF37] via-[#D4AF37]/55 to-transparent" />
+
+            <div className="p-6 sm:p-8">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#D4AF37]">
+                MYCHESS
+              </p>
+
+              <p className="mt-3 text-sm text-[#C8D2DF]">
+                Loading your dashboard…
+              </p>
+            </div>
+          </section>
+        </div>
+      </main>
+    );
+  }
+
+  /**
+   * ==========================================================
+   * ERROR
    * ==========================================================
    */
 
   if (error) {
     return (
-      <main className="min-h-screen text-[#10213A]">
+      <main className="min-h-screen w-full overflow-x-hidden text-[#10213A]">
         <div className="mx-auto w-full max-w-[1500px] px-4 py-8 sm:px-6 lg:px-8">
-          <div
-            className="
-              overflow-hidden
-              rounded-2xl
-              border
-              border-red-300/30
-              bg-[#152F50]
-              shadow-xl
-            "
-          >
-            <div className="h-[4px] bg-red-400/70" />
+          <section className="overflow-hidden rounded-2xl border border-[#D4AF37]/35 bg-[#152F50]">
+            <div className="h-[3px] bg-gradient-to-r from-[#D4AF37] via-[#D4AF37]/55 to-transparent" />
 
             <div className="p-6 sm:p-8">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-red-300">
-                PARENT PORTAL
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#D4AF37]">
+                MYCHESS
               </p>
 
               <h1 className="mt-3 text-2xl font-semibold text-[#F4F7FB]">
-                Unable to load Dashboard
+                Unable to load your dashboard
               </h1>
 
               <p className="mt-2 text-sm leading-6 text-[#C8D2DF]">
                 {error}
               </p>
+
+              <button
+                type="button"
+                onClick={loadDashboard}
+                className="mt-6 inline-flex min-h-11 items-center justify-center rounded-xl border border-[#D4AF37] bg-[#D4AF37] px-5 py-2.5 text-sm font-semibold text-[#011029] transition hover:bg-[#E2C35B] focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/50"
+              >
+                Try Again
+              </button>
             </div>
-          </div>
+          </section>
         </div>
       </main>
     );
@@ -745,149 +1073,63 @@ setParentName(
   const hasMultipleChildren =
     childCount > 1;
 
+  const hasActiveEnrolment =
+    upcomingByChild.length > 0;
+
   /**
    * ==========================================================
-   * Dashboard
+   * DASHBOARD
    * ==========================================================
    */
 
   return (
-    <main className="min-h-screen text-[#10213A]">
-      <div
-        className="
-          mx-auto
-          w-full
-          max-w-[1500px]
-          px-4
-          py-8
-          sm:px-6
-          lg:px-8
-        "
-      >
-        {/* ==================================================
-            HEADER
-        ================================================== */}
+    <main className="min-h-screen w-full overflow-x-hidden text-[#10213A]">
+      <div className="mx-auto w-full max-w-[1500px] min-w-0 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
 
-        <section className="mb-8">
-          <h1
-            className="
-              text-3xl
-              font-bold
-              tracking-tight
-              text-[#F4F7FB]
-              sm:text-4xl
-            "
-          >
-            Welcome back{parentName ? `, ${parentName}` : ""}!
+        {/* ====================================================
+            HEADER
+        ==================================================== */}
+
+        <section className="mb-6 min-w-0 sm:mb-8">
+          <h1 className="break-words text-3xl font-bold tracking-tight text-[#F4F7FB] sm:text-4xl">
+            Welcome back
+            {parentName
+              ? `, ${parentName}`
+              : ""}
+            !
           </h1>
 
-          <p
-            className="
-              mt-2
-              text-sm
-              text-[#C8D2DF]
-              sm:text-base
-            "
-          >
-            Parent Portal
-          </p>
-
-          <div
-            className="
-              mt-5
-              h-[2px]
-              w-24
-              bg-gradient-to-r
-              from-[#D4AF37]
-              via-[#D4AF37]/60
-              to-transparent
-            "
-          />
-
-          {parentEmail && (
-            <p className="mt-4 text-xs text-[#64748B]">
-              Signed in as {parentEmail}
-            </p>
-          )}
-        </section>
-
-        {/* ==================================================
-            CURRENT TERM
-        ================================================== */}
-
-        <section
-          className="
-            relative
-            overflow-hidden
-            rounded-2xl
-            border
-            border-[#D4AF37]/35
-            bg-[#152F50]
-            shadow-xl
-          "
-        >
           <div
             aria-hidden="true"
-            className="
-              absolute
-              left-0
-              right-0
-              top-0
-              h-[3px]
-              bg-gradient-to-r
-              from-[#D4AF37]
-              via-[#D4AF37]/55
-              to-transparent
-            "
+            className="mt-5 h-[2px] w-24 bg-gradient-to-r from-[#D4AF37] via-[#D4AF37]/60 to-transparent"
+          />
+        </section>
+
+        {/* ====================================================
+            CURRENT TERM
+        ==================================================== */}
+
+        <section className="relative min-w-0 overflow-hidden rounded-2xl border border-[#D4AF37]/35 bg-[#152F50]">
+          <div
+            aria-hidden="true"
+            className="absolute left-0 right-0 top-0 h-[3px] bg-gradient-to-r from-[#D4AF37] via-[#D4AF37]/55 to-transparent"
           />
 
-          <div className="p-6 sm:p-7">
-            <p
-              className="
-                text-xs
-                font-semibold
-                uppercase
-                tracking-[0.24em]
-                text-[#D4AF37]
-              "
-            >
+          <div className="min-w-0 p-5 sm:p-7">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#D4AF37]">
               CURRENT TERM
             </p>
 
-            <div
-              className="
-                mt-3
-                flex
-                flex-col
-                gap-2
-                sm:flex-row
-                sm:items-end
-                sm:justify-between
-              "
-            >
-              <p
-                className="
-                  text-2xl
-                  font-semibold
-                  text-[#F4F7FB]
-                  sm:text-3xl
-                "
-              >
+            <div className="mt-3 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <p className="break-words text-2xl font-semibold text-[#F4F7FB] sm:text-3xl">
                 {currentTerm
                   ? `${currentTerm.academic_year} · Term ${currentTerm.term}`
-                  : "No current term"}
+                  : "No upcoming term"}
               </p>
 
               {familyStartDate &&
                 familyEndDate && (
-                  <p
-                    className="
-                      text-sm
-                      font-medium
-                      text-[#C8D2DF]
-                      sm:text-right
-                    "
-                  >
+                  <p className="break-words text-sm font-medium text-[#C8D2DF] sm:text-right">
                     {formatDisplayDate(
                       familyStartDate
                     )}{" "}
@@ -898,331 +1140,290 @@ setParentName(
                   </p>
                 )}
             </div>
+
+            {!familyStartDate &&
+              !familyEndDate &&
+              currentTerm && (
+                <p className="mt-2 text-sm text-[#8FA3B8]">
+                  No course schedule is currently available for this family.
+                </p>
+              )}
           </div>
         </section>
 
-        {/* ==================================================
+        {/* ====================================================
             UPCOMING LESSONS
-        ================================================== */}
+        ==================================================== */}
 
-        <section
-          className="
-            relative
-            mt-7
-            overflow-hidden
-            rounded-2xl
-            border
-            border-[#D4AF37]/35
-            bg-[#152F50]
-            shadow-xl
-          "
-        >
+        <section className="relative mt-6 min-w-0 overflow-hidden rounded-2xl border border-[#D4AF37]/35 bg-[#152F50] sm:mt-7">
           <div
             aria-hidden="true"
-            className="
-              absolute
-              left-0
-              right-0
-              top-0
-              h-[3px]
-              bg-gradient-to-r
-              from-[#D4AF37]
-              via-[#D4AF37]/55
-              to-transparent
-            "
+            className="absolute left-0 right-0 top-0 h-[3px] bg-gradient-to-r from-[#D4AF37] via-[#D4AF37]/55 to-transparent"
           />
 
-          <div
-            className="
-              border-b
-              border-[#D9E3ED]/15
-              px-6
-              py-5
-              sm:px-7
-            "
-          >
-            <p
-              className="
-                text-xs
-                font-semibold
-                uppercase
-                tracking-[0.24em]
-                text-[#D4AF37]
-              "
-            >
-              UPCOMING LESSONS
-            </p>
-          </div>
+          <div className="max-h-[60vh] min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain sm:max-h-[65vh] lg:max-h-[540px]">
 
-          {upcomingByChild.length === 0 ? (
-            <div className="px-6 py-8 text-sm text-[#C8D2DF]">
-              No children are currently enrolled
-              for this term.
+            {/* Sticky section header */}
+
+            <div className="sticky top-0 z-20 min-w-0 border-b border-[#D9E3ED]/15 bg-[#152F50] px-5 py-5 sm:px-7">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#D4AF37]">
+                UPCOMING LESSONS
+              </p>
             </div>
-          ) : (
-            <div>
-              {upcomingByChild.map(
-                (
-                  group,
-                  index
-                ) => {
-                  const studentName =
-                    getStudentDisplayName(
-                      group.child.student
-                    );
 
-                  const hasLessons =
-                    group.lessons.length >
-                    0;
+            {upcomingByChild.length === 0 ? (
+              <div className="px-5 py-8 sm:px-7">
+                {hasActiveEnrolment ? (
+                  <p className="text-sm text-[#C8D2DF]">
+                    No upcoming lessons.
+                  </p>
+                ) : (
+                  <p className="text-sm text-[#C8D2DF]">
+                    No active enrolments with future lessons.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="min-w-0">
 
-                  return (
-                    <div
-                      key={
-                        group.child.student.id
-                      }
-                      className="
-                        border-b
-                        border-[#D9E3ED]/15
-                        last:border-b-0
-                      "
-                    >
-                     {/* Child heading */}
+                {upcomingByChild.map(
+                  (group, index) => {
+                    const studentName =
+                      getStudentDisplayName(
+                        group.child.student
+                      );
 
-<div
-  className="
-    border-b
-    border-[#D9E3ED]/10
-    bg-[#102A49]
-    px-6
-    py-4
-    sm:px-7
-  "
->
-  <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-    <span
-      className="
-        text-xs
-        font-semibold
-        uppercase
-        tracking-[0.20em]
-        text-[#D4AF37]
-      "
-    >
-      {hasMultipleChildren
-        ? `CHILD ${index + 1}`
-        : "CHILD"}
-    </span>
+                    return (
+                      <div
+                        key={
+                          group.child.student.id
+                        }
+                        className="min-w-0 border-b border-[#D9E3ED]/15 last:border-b-0"
+                      >
 
-    <span
-      className="
-        text-lg
-        font-semibold
-        text-[#F4F7FB]
-      "
-    >
-      : {studentName || "Student"}
-    </span>
-  </div>
-</div>
+                        {/* Child header */}
 
-                      {!hasLessons ? (
-                        <div className="px-6 py-6 text-sm text-[#C8D2DF] sm:px-7">
-                          No upcoming lessons.
+                        <div className="min-w-0 border-b border-[#D9E3ED]/10 bg-[#102A49] px-5 py-4 sm:px-7">
+                          <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+
+                            {hasMultipleChildren && (
+                              <span className="shrink-0 text-xs font-semibold uppercase tracking-[0.20em] text-[#D4AF37]">
+                                CHILD {index + 1}
+                              </span>
+                            )}
+
+                            <span className="min-w-0 break-words text-lg font-semibold text-[#F4F7FB]">
+                              {studentName ||
+                                "Student"}
+                            </span>
+                          </div>
                         </div>
-                      ) : (
-                        <div className="px-6 py-2 sm:px-7">
-                          {group.lessons.map(
-                            (lesson) => {
-                              const classLabel =
-                                lesson.suffix
-                                  ? `${lesson.campus} · ${lesson.level} · ${lesson.suffix}`
-                                  : `${lesson.campus} · ${lesson.level}`;
 
-                              return (
-                                <div
-                                  key={
-                                    lesson.id
-                                  }
-                                  className="
-                                    group
-                                    border-b
-                                    border-[#D9E3ED]/10
-                                    py-5
-                                    last:border-b-0
-                                    transition
-                                    duration-200
-                                    hover:bg-[#183555]/60
-                                    sm:px-2
-                                  "
-                                >
-                                  <div
-                                    className="
-                                      flex
-                                      flex-col
-                                      gap-2
-                                      sm:flex-row
-                                      sm:items-center
-                                      sm:justify-between
-                                      sm:gap-6
-                                    "
-                                  >
-                                    {/* Date / Time */}
+                        {/* Lessons */}
 
-                                    <div
-                                      className="
-                                        min-w-0
-                                        sm:flex-1
-                                      "
-                                    >
-                                      <div
-                                        className="
-                                          flex
-                                          flex-wrap
-                                          items-center
-                                          gap-x-4
-                                          gap-y-1
-                                        "
-                                      >
-                                        <p
-                                          className="
-                                            text-sm
-                                            font-semibold
-                                            text-[#F4F7FB]
-                                          "
-                                        >
-                                          {formatDisplayDate(
-                                            lesson.lessonDate
-                                          )}
-                                        </p>
+                        {group.lessons.map(
+                          (lesson) => {
+                            const classLabel =
+                              lesson.suffix
+                                ? `${lesson.campus} · ${lesson.level} · ${lesson.suffix}`
+                                : `${lesson.campus} · ${lesson.level}`;
 
-                                        <p
-                                          className="
-                                            text-sm
-                                            text-[#C8D2DF]
-                                          "
-                                        >
-                                          {
-                                            lesson.startTime
-                                          }{" "}
-                                          –{" "}
-                                          {
-                                            lesson.endTime
-                                          }
-                                        </p>
-                                      </div>
-                                    </div>
+                            return (
+                              <div
+                                key={
+                                  lesson.id
+                                }
+                                className="min-w-0 border-b border-[#D9E3ED]/10 px-5 py-5 last:border-b-0 sm:px-7"
+                              >
+                                <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
 
-                                    {/* Class */}
+                                  <div className="min-w-0 flex-1">
+                                    <p className="break-words text-sm font-semibold text-[#F4F7FB]">
+                                      {formatDisplayDate(
+                                        lesson.lessonDate
+                                      )}
+                                    </p>
 
-                                    <p
-                                      className="
-                                        text-sm
-                                        font-semibold
-                                        text-[#F4F7FB]
-                                        sm:text-right
-                                      "
-                                    >
-                                      {
-                                        classLabel
-                                      }
+                                    <p className="mt-1 break-words text-sm text-[#C8D2DF]">
+                                      {lesson.startTime}
+                                      {" – "}
+                                      {lesson.endTime}
                                     </p>
                                   </div>
+
+                                  <p className="min-w-0 break-words text-sm font-semibold text-[#F4F7FB] sm:max-w-[48%] sm:text-right">
+                                    {classLabel}
+                                  </p>
                                 </div>
-                              );
-                            }
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                }
-              )}
-            </div>
-          )}
+                              </div>
+                            );
+                          }
+                        )}
+                      </div>
+                    );
+                  }
+                )}
+
+              </div>
+            )}
+          </div>
         </section>
 
-        {/* ==================================================
+        {/* ====================================================
             LATEST NEWS
-        ================================================== */}
+        ==================================================== */}
 
-        <section
-          className="
-            relative
-            mt-7
-            overflow-hidden
-            rounded-2xl
-            border
-            border-[#D4AF37]/35
-            bg-[#152F50]
-            shadow-xl
-          "
-        >
+        <section className="relative mt-6 min-w-0 overflow-hidden rounded-2xl border border-[#D4AF37]/35 bg-[#152F50] sm:mt-7">
           <div
             aria-hidden="true"
-            className="
-              absolute
-              left-0
-              right-0
-              top-0
-              h-[3px]
-              bg-gradient-to-r
-              from-[#D4AF37]
-              via-[#D4AF37]/55
-              to-transparent
-            "
+            className="absolute left-0 right-0 top-0 h-[3px] bg-gradient-to-r from-[#D4AF37] via-[#D4AF37]/55 to-transparent"
           />
 
-          <div
-            className="
-              border-b
-              border-[#D9E3ED]/15
-              px-6
-              py-5
-              sm:px-7
-            "
-          >
-            <p
-              className="
-                text-xs
-                font-semibold
-                uppercase
-                tracking-[0.24em]
-                text-[#D4AF37]
-              "
-            >
+          <div className="border-b border-[#D9E3ED]/15 px-5 py-5 sm:px-7">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#D4AF37]">
               LATEST NEWS
             </p>
           </div>
 
-          <div className="px-6 py-8 sm:px-7">
+          <div className="px-5 py-8 sm:px-7">
             <p className="text-sm text-[#C8D2DF]">
               No news available.
             </p>
           </div>
         </section>
+
       </div>
     </main>
   );
 }
 
-/*
+/**
  * ==========================================================
- * Helpers
+ * TERM RESOLUTION
+ * ==========================================================
+ *
+ * Today inside a Term:
+ *      → that Term
+ *
+ * Between Terms:
+ *      → next Term
+ *
+ * This is deliberately based on Academic Calendar.
+ */
+
+function resolveTargetTermIndex(
+  calendars: AcademicCalendar[],
+  today: string
+): number {
+  if (calendars.length === 0) {
+    return -1;
+  }
+
+  const currentIndex =
+    calendars.findIndex(
+      (term) =>
+        today >= term.start_date &&
+        today <= term.end_date
+    );
+
+  if (currentIndex >= 0) {
+    return currentIndex;
+  }
+
+  const nextIndex =
+    calendars.findIndex(
+      (term) =>
+        term.start_date > today
+    );
+
+  return nextIndex;
+}
+
+/**
+ * ==========================================================
+ * LATEST ENROLMENT
+ * ==========================================================
+ *
+ * Re-enrolment creates a new enrolment record.
+ * created_at is therefore the reliable ordering field for
+ * determining the latest enrolment within the same term.
+ */
+
+function getLatestEnrollment(
+  enrollments: Enrollment[],
+  studentId: string,
+  term: AcademicCalendar
+): Enrollment | null {
+  const matches =
+    enrollments
+      .filter(
+        (item) =>
+          item.student_id ===
+            studentId &&
+          Number(item.academic_year) ===
+            term.academic_year &&
+          Number(item.term) ===
+            term.term
+      )
+      .sort((a, b) =>
+        compareCreatedAt(
+          b.created_at,
+          a.created_at
+        )
+      );
+
+  return matches[0] ?? null;
+}
+
+function compareCreatedAt(
+  a: string | null,
+  b: string | null
+): number {
+  if (a === b) {
+    return 0;
+  }
+
+  if (!a) {
+    return -1;
+  }
+
+  if (!b) {
+    return 1;
+  }
+
+  return (
+    new Date(a).getTime() -
+    new Date(b).getTime()
+  );
+}
+
+/**
+ * ==========================================================
+ * SCHEDULE KEY
  * ==========================================================
  */
 
+function buildScheduleKey(
+  classId: string,
+  academicYear: number | string,
+  term: number | string
+): string {
+  return `${classId}|${academicYear}|${term}`;
+}
+
 /**
- * Return today's date in Australia/Brisbane
- * as YYYY-MM-DD.
- *
- * This avoids using UTC midnight as the business date.
+ * ==========================================================
+ * BRISBANE DATE
+ * ==========================================================
  */
+
 function getBrisbaneToday(): string {
   const formatter =
     new Intl.DateTimeFormat(
       "en-CA",
       {
-        timeZone: "Australia/Brisbane",
+        timeZone:
+          "Australia/Brisbane",
         year: "numeric",
         month: "2-digit",
         day: "2-digit",
@@ -1235,9 +1436,11 @@ function getBrisbaneToday(): string {
 }
 
 /**
- * Parse a date-only database value as a
- * local date without UTC conversion.
+ * ==========================================================
+ * DATE HELPERS
+ * ==========================================================
  */
+
 function parseLocalDate(
   value: string
 ): Date {
@@ -1290,6 +1493,23 @@ function formatDisplayDate(
   );
 }
 
+function formatWeekday(
+  date: Date
+): string {
+  return new Intl.DateTimeFormat(
+    "en-AU",
+    {
+      weekday: "long",
+    }
+  ).format(date);
+}
+
+/**
+ * ==========================================================
+ * TIME
+ * ==========================================================
+ */
+
 function formatTime(
   value: string | null
 ): string {
@@ -1322,6 +1542,12 @@ function formatTime(
 
   return `${displayHour}:${minute} ${suffix}`;
 }
+
+/**
+ * ==========================================================
+ * STUDENT NAME
+ * ==========================================================
+ */
 
 function getStudentDisplayName(
   student: Student
