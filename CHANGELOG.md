@@ -1,3 +1,22 @@
+## 2026-10-06 — Attendance Scheduler Production URL Fix
+
+### Attendance Scheduler
+- Identified the same Production self-call issue in the Attendance Scheduler wrappers that had previously affected the Email Scheduler.
+- Updated the 04:00 Attendance Generation wrapper to call the Production deployment through `VERCEL_PROJECT_PRODUCTION_URL`.
+- Updated the 15-minute Attendance Reconciliation wrapper to use the same Production URL execution path.
+- Updated the 20:00 Attendance Reminder wrapper to use the same Production URL execution path.
+- Existing Attendance business APIs, Attendance Engine, reconciliation logic and frozen Attendance business rules were not changed.
+
+### Verification Status
+- 04:00 Attendance Generation: Production verification pending; next scheduled verification is the next 04:00 Brisbane execution.
+- 15-minute Attendance Reconciliation: Production verification pending.
+- 20:00 Attendance Reminder: Production verification pending; today's 20:00 execution can be used for verification.
+- Final Attendance Scheduler acceptance: PENDING.
+
+### Frozen Baseline
+- No changes were made to the frozen Attendance business logic.
+- Changes are limited to the Production Scheduler execution path.
+
 ## 2026-10-06 — PASS: Email Scheduler Production Deployment Fix
 
 ### Email Scheduler
