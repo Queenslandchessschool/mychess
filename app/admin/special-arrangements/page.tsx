@@ -9,6 +9,7 @@ import {
   clearSpecialArrangementAttendance,
 } from "@/lib/specialArrangementAttendanceSync";
 import { getCurrentUser } from "@/lib/currentUser";
+import { getLessonStartTimestamp } from "@/lib/attendanceTime";
 
 // ======================================================
 // MyCHESS — Special Holiday Arrangement
@@ -45,6 +46,7 @@ type EnrolmentOption = {
   join_date: string | null;
   student_name: string;
   class_name: string;
+  start_time: string | null;
 };
 
 type LessonOption = {
@@ -302,7 +304,8 @@ export default function SpecialArrangementsPage() {
         classes:class_id (
           level,
           class_suffix,
-          day
+          day,
+          start_time
         )
       `)
       .eq("status", "Active")
@@ -358,6 +361,9 @@ export default function SpecialArrangementsPage() {
               buildClassName(
                 item.classes
               ),
+
+            start_time:
+              item.classes?.start_time ?? null,
           })
         );
 
@@ -758,20 +764,24 @@ export default function SpecialArrangementsPage() {
   // ======================================================
 
     function isPreFirstLessonWindow(
-    enrolment: EnrolmentOption | null
-  ): boolean {
-    if (
-      !enrolment ||
-      !firstEnrolledLessonDate
-    ) {
-      return false;
-    }
-
-    return (
-      getBrisbaneToday() <
-      firstEnrolledLessonDate
-    );
+  enrolment: EnrolmentOption | null
+): boolean {
+  if (
+    !enrolment ||
+    !firstEnrolledLessonDate ||
+    !enrolment.start_time
+  ) {
+    return false;
   }
+
+  const firstLessonStart =
+    getLessonStartTimestamp(
+      firstEnrolledLessonDate,
+      enrolment.start_time
+    );
+
+  return Date.now() < firstLessonStart;
+}
 
   // ======================================================
   // Load Affected Future Lessons
@@ -1507,7 +1517,7 @@ export default function SpecialArrangementsPage() {
 if (
   !enrolment ||
   !firstLessonDate ||
-  getBrisbaneToday() >= firstLessonDate
+  !isPreFirstLessonWindow(enrolment)
 ) {
   showPopup(
     "Special Arrangement Locked",
