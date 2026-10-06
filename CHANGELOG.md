@@ -1,4 +1,165 @@
 
+## 2026-10-06 — PASS: Mid-term Withdrawal & Student Return Management — Initial Withdrawal Module
+
+### Withdrawal Module
+- Added Admin Mid-term Withdrawal page at `/admin/withdrawal`.
+- Added controlled Active → Withdrawn enrolment status transition.
+- Withdrawal Effective Date represents the first day the student is no longer active.
+- Confirmed business example: 2026-10-06 remains the Last Active Day; 2026-10-07 is the Withdrawal Effective Date.
+- Student Master record is retained.
+- Historical Attendance, Tuition, Payment, Leave and Make-up records are retained.
+- No new enrolment is created by Withdrawal.
+- No automatic Tuition Adjustment is created.
+- Attendance Core was not modified.
+
+### Admin UI
+- Added MyCHESS Confirmation Modal instead of browser-native `window.confirm()`.
+- Added MyCHESS Withdrawal Completed modal.
+- Added Withdrawal History display for previously withdrawn formal enrolments.
+- Reused existing MyCHESS Navy / Gold UI and Chessboard Background baseline.
+
+### E2E Validation
+- `npm run build` — PASS.
+- Admin Withdrawal page — PASS.
+- Student / Active Enrolment loading — PASS.
+- Withdrawal Effective Date handling — PASS.
+- MyCHESS Confirmation Modal — PASS.
+- Cancel flow — PASS.
+- Real Withdrawal transaction — PASS.
+- Withdrawal History — PASS.
+- Attendance validation — PASS.
+- Student remained available in 2026-10-06 Attendance.
+- Student was absent from the 2026-10-13 Attendance Lazy Loading roster after Withdrawal.
+
+### Frozen Boundary
+- Attendance Core was not redesigned or modified.
+- Existing Transfer `Inactive` lifecycle remains unchanged.
+- Withdrawal uses `student_enrolments.status = Withdrawn`.
+- Same-term Reactivation remains a subsequent implementation item.
+- Future-term return continues to use the existing Student Re-enrolment flow.
+
+## 2026-10-06 —MyCHESS Frozen SRS V1 — Addendum
+
+Mid-term Withdrawal & Student Return Management
+
+Status: FROZEN BASELINE — Addendum to the existing Frozen SRS V1
+
+1. Purpose
+
+This Addendum defines MyCHESS business rules for Mid-term Withdrawal and subsequent student return.
+
+It supplements the existing Frozen SRS V1 and does not replace or redesign previously frozen rules.
+
+2. Mid-term Withdrawal Definition
+
+Mid-term Withdrawal means a student stops participating in the current formal Enrollment before it normally completes.
+
+Withdrawal is an Enrollment lifecycle operation, not Special Arrangement, Leave, Transfer, or Re-enrolment.
+
+3. Withdrawal Lifecycle
+
+Formal Enrollment lifecycle: Active → Withdrawn.
+
+Student Master remains. The current Enrollment remains as a historical business record. Historical Attendance, Tuition/Payment, Leave, and Make-up records are retained.
+
+4. Withdrawal Effective Date
+
+Every Withdrawal must have a Withdrawal Effective Date. This determines when the student ceases to be operationally active for future lessons.
+
+Current case example: Last Active Day = 2026-10-06; Withdrawal Effective Date = 2026-10-07.
+
+5. Attendance Integration
+
+Attendance Core remains FROZEN.
+
+Withdrawal must not be implemented by deleting or rewriting Attendance records.
+
+Existing Attendance loading uses student_enrolments with status = Active. A Withdrawn Enrollment therefore becomes ineligible for future normal Attendance loading.
+
+Historical Attendance remains unchanged.
+
+6. Withdrawal Is Not Special Arrangement
+
+Special Arrangement and Mid-term Withdrawal are separate business concepts.
+
+Special Arrangement must not be used as a substitute for a student leaving the program.
+
+7. Withdrawal Is Not Completed
+
+Active = current ongoing Enrollment.
+
+Completed = normal completion of the Enrollment.
+
+Withdrawn = the student has stopped the current Enrollment before normal completion.
+
+Mid-term Withdrawal must not be represented by changing the Enrollment to Completed.
+
+8. Student Return
+
+Same-Term Reactivation: where business rules permit return within the same Term, a separate Reactivation operation may change Withdrawn → Active with a defined Reactivation Effective Date. Historical records remain intact.
+
+Future-Term Return: the student returns through Existing Student Re-enrolment, creating a new Term Enrollment. The historical Enrollment is not reused as the new Term Enrollment.
+
+9. Student Master
+
+Withdrawal does not delete the Student Master record.
+
+A returning student uses the existing Student Master record and must not create a duplicate student.
+
+10. Prohibited Operations
+
+Do not delete Student, Enrollment, Attendance, Tuition/Payment, Leave, or Make-up history.
+
+Do not rewrite historical Attendance to hide the student.
+
+Do not use Special Arrangement to simulate Withdrawal.
+
+Do not use Completed to simulate Withdrawal.
+
+11. Frozen Architecture Boundary
+
+Withdrawal is an Enrollment lifecycle capability.
+
+Attendance Core is not redesigned. The existing Active Enrollment eligibility mechanism remains the Attendance integration boundary.
+
+Withdrawal Module → Enrollment Status; Attendance Core → unchanged.
+
+12. Future UI Requirement
+
+Admin should provide a Mid-term Withdrawal operation for an Active Enrollment.
+
+Minimum flow: select Active Enrollment → confirm Withdrawal Effective Date → confirm Withdrawal → Enrollment becomes Withdrawn.
+
+If same-Term return is supported, Reactivate Enrollment is a separate operation with its own Effective Date.
+
+13. Acceptance Criteria
+
+Active Enrollment can be formally withdrawn.
+
+Withdrawal Effective Date is recorded.
+
+Enrollment status becomes Withdrawn.
+
+Student Master and all historical business records are retained.
+
+Future normal Attendance no longer loads the Withdrawn Enrollment.
+
+Other students' Attendance is unaffected.
+
+Attendance Core is unchanged.
+
+Future-Term return creates a new Enrollment through Existing Student Re-enrolment.
+
+Same-Term Reactivation follows an explicit Effective Date rule.
+
+Completed and Special Arrangement are not substitutes for Withdrawal.
+
+14. Frozen Status
+
+After formal confirmation, this Addendum is FROZEN.
+
+Future implementation must follow this Addendum. Changes require an explicit Change Request or subsequent Addendum Revision.
+
 ## 2026-10-06 — PASS: Unified MyCHESS Login URL Migration
 
 ### Email Entry Points
