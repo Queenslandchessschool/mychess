@@ -31,7 +31,7 @@ export default function ForgotPasswordPage() {
       await supabase.auth.resetPasswordForEmail(
         trimmedEmail,
         {
-          redirectTo: `${window.location.origin}/reset-password`,
+          redirectTo: "https://mychess.queenslandchessschool.com.au/reset-password",
         }
       );
 
