@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     const variables = {
       "Parent Name": parentName,
       "Student Name": studentName,
-      "Re-enrolment / Parent Portal Link": "http://localhost:3000/parent/reenrolment",
+      "MyCHESS Login URL": "https://mychess.queenslandchessschool.com.au/",
       "Holiday Training Camp Registration Link": "https://docs.google.com/forms/d/e/1FAIpQLSeJdcgIU9Q2aqaIw3hrFb9NQWPbY_KoSBWbfcBGgyP4NKknDg/viewform",
     };
 

@@ -1199,7 +1199,7 @@ export default function SpecialArrangementsPage() {
         },
         body: JSON.stringify({
           enrollmentId,
-          myChessLoginUrl: `${window.location.origin}/login`,
+          myChessLoginUrl: "https://mychess.queenslandchessschool.com.au/",
         }),
       });
 

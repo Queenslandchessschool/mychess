@@ -13,7 +13,7 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     const enrollmentId = String(body.enrollmentId ?? "").trim();
-    const myChessLoginUrl = String(body.myChessLoginUrl ?? "/login");
+    const myChessLoginUrl = String(body.myChessLoginUrl ?? "https://mychess.queenslandchessschool.com.au/");
 
     if (!enrollmentId) {
       return NextResponse.json(

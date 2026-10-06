@@ -27,8 +27,8 @@ export async function POST(request: Request) {
     const variables = {
       "Parent Name": parentName,
       "Student Name": studentName,
-      "Re-enrolment / Parent Portal Link":
-        "http://localhost:3000/parent/reenrolment",
+      "MyCHESS Login URL":
+        "https://mychess.queenslandchessschool.com.au/",
       "First Lesson Date of Next Term":
         String(body.firstLessonDate ?? "").trim(),
     };

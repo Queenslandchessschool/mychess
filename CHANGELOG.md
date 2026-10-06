@@ -1,3 +1,56 @@
+
+## 2026-10-06 — PASS: Unified MyCHESS Login URL Migration
+
+### Email Entry Points
+- Unified Re-enrolment Opening, Re-enrolment Reminder and Class Reminder user-facing login entry points to the Production MyCHESS root URL:
+  `https://mychess.queenslandchessschool.com.au/`
+- Removed the legacy `/parent/reenrolment` deep-link dependency.
+- Re-enrolment emails now use the existing `[MyCHESS Login URL]` variable.
+- Reused the existing Central Email Layout and Gold MyCHESS Login Button.
+- Special Arrangement email entry points were also aligned to the same Production MyCHESS URL.
+
+### Scope
+- Updated only the affected email templates and API variable mappings.
+- Central Email Template Service, Variable Renderer and Email Layout were not modified.
+- Existing email business logic, timing rules, audit logic and PASS / FROZEN modules were not redesigned.
+
+### Validation
+- `localhost:3000/parent/reenrolment` project-wide search: PASS
+- Re-enrolment Opening template: PASS
+- Re-enrolment Reminder template: PASS
+- Class Reminder API: PASS
+- Re-enrolment Opening API: PASS
+- Re-enrolment Reminder API: PASS
+
+### Frozen Baseline
+- All user-facing MyCHESS login entry points use the single Production MyCHESS root URL.
+- Parents enter MyCHESS through the standard Login button and access Re-enrolment from the Parent Portal.
+
+
+## 2026-10-06 — PASS: Special Arrangement First-Lesson Time Lock Fix
+
+### Special Arrangement
+- Fixed a confirmed bug in the Admin Special Arrangement page where the first-lesson lock was applied by Brisbane calendar date rather than the student's actual first lesson start time.
+- Special Arrangement creation and editing are now permitted until the student's first enrolled lesson actually begins.
+- The existing Brisbane timezone handling is reused through `getLessonStartTimestamp()`.
+- New Registration continues to use `join_date` as the authoritative first enrolled lesson date.
+- Re-enrolment continues to resolve the first non-cancelled lesson when `join_date` is NULL.
+- Existing Special Arrangement, Tuition, Attendance and Leave business rules were not changed.
+
+### Example
+- If the first enrolled lesson starts at 15:15 Brisbane time, the Special Arrangement remains available before 15:15 on that day.
+- From 15:15 onward, new or edited Special Arrangements are locked.
+
+### Validation
+- Special Arrangement code diff: PASS
+- `npm run build`: PASS
+- Commit: `6127243 Fix Special Arrangement lesson start lock`
+
+### Frozen Baseline
+- This is a confirmed bug fix only.
+- No redesign of the Special Arrangement business rule was made.
+- The existing rule remains: Special Arrangement is only permitted before the student's first formal lesson begins.
+
 ## 2026-10-06 — Attendance Scheduler Production URL Fix
 
 ### Attendance Scheduler

@@ -59,7 +59,7 @@ export async function POST(request: Request) {
       : [
           `If you have not yet completed ${studentName}'s re-enrolment, please visit the MyCHESS Parent Portal:`,
           "",
-          "http://localhost:3000/parent/reenrolment",
+          "https://mychess.queenslandchessschool.com.au/",
           "",
           "We encourage you to complete the re-enrolment process as soon as possible.",
         ].join("\n");
@@ -71,6 +71,7 @@ export async function POST(request: Request) {
       "First Lesson Date of Next Term": firstLessonDate,
       "Special Request Confirmation": specialRequestConfirmation,
       "Re-enrolment Reminder": reenrolmentReminder,
+      "MyCHESS Login URL": "https://mychess.queenslandchessschool.com.au/",
     };
 
     let email;
