@@ -122,6 +122,11 @@ const navigationGroups = [
       href: "/admin/trials",
       icon: "★",
     },
+    {
+      label: "Withdrawal",
+      href: "/admin/withdrawal",
+      icon: "W",
+    },
   ],
 },
 
@@ -153,6 +158,11 @@ const navigationGroups = [
         label: "Settings",
         href: "/admin/settings",
         icon: "⚙",
+      },
+      {
+        label: "Email Templates",
+        href: "/admin/email-templates",
+        icon: "✉",
       },
     ],
   },
