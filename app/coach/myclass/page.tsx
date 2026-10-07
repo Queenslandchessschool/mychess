@@ -143,8 +143,9 @@ export default function MyClassPage() {
     )
   `)
         .eq("classes.coach_id", currentUser.coachId)
-.eq("academic_year", academicYear)
-.eq("term", term)
+        .eq("classes.status", "Active")
+        .eq("academic_year", academicYear)
+        .eq("term", term)
         .order("first_lesson", {
           ascending: true,
         });

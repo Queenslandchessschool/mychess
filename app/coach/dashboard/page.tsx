@@ -189,7 +189,8 @@ export default function CoachDashboard() {
       } = await supabase
         .from("classes")
         .select("id")
-        .eq("coach_id", coachData.id);
+        .eq("coach_id", coachData.id)
+        .eq("status", "Active");
 
       if (classError) {
         console.error(

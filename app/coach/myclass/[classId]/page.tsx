@@ -102,6 +102,7 @@ export default function CoachClassDetailPage() {
           )
         `)
         .eq("id", classId)
+        .eq("classes.status", "Active")
         .single();
 
       if (scheduleError) {
