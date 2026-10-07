@@ -86,7 +86,7 @@ const quickLinks = [
   {
     title: "Holiday Camps",
     icon: <CampIcon />,
-    href: "https://docs.google.com/forms/d/e/1FAIpQLSeJdcgIU9Q2aqaIw3hrFb9NQWPbY_KoSBWbfcBGgyP4NKknDg/viewform",
+    href: "https://queenslandchessschool.com.au/classes#holiday-camp",
   },
   {
     title: "Events",

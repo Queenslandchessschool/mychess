@@ -215,36 +215,34 @@ export default function CoachDashboard() {
       }
 
       // ==================================================
-      // 4. Load Current Term Class Schedules
+      // 4. Load Actual Upcoming Lessons
       //
       // Current Coach
       //      ↓
+      // Active Classes
+      //      ↓
+      // Actual Lesson records
+      //      ↓
       // Current Academic Year / Term
       //      ↓
-      // Assigned Classes
+      // Future / Today Lessons
       //      ↓
-      // Current schedules
+      // Exclude Cancelled
       // ==================================================
 
       const {
-        data: scheduleData,
-        error: scheduleError,
+        data: lessonData,
+        error: lessonError,
       } = await supabase
-        .from("class_schedule")
+        .from("lessons")
         .select(`
-          id,
-          class_id,
-          first_lesson,
-          final_lesson,
-          academic_year,
-          term,
-          class:classes(
-            day,
-            level,
+          *,
+          classes:class_id (
             class_suffix,
+            level,
             start_time,
             end_time,
-            campus:campuses(
+            campuses:campus_id (
               campus_code
             )
           )
@@ -260,12 +258,26 @@ export default function CoachDashboard() {
         .eq(
           "term",
           calendarData.term
+        )
+        .gte(
+          "lesson_date",
+          today
+        )
+        .neq(
+          "status",
+          "Cancelled"
+        )
+        .order(
+          "lesson_date",
+          {
+            ascending: true,
+          }
         );
 
-      if (scheduleError) {
+      if (lessonError) {
         console.error(
-          "SCHEDULE LOAD ERROR:",
-          scheduleError
+          "LESSON LOAD ERROR:",
+          lessonError
         );
 
         setLessons([]);
@@ -274,129 +286,92 @@ export default function CoachDashboard() {
       }
 
       // ==================================================
-      // 5. Calculate Next Actual Lesson
-      //
-      // We do NOT use School Week.
-      // Chess lessons can start from any school week.
+      // 5. Build Upcoming Lesson Cards
       // ==================================================
 
-      const upcoming: UpcomingLesson[] = [];
+      const upcoming: UpcomingLesson[] =
+        (lessonData ?? [])
+          .map((lesson: any) => {
+            const classData = Array.isArray(
+              lesson.classes
+            )
+              ? lesson.classes[0]
+              : lesson.classes;
 
-      for (
-        const item of scheduleData ?? []
-      ) {
-        if (
-          !item.first_lesson ||
-          !item.final_lesson
-        ) {
-          continue;
-        }
+            if (!classData) {
+              return null;
+            }
 
-        const classData = Array.isArray(
-          item.class
-        )
-          ? item.class[0]
-          : item.class;
+            const campusValue =
+              classData.campuses;
 
-        if (!classData) {
-          continue;
-        }
+            const campus =
+              Array.isArray(campusValue)
+                ? campusValue[0]?.campus_code ?? ""
+                : campusValue?.campus_code ?? "";
 
-        const firstDate =
-          parseLocalDate(
-            item.first_lesson
+            const level =
+              classData.level ?? "";
+
+            const suffix =
+              classData.class_suffix?.trim() ?? "";
+
+            return {
+              id: lesson.id,
+
+              lessonDate:
+                lesson.lesson_date,
+
+              startTime:
+                formatTime(
+                  classData.start_time
+                ),
+
+              endTime:
+                formatTime(
+                  classData.end_time
+                ),
+
+              campus,
+              level,
+              suffix,
+            };
+          })
+          .filter(
+            (
+              lesson
+            ): lesson is UpcomingLesson =>
+              lesson !== null
           );
-
-        const finalDate =
-          parseLocalDate(
-            item.final_lesson
-          );
-
-        let nextDate = firstDate;
-
-        // Move forward by one week until
-        // the next actual lesson date is today
-        // or later.
-        while (
-          nextDate <
-            parseLocalDate(today) &&
-          nextDate <= finalDate
-        ) {
-          nextDate = new Date(
-            nextDate
-          );
-
-          nextDate.setDate(
-            nextDate.getDate() + 7
-          );
-        }
-
-        if (
-          nextDate > finalDate
-        ) {
-          continue;
-        }
-
-        const campusValue: any =
-          classData.campus;
-
-        const campus =
-          Array.isArray(campusValue)
-            ? campusValue[0]
-                ?.campus_code ?? ""
-            : campusValue?.campus_code ??
-              "";
-
-        const level =
-          classData.level ?? "";
-
-        const suffix =
-          classData.class_suffix?.trim() ??
-          "";
-
-        upcoming.push({
-          id: item.id,
-
-          lessonDate:
-            formatISODate(nextDate),
-
-          startTime:
-            formatTime(
-              classData.start_time
-            ),
-
-          endTime:
-            formatTime(
-              classData.end_time
-            ),
-
-          campus,
-          level,
-          suffix,
-        });
-      }
 
       // ==================================================
-      // 6. Sort by Actual Lesson Date
+      // 6. Sort by Actual Lesson Date and Time
       // ==================================================
 
       upcoming.sort((a, b) => {
-        return (
+        const dateDifference =
           parseLocalDate(
             a.lessonDate
           ).getTime() -
           parseLocalDate(
             b.lessonDate
-          ).getTime()
+          ).getTime();
+
+        if (dateDifference !== 0) {
+          return dateDifference;
+        }
+
+        return a.startTime.localeCompare(
+          b.startTime
         );
       });
 
       // ==================================================
-      // 7. Show Next 4 Classes
+      // 7. Show Next 8 Actual Lessons
       // ==================================================
 
       setLessons(
-        upcoming.slice(0, 4)
+        upcoming.slice(0, 8)
       );
 
       setLoading(false);
@@ -475,26 +450,14 @@ export default function CoachDashboard() {
       ====================================== */}
 
       <section className="mb-8">
-        <p
-          className="
-            mb-3
-            text-xs
-            font-semibold
-            uppercase
-            tracking-[0.28em]
-            text-[#D4AF37]
-          "
-        >
-          MyCHESS
-        </p>
 
         <h1
           className="
-            text-3xl
+            whitespace-nowrap
+            text-[clamp(1.5rem,7vw,2.25rem)]
             font-bold
             tracking-tight
             text-[#F4F7FB]
-            sm:text-4xl
           "
         >
           Welcome back, {coach.title ? `${coach.title} ` : ""}{coach.first_name}!
@@ -582,7 +545,7 @@ export default function CoachDashboard() {
       </section>
 
       {/* ======================================
-          UPCOMING CLASSES
+          UPCOMING LESSONS
       ====================================== */}
 
       <section
@@ -602,6 +565,7 @@ export default function CoachDashboard() {
             left-0
             right-0
             top-0
+            z-20
             h-[3px]
             bg-gradient-to-r
             from-[#D4AF37]
@@ -612,127 +576,151 @@ export default function CoachDashboard() {
 
         <div
           className="
-            border-b
-            border-[#D9E3ED]/15
-            px-6
-            py-5
-            sm:px-7
+            max-h-[360px]
+            overflow-y-auto
+            sm:max-h-[420px]
           "
         >
-          <p
+          <div
             className="
-              text-xs
-              font-semibold
-              uppercase
-              tracking-[0.24em]
-              text-[#D4AF37]
+              sticky
+              top-0
+              z-10
+              border-b
+              border-[#D9E3ED]/15
+              bg-[#152F50]
+              px-5
+              py-5
+              sm:px-7
             "
           >
-            UPCOMING CLASSES
-          </p>
-        </div>
-
-        {lessons.length === 0 ? (
-          <div className="px-6 py-8 text-sm text-[#C8D2DF]">
-            No upcoming classes.
+            <p
+              className="
+                text-xs
+                font-semibold
+                uppercase
+                tracking-[0.24em]
+                text-[#D4AF37]
+              "
+            >
+              UPCOMING LESSONS
+            </p>
           </div>
-        ) : (
-          <div>
-            {lessons.map((lesson) => {
-              const classLabel = lesson.suffix
-                ? `${lesson.campus} · ${lesson.level} · ${lesson.suffix}`
-                : `${lesson.campus} · ${lesson.level}`;
 
-              return (
-                <div
-                  key={lesson.id}
-                  className="
-                    group
-                    border-b
-                    border-[#D9E3ED]/15
-                    px-6
-                    py-6
-                    transition-all
-                    duration-200
-                    ease-out
+          {lessons.length === 0 ? (
+            <div
+              className="
+                px-5
+                py-8
+                text-sm
+                text-[#C8D2DF]
+                sm:px-7
+              "
+            >
+              No upcoming lessons.
+            </div>
+          ) : (
+            <div>
+              {lessons.map((lesson) => {
+                const classLabel = lesson.suffix
+                  ? `${lesson.campus} · ${lesson.level} · ${lesson.suffix}`
+                  : `${lesson.campus} · ${lesson.level}`;
 
-                    hover:bg-[#183555]
-                    hover:border-[#D4AF37]/45
-
-                    active:scale-[0.995]
-                    active:bg-[#183555]
-                    active:border-[#D4AF37]/60
-
-                    last:border-b-0
-
-                    sm:px-7
-                  "
-                >
+                return (
                   <div
+                    key={lesson.id}
                     className="
-                      flex
-                      flex-col
-                      gap-2
+                      group
+                      border-b
+                      border-[#D9E3ED]/15
+                      px-5
+                      py-5
+                      transition-all
+                      duration-200
+                      ease-out
 
-                      sm:flex-row
-                      sm:items-center
-                      sm:justify-between
+                      hover:bg-[#183555]
+                      hover:border-[#D4AF37]/45
+
+                      active:bg-[#183555]
+                      active:border-[#D4AF37]/60
+
+                      last:border-b-0
+
+                      sm:px-7
+                      sm:py-6
                     "
                   >
-                    <div className="min-w-0">
-  <div
-    className="
-      flex
-      flex-wrap
-      items-center
-      gap-x-4
-      gap-y-1
-    "
-  >
-    <p
-      className="
-        text-sm
-        font-semibold
-        text-[#F4F7FB]
-        transition-colors
-        duration-200
-        group-hover:text-white
-      "
-    >
-      {formatDisplayDate(
-        lesson.lessonDate
-      )}
-    </p>
-
-    <p
-      className="
-        text-sm
-        text-[#C8D2DF]
-      "
-    >
-      {lesson.startTime} –{" "}
-      {lesson.endTime}
-    </p>
-  </div>
-</div>
-
-                    <p
+                    <div
                       className="
-                        text-sm
-                        font-semibold
-                        text-[#F4F7FB]
+                        flex
+                        flex-col
+                        gap-2
 
-                        sm:text-right
+                        sm:flex-row
+                        sm:items-center
+                        sm:justify-between
+                        sm:gap-6
                       "
                     >
-                      {classLabel}
-                    </p>
+                      <div className="min-w-0">
+                        <div
+                          className="
+                            flex
+                            flex-wrap
+                            items-center
+                            gap-x-4
+                            gap-y-1
+                          "
+                        >
+                          <p
+                            className="
+                              text-sm
+                              font-semibold
+                              text-[#F4F7FB]
+                              transition-colors
+                              duration-200
+                              group-hover:text-white
+                            "
+                          >
+                            {formatDisplayDate(
+                              lesson.lessonDate
+                            )}
+                          </p>
+
+                          <p
+                            className="
+                              text-sm
+                              text-[#C8D2DF]
+                            "
+                          >
+                            {lesson.startTime} –{" "}
+                            {lesson.endTime}
+                          </p>
+                        </div>
+                      </div>
+
+                      <p
+                        className="
+                          min-w-0
+                          text-sm
+                          font-semibold
+                          leading-5
+                          text-[#F4F7FB]
+
+                          sm:max-w-[50%]
+                          sm:text-right
+                        "
+                      >
+                        {classLabel}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                );
+              })}
+            </div>
+          )}
+        </div>
       </section>
     </div>
   );

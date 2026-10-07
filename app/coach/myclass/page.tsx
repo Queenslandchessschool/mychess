@@ -242,18 +242,6 @@ endTime:
     >
       {/* PAGE HEADER */}
       <section className="mb-6 sm:mb-8">
-        <p
-          className="
-            mb-3
-            text-xs
-            font-semibold
-            uppercase
-            tracking-[0.28em]
-            text-[#D4AF37]
-          "
-        >
-          MYCLASS
-        </p>
 
         <h1
           className="
