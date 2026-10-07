@@ -1,3 +1,21 @@
+## 2026-10-07 — Class Reminder Target Logic Update
+
+### Class Reminder
+
+- Updated Class Reminder targeting so all current-term enrolled students in a class receive the reminder when the class `first_lesson` is tomorrow, regardless of their current-term re-enrolment submission status.
+- Added previous-term students from the same class as reminder candidates when they have not enrolled in the current term.
+- Excluded previous-term students who have enrolled in another current-term class.
+- Excluded previous-term students who have a valid current-term Re-enrolment submission.
+- Extended parent lookup to include previous-term reminder candidates.
+- Preserved the existing `first_lesson` scheduling rule, Australia/Brisbane timezone handling, duplicate audit protection, email template rendering and Resend delivery flow.
+
+### Validation
+
+- TypeScript / production build: PASS
+- `git diff --check`: PASS
+- Current-term enrolled students remain eligible for Class Reminder after Re-enrolment submission.
+- Previous-term same-class students are included only when they are not enrolled elsewhere in the current term and have not completed a valid Re-enrolment.
+
 ## 2026-10-07 — FROZEN: Tuition Standard Definition, Business Calculation Models & Middle-Term New Registration Baseline
 
 ### 1. Purpose

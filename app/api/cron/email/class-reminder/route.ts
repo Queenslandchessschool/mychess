@@ -266,7 +266,6 @@ export async function POST(request: Request) {
     const [
       scheduleResult,
       parentResult,
-      submissionResult,
     ] = await Promise.all([
       supabaseServer
         .from("class_schedule")
@@ -290,16 +289,6 @@ export async function POST(request: Request) {
         `)
         .in("student_id", studentIds),
 
-      supabaseServer
-        .from("re_enrolment_submissions")
-        .select(`
-          student_id,
-          status
-        `)
-        .in("student_id", studentIds)
-        .eq("academic_year", academicYear)
-        .eq("term", term)
-        .neq("status", "Cancelled"),
     ]);
 
     if (scheduleResult.error) {
@@ -322,20 +311,8 @@ export async function POST(request: Request) {
       );
     }
 
-    if (submissionResult.error) {
-      return NextResponse.json(
-        {
-          error:
-            `Failed to load submissions: ${submissionResult.error.message}`,
-        },
-        { status: 500 }
-      );
-    }
-
     const schedules = (scheduleResult.data ?? []) as Schedule[];
     const parents = (parentResult.data ?? []) as Parent[];
-    const submissions = (submissionResult.data ?? []) as Submission[];
-
     const scheduleMap = new Map<string, Schedule>();
 
     for (const schedule of schedules) {
@@ -348,6 +325,89 @@ export async function POST(request: Request) {
       parentMap.set(parent.student_id, parent);
     }
 
+    const previousTerm = term > 1 ? term - 1 : null;
+
+    const previousTermEnrolments =
+      previousTerm !== null
+        ? await supabaseServer
+            .from("student_enrolments")
+            .select(`
+              id,
+              student_id,
+              class_id,
+              academic_year,
+              term,
+              status,
+              is_trial,
+              students:student_id (
+                first_name,
+                last_name
+              )
+            `)
+            .eq("academic_year", academicYear)
+            .eq("term", previousTerm)
+            .eq("status", "Active")
+            .eq("is_trial", false)
+            .in("class_id", classIds)
+            .order("class_id")
+            .order("student_id")
+        : { data: [], error: null };
+
+    if (previousTermEnrolments.error) {
+      return NextResponse.json(
+        {
+          error:
+            `Failed to load previous term enrolments: ${previousTermEnrolments.error.message}`,
+        },
+        { status: 500 }
+      );
+    }
+
+    const previousEnrolments =
+      (previousTermEnrolments.data ?? []) as Enrolment[];
+
+    const currentTermStudentIds = new Set(
+      activeEnrolments.map(
+        (enrolment) => enrolment.student_id
+      )
+    );
+
+    const previousOnlyEnrolments = previousEnrolments.filter(
+      (enrolment) =>
+        !currentTermStudentIds.has(enrolment.student_id)
+    );
+    const reenrolmentStudentIds = Array.from(
+      new Set([
+        ...studentIds,
+        ...previousOnlyEnrolments.map(
+          (enrolment) => enrolment.student_id
+        ),
+      ])
+    );
+    const { data: submissionData, error: submissionError } =
+      await supabaseServer
+        .from("re_enrolment_submissions")
+        .select(`
+          student_id,
+          status
+        `)
+        .in("student_id", reenrolmentStudentIds)
+        .eq("academic_year", academicYear)
+        .eq("term", term)
+        .neq("status", "Cancelled");
+
+    if (submissionError) {
+      return NextResponse.json(
+        {
+          error:
+            `Failed to load submissions: ${submissionError.message}`,
+        },
+        { status: 500 }
+      );
+    }
+
+    const submissions = (submissionData ?? []) as Submission[];
+
     const completedStudentIds = new Set(
       submissions
         .filter(
@@ -357,6 +417,58 @@ export async function POST(request: Request) {
         )
         .map((submission) => submission.student_id)
     );
+
+    const previousStudentsWithValidReenrolment =
+      new Set(
+        submissions
+          .filter(
+            (submission) =>
+              submission.status === "Submitted" ||
+              submission.status === "Completed"
+          )
+          .map((submission) => submission.student_id)
+      );
+    const previousReminderEnrolments = previousOnlyEnrolments.filter(
+      (enrolment) =>
+        !previousStudentsWithValidReenrolment.has(
+          enrolment.student_id
+        )
+    );
+
+    const reminderEnrolments = [
+      ...activeEnrolments,
+      ...previousReminderEnrolments,
+    ];
+    const previousOnlyIds = previousReminderEnrolments.map(
+      (enrolment) => enrolment.student_id
+    );
+
+    const previousParentResult =
+      previousOnlyIds.length > 0
+        ? await supabaseServer
+            .from("parents")
+            .select(`
+              student_id,
+              parent1_name,
+              parent2_name,
+              email
+            `)
+            .in("student_id", previousOnlyIds)
+        : { data: [], error: null };
+
+    if (previousParentResult.error) {
+      return NextResponse.json(
+        {
+          error:
+            `Failed to load previous term parents: ${previousParentResult.error.message}`,
+        },
+        { status: 500 }
+      );
+    }
+
+    for (const parent of previousParentResult.data ?? []) {
+      parentMap.set(parent.student_id, parent as Parent);
+    }
 
     const auditBusinessEvent =
       `${BUSINESS_EVENT}_${academicYear}_T${term}`;
@@ -368,24 +480,11 @@ export async function POST(request: Request) {
 
     const results: Array<Record<string, unknown>> = [];
 
-    for (const enrolment of activeEnrolments) {
+    for (const enrolment of reminderEnrolments) {
       processed += 1;
 
       const studentId = enrolment.student_id;
       const studentName = getStudentName(enrolment.students);
-
-      if (completedStudentIds.has(studentId)) {
-        skipped += 1;
-
-        results.push({
-          studentId,
-          studentName,
-          status: "Skipped",
-          reason: "Re-enrolment already submitted or completed",
-        });
-
-        continue;
-      }
 
       const parent = parentMap.get(studentId);
 
@@ -496,9 +595,13 @@ export async function POST(request: Request) {
       const specialRequestConfirmation =
         getSpecialRequestConfirmation(specialRequests);
 
+      const hasCompletedReenrolment =
+        completedStudentIds.has(studentId) ||
+        previousStudentsWithValidReenrolment.has(studentId);
+
       const reenrolmentReminder = getReenrolmentReminder(
         studentName,
-        completedStudentIds.has(studentId)
+        hasCompletedReenrolment
       );
 
       const variables = {
