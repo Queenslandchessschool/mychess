@@ -245,7 +245,7 @@ export async function createEnrollment(
     const { data: lessons, error: lessonsError } =
   await supabase
     .from("lessons")
-    .select("id, lesson_date, status")
+    .select("id, lesson_date, status, chargeable")
     .eq("class_id", data.enrollment.class_id)
     .eq("academic_year", data.enrollment.academic_year)
     .eq("term", data.enrollment.term);
@@ -267,25 +267,27 @@ const joinDate = data.enrollment.join_date;
 const chargeableLessonsBeforeJoinDate =
   (lessons ?? []).filter(
     (lesson) =>
-      lesson.status !== "Cancelled" &&
+      lesson.chargeable === true &&
       Boolean(joinDate) &&
       lesson.lesson_date < joinDate
   );
 
-const cancelledLessonsAfterJoinDate =
+const nonChargeableLessons =
   (lessons ?? []).filter(
-    (lesson) =>
-      lesson.status === "Cancelled" &&
-      Boolean(joinDate) &&
-      lesson.lesson_date >= joinDate
+    (lesson) => lesson.chargeable === false
   );
+
+const applicableStandardTuition = Math.max(
+  0,
+  standardTuition -
+    nonChargeableLessons.length *
+      singleLessonFee
+);
 
 const amountPayable = Math.max(
   0,
-  standardTuition -
+  applicableStandardTuition -
     chargeableLessonsBeforeJoinDate.length *
-      singleLessonFee -
-    cancelledLessonsAfterJoinDate.length *
       singleLessonFee
 );
   const { data: enrollment, error } = await supabase
@@ -319,7 +321,7 @@ const amountPayable = Math.max(
 
       pricing_method: "Calculated",
 
-      standard_tuition: standardTuition,
+      standard_tuition: applicableStandardTuition,
 
       redeem_amount: 0,
 

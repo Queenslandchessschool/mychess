@@ -1,4 +1,650 @@
+## 2026-10-07 — FROZEN: Tuition Standard Definition, Business Calculation Models & Middle-Term New Registration Baseline
 
+### 1. Purpose
+
+This entry establishes the final Tuition calculation baseline for MyCHESS.
+
+The purpose is to permanently clarify:
+
+- the meaning of Admin-configured Standard Tuition;
+- the relationship between Tuition Configuration, Academic Calendar and Lessons;
+- the distinction between different Tuition business calculation models;
+- the New Registration Middle-Term calculation model;
+- the relationship between Initial Payable, Special Arrangement and Final Payable;
+- the boundary between New Registration, Re-enrolment and Special Arrangement;
+- the required calculation and validation principles for all future Tuition changes.
+
+This is a Frozen Business Baseline.
+
+Existing PASS modules must not be redesigned or changed unless a confirmed bug or explicit Change Request requires the change.
+
+---
+
+### 2. Admin Tuition Configuration — Standard Tuition Definition
+
+The `tuition_configurations` record is the primary Admin pricing configuration for a Class / Academic Year / Term.
+
+The following fields have fixed meanings:
+
+- `single_lesson_fee`
+  - Standard price of one normal lesson.
+
+- `total_lessons`
+  - Standard number of lessons in the complete academic Term for the Class.
+  - This represents the full-term course structure.
+  - It must not be manually reduced because of individual Public Holidays, School Operational Events or school/coach lesson cancellations.
+
+- `calculated_tuition`
+  - Default calculation:
+    `single_lesson_fee × total_lessons`
+
+- `standard_tuition`
+  - The Admin-configured standard tuition price for the complete Term / Class.
+  - It defaults to Calculated Tuition but may be overridden by Admin where required by the school's pricing policy.
+  - It is the primary standard pricing baseline for Tuition calculations.
+
+Example:
+
+    Single Lesson Fee: $30
+    Total Lessons: 9
+    Calculated Tuition: $270
+    Standard Tuition: $270
+
+---
+
+### 3. Operational Events and Lesson Management
+
+Public Holidays, School Operational Events and School / Coach cancellations must NOT be handled by manually reducing:
+
+- `total_lessons`
+- `calculated_tuition`
+- `standard_tuition`
+
+Instead:
+
+#### Academic Calendar
+
+Admin maintains the relevant School Operational Event.
+
+Example:
+
+    04/09/2026
+    School Operational Event
+    Public Holiday
+
+#### Lesson Management / Lesson Generation
+
+The affected lesson is represented as:
+
+    Status = Cancelled
+    Chargeable = No
+
+Lesson records are the operational source of truth for whether a lesson is actually chargeable.
+
+Therefore:
+
+Example:
+
+    Term = 9 standard lessons
+    Single Lesson Fee = $30
+    Standard Tuition = $270
+
+If one lesson is a Public Holiday:
+
+    Tuition Configuration remains:
+    Total Lessons = 9
+    Standard Tuition = $270
+
+    Lesson:
+    04/09 = Cancelled / Non-chargeable
+
+Admin must NOT change the Tuition Configuration to:
+
+    Total Lessons = 8
+    Standard Tuition = $240
+
+This distinction is mandatory.
+
+---
+
+### 4. Standard Tuition vs Applicable Tuition
+
+The system must distinguish between:
+
+#### Configured Standard Tuition
+
+The Admin-configured complete-Term pricing baseline:
+
+    tuition_configurations.standard_tuition
+
+and:
+
+#### Applicable Tuition
+
+The tuition amount applicable to a specific business scenario after applying that scenario's business rules.
+
+Different business scenarios may produce different Applicable Tuition values.
+
+This does NOT mean that all business scenarios must use the same calculation formula.
+
+The system must NOT force unrelated business models into one formula simply for technical consistency.
+
+However:
+
+- the meaning of each field must remain clear;
+- the calculation model for each business scenario must be explicit;
+- different models must not be mixed;
+- no calculation may double-deduct or omit a valid deduction;
+- the final Amount Payable must always represent the student's actual payable amount.
+
+---
+
+### 5. Business Scenario Separation
+
+The following business scenarios are recognised as separate Tuition calculation contexts:
+
+1. New Registration
+2. Re-enrolment
+3. Middle-Term New Registration
+4. Special Arrangement
+5. Final Payment / Amount Payable
+
+These scenarios may use different intermediate calculation models because their business purposes are different.
+
+The system must not assume that:
+
+    Standard Tuition
+    Applicable Tuition
+    Remaining Lesson Tuition
+    Final Amount Payable
+
+are interchangeable values.
+
+Each value must retain its defined business meaning.
+
+---
+
+### 6. New Registration — General Tuition Principle
+
+New Registration uses the configured Standard Tuition / applicable full-Term tuition as the pricing baseline.
+
+For a full-term New Registration:
+
+    Applicable Tuition normally starts from the configured Standard Tuition.
+
+For a Middle-Term New Registration:
+
+    Applicable Term Tuition may be derived from the actual chargeable teaching value of the Term.
+
+The system must respect:
+
+- Join Date;
+- Chargeable lessons;
+- Cancelled / Non-chargeable lessons;
+- the configured Standard Tuition baseline.
+
+---
+
+### 7. Middle-Term New Registration — FROZEN Business Model
+
+Middle-Term New Registration is a specific business scenario.
+
+The parent-facing Term tuition should represent the actual tuition value of the Term after excluding Term-wide non-chargeable lessons.
+
+The parent-facing lesson count should represent the actual chargeable lessons available in that Term.
+
+Example:
+
+    Configured Standard Tuition = $270
+    Total Lessons = 9
+    Single Lesson Fee = $30
+
+One lesson is cancelled / non-chargeable:
+
+    Actual Chargeable Lessons = 8
+    Applicable Term Tuition = $240
+
+Therefore the parent may see:
+
+    Term Tuition = $240
+    Lessons = 8
+
+The original Admin Tuition Configuration remains:
+
+    Total Lessons = 9
+    Standard Tuition = $270
+
+The configuration itself is NOT rewritten.
+
+---
+
+### 8. Middle-Term New Registration — Join Date
+
+Join Date is authoritative for determining when the student becomes financially active within the Term.
+
+Chargeable lessons before the student's Join Date are excluded from that student's payable tuition.
+
+Cancelled / Non-chargeable lessons are also excluded from the student's payable tuition.
+
+Example:
+
+    Configured Standard Tuition = $270
+    One cancelled lesson = $30
+    Applicable Term Tuition = $240
+
+Student Join Date:
+
+    31/10/2026
+
+Chargeable lessons before Join Date:
+
+    10/10 = $30
+    24/10 = $30
+
+Therefore:
+
+    $240
+    - $30
+    - $30
+    = $180 Amount Payable
+
+Equivalent calculation:
+
+    6 remaining Chargeable Lessons × $30
+    = $180
+
+Both calculation approaches must produce the same final Amount Payable.
+
+---
+
+### 9. Important Calculation Principle — Lesson Value Depends on the Model
+
+The same Cancelled Lesson may have different mathematical treatment depending on the calculation model.
+
+#### Standard Tuition Deduction Model
+
+When calculating from the complete-Term Standard Tuition:
+
+    Cancelled Lesson = a $30 deduction
+
+because the system is removing non-chargeable value from the complete-Term baseline.
+
+#### Remaining Chargeable Lesson Model
+
+When calculating remaining chargeable lessons:
+
+    Cancelled Lesson = 0
+
+because it does not belong to the Chargeable Lesson set.
+
+These are two valid mathematical models.
+
+They must NOT be mixed within the same calculation.
+
+The final result for the same business scenario must remain consistent.
+
+---
+
+### 10. Confirmed James Walker Regression Case
+
+Student:
+
+    James Walker
+    Student Code: STU0185
+
+Term 4, 2026:
+
+    Configured Standard Tuition = $270
+    Single Lesson Fee = $30
+    Join Date = 31/10/2026
+
+Lessons:
+
+    10/10 — Planned / Chargeable
+    17/10 — Cancelled / Non-chargeable
+    24/10 — Planned / Chargeable
+    31/10 — Planned / Chargeable
+    07/11 — Planned / Chargeable
+    14/11 — Planned / Chargeable
+    21/11 — Planned / Chargeable
+    28/11 — Planned / Chargeable
+    05/12 — Planned / Chargeable
+
+Actual Term Tuition:
+
+    8 Chargeable Lessons × $30
+    = $240
+
+James' payable lessons:
+
+    31/10
+    07/11
+    14/11
+    21/11
+    28/11
+    05/12
+
+    6 × $30
+    = $180
+
+Equivalent deduction model:
+
+    $240
+    - $30 (10/10 pre-Join Date)
+    - $30 (24/10 pre-Join Date)
+    = $180
+
+Correct Amount Payable:
+
+    $180
+
+Current stored $210 is confirmed incorrect.
+
+This is a confirmed Middle-Term New Registration calculation regression and is the immediate Tuition bug to be corrected.
+
+---
+
+### 11. Re-enrolment Boundary
+
+Re-enrolment is a separate Tuition business scenario.
+
+Existing PASS Re-enrolment calculation logic must remain unchanged unless a confirmed bug is identified.
+
+Re-enrolment may use:
+
+- configured Standard Tuition for full-term enrolment;
+- actual Chargeable Lesson data for mid-term situations;
+- attendance information where required by the existing approved business rules;
+- existing Tuition Credit / Make-up Credit / Adjustment logic.
+
+The Re-enrolment calculation model must not be mixed with the Middle-Term New Registration model.
+
+An internally calculated Re-enrolment tuition value must not be treated as the Admin's configured Standard Tuition merely because both values are displayed in a similar UI location.
+
+Existing PASS Re-enrolment behaviour remains Frozen.
+
+---
+
+### 12. Special Arrangement — Applies to New Registration AND Re-enrolment
+
+Pre-First-Lesson Special Arrangement applies to BOTH:
+
+- New Registration
+- Re-enrolment
+
+The common timing rule is:
+
+> Special Arrangement may be created / arranged only before the student's first formal lesson for that enrolment begins.
+
+Once the first formal lesson has started:
+
+- no new Special Arrangement may be created;
+- no new Special Arrangement may be arranged for that enrolment.
+
+This timing rule is Frozen.
+
+---
+
+### 13. Special Arrangement Calculation Lifecycle
+
+Special Arrangement is a separate adjustment stage.
+
+The basic business flow is:
+
+    Business Scenario Base Tuition
+            ↓
+    Initial Amount Payable
+            ↓
+    Pre-First-Lesson Special Arrangement
+            ↓
+    Final Amount Payable
+
+This applies to both:
+
+    New Registration
+    Re-enrolment
+
+Special Arrangement does NOT redefine the Admin Standard Tuition.
+
+Special Arrangement adjusts the applicable financial result for the specific enrolment.
+
+---
+
+### 14. Initial Payable → SA → Final Payable
+
+For New Registration:
+
+    New Registration Base Calculation
+            ↓
+    Initial Payable
+            ↓
+    Pre-First-Lesson SA
+            ↓
+    Final Payable
+
+For Re-enrolment:
+
+    Re-enrolment Base Calculation
+            ↓
+    Initial Payable
+            ↓
+    Pre-First-Lesson SA
+            ↓
+    Final Payable
+
+After Admin maintains the Special Arrangement:
+
+- the enrolment payable must be synchronised;
+- the final payable must be stored/used as the authoritative financial result;
+- the Parent Tuition page must reflect the final payable;
+- the SA adjustment must not be applied a second time by another calculation path.
+
+Existing approved SA synchronisation behaviour is PASS and must not be redesigned.
+
+---
+
+### 15. No Double Deduction
+
+The following must never occur:
+
+    Base Tuition
+    → SA already applied
+    → SA applied again
+    → incorrect payable
+
+or:
+
+    Cancelled Lesson already excluded
+    → cancelled lesson deducted again
+    → double deduction
+
+or:
+
+    Join Date adjustment already applied
+    → Join Date adjustment applied again
+    → incorrect payable
+
+Each business adjustment must have one defined calculation owner.
+
+---
+
+### 16. Final Amount Payable
+
+`Amount Payable` is the final amount the student is actually required to pay for the applicable business scenario.
+
+The final calculation must account for the applicable:
+
+- Standard / Applicable Tuition;
+- Join Date;
+- Chargeable / Non-chargeable Lessons;
+- Special Arrangement where applicable;
+- Tuition Credits;
+- Make-up / redemption values where applicable;
+- Additional approved adjustments.
+
+The final Amount Payable must be:
+
+- mathematically correct;
+- traceable to its calculation inputs;
+- consistent with the relevant business scenario;
+- reflected consistently in Admin and Parent views.
+
+---
+
+### 17. Existing PASS Modules — Do Not Redesign
+
+The following principles are Frozen:
+
+- Existing New Registration functionality that is already PASS.
+- Existing Re-enrolment functionality that is already PASS.
+- Existing Special Arrangement functionality that is already PASS.
+- Existing Parent Tuition display and synchronization.
+- Existing Email / Enrollment Confirmation flows.
+- Existing Tuition Credit / Make-up Credit workflows.
+- Existing Admin Tuition Configuration structure.
+
+This Tuition clarification does NOT authorize a broad Tuition refactor.
+
+Only confirmed calculation bugs should be corrected.
+
+---
+
+### 18. Admin Operating Rule
+
+Admin must maintain Tuition Configuration according to the following rule:
+
+> Standard Tuition represents the complete-Term standard pricing baseline.
+
+Admin must NOT reduce Tuition Configuration because of:
+
+- Public Holidays;
+- School Operational Events;
+- School / Coach cancellations;
+- individual cancelled lessons.
+
+Those operational conditions must be maintained through:
+
+- Academic Calendar / School Operational Event;
+- Lesson Management;
+- Lesson chargeable status.
+
+This is mandatory Admin operating guidance.
+
+---
+
+### 19. Tuition Change Control Rule
+
+Before changing any Tuition calculation, development must explicitly identify:
+
+1. Business scenario;
+2. Standard Tuition source;
+3. Applicable Tuition calculation model;
+4. Lesson / operational exclusions;
+5. Join Date treatment;
+6. Special Arrangement treatment;
+7. Credits / adjustments;
+8. Final Amount Payable;
+9. Supabase fields written;
+10. Admin display;
+11. Parent display;
+12. Email / payment consequences.
+
+No Tuition calculation may be changed solely because two screens use similar terminology.
+
+---
+
+### 20. Frozen Action Baseline
+
+This document is the baseline for all subsequent Tuition work.
+
+The immediate action is:
+
+    Correct the confirmed Middle-Term New Registration
+    calculation regression.
+
+The immediate action is NOT:
+
+    Redesign the entire Tuition system.
+
+The correction must preserve:
+
+- Admin Standard Tuition definition;
+- existing PASS Re-enrolment logic;
+- existing PASS Special Arrangement logic;
+- existing Parent Tuition synchronization;
+- existing Email / Payment behaviour.
+
+The James Walker case will be used as the primary regression test.
+
+Required validation:
+
+    James:
+    Correct Amount Payable = $180
+
+    Full-term New Registration:
+    Configured Standard Tuition remains authoritative.
+
+    Middle-Term New Registration:
+    Parent-facing applicable Term Tuition and lesson count
+    reflect actual chargeable Term value.
+
+    Pre-First-Lesson SA:
+    Initial Payable → SA → Final Payable remains correct.
+
+    Parent Tuition:
+    displays the final authoritative payable.
+
+    Re-enrolment:
+    existing PASS behaviour remains unchanged.
+
+### Frozen Status
+
+This Tuition Standard Definition and Business Calculation Baseline is FROZEN.
+
+Future changes require:
+
+- a confirmed bug; or
+- an explicit Change Request; or
+- a subsequent Frozen SRS Addendum / revision.
+
+Existing PASS functionality must not be redesigned without such justification.
+
+## 2026-10-07 — PASS: Middle-Term New Registration Tuition Calculation E2E
+
+### Scope
+- Fixed Middle-Term New Registration tuition calculation in `lib/registrationService.ts`.
+- Scope is limited to the New Registration flow through `activateEnrollment()` → `createEnrollment()`.
+- Re-enrolment, Assisted Re-enrolment, Special Arrangement, Attendance, Payment, Make-up Credit and other PASS/FROZEN modules were not modified.
+
+### Frozen Calculation Model
+- Admin Tuition Configuration `standard_tuition` remains the configured full-term standard pricing baseline.
+- Non-chargeable lessons are excluded from the Enrollment's applicable Standard Tuition.
+- Chargeable lessons before the student's Join Date are deducted from the applicable Standard Tuition.
+- Final `amount_payable` is calculated after both adjustments.
+
+### E2E Validation
+- Test student: `new smoke 2 测试`
+- Academic Year: 2026
+- Term: 4
+- Campus: MacGregor
+- Class: MacGregor | Saturday | Advanced
+- Join Date: 2026-10-31
+- Trial: No
+- Configured Standard Tuition: `$270`
+- One Non-chargeable lesson: `-$30`
+- Enrollment Standard Tuition: `$240`
+- Two Chargeable lessons before Join Date: `-$60`
+- Final Amount Payable: `$180`
+
+### Result
+- Parent Tuition page displayed Standard Tuition `$240.00`.
+- Parent Tuition page displayed Amount Payable `$180.00`.
+- New Registration Middle-Term Tuition E2E — **PASS**.
+
+### Frozen Boundary
+- This change only applies to the New Registration creation flow.
+- Existing Re-enrolment and Special Arrangement calculation baselines remain unchanged.
+- No Tuition Configuration records were modified.
 ## 2026-10-06 — PASS: Mid-term Withdrawal & Student Return Management — Initial Withdrawal Module
 
 ### Withdrawal Module
