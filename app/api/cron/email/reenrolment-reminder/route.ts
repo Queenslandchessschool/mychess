@@ -7,7 +7,7 @@ import { logEmailAudit } from "@/lib/email/emailAudit";
 
 const BUSINESS_EVENT = "REENROLMENT_REMINDER";
 const PORTAL_LINK =
-  "https://queenslandchessschool.com.au/parent/reenrolment";
+  "https://mychess.queenslandchessschool.com.au/";
 
 function getBrisbaneDateKey(): string {
   return new Intl.DateTimeFormat("en-CA", {

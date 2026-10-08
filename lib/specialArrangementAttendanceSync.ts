@@ -612,10 +612,7 @@ export async function syncSpecialArrangementAttendanceForLesson(
   continue;
 }
 
-if (
-  actuallyAttendedIds.has(attendance.id) ||
-  ["Present", "Late"].includes(attendance.attendance_status)
-) {
+if (actuallyAttendedIds.has(attendance.id)) {
   continue;
 }
 

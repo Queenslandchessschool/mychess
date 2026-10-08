@@ -257,7 +257,7 @@ if (scheduleError || !schedule?.final_lesson) {
           "Parent",
         "Student Name": studentName,
         "Re-enrolment / Parent Portal Link":
-          "https://queenslandchessschool.com.au/parent/reenrolment",
+          "https://mychess.queenslandchessschool.com.au/parent/reenrolment",
         "Holiday Training Camp Registration Link":
           "https://docs.google.com/forms/d/e/1FAIpQLSeJdcgIU9Q2aqaIw3hrFb9NQWPbY_KoSBWbfcBGgyP4NKknDg/viewform",
       };

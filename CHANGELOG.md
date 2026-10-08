@@ -1,3 +1,34 @@
+## 2026-10-08 — FIX: Special Arrangement Attendance Sync & Re-enrolment Scheduler
+
+### Special Arrangement Attendance
+
+- Fixed the Special Arrangement attendance synchronization logic so an Active Special Arrangement can set `attendance_type = Holiday` even when the student attendance status is `Present` or `Late`.
+- Preserved the actual attendance status (`Present` / `Late`) while applying the Holiday attendance type for Special Arrangement lessons.
+- Removed the incorrect logic that skipped synchronization whenever an attendance record was already `Present` or `Late`.
+- Preserved existing Holiday records and actual attendance change protection.
+- Confirmed the affected attendance scenario and validated the corrected synchronization logic through production build.
+
+### Re-enrolment Email Scheduler
+
+- Updated Re-enrolment Opening and Re-enrolment Reminder portal links to use the MyCHESS production login entry point.
+- Verified the 12:00 Brisbane-time email scheduler in Production.
+- Confirmed that current-term enrolled students receive class reminders.
+- Confirmed that previous-term same-class students who have not re-enrolled receive the appropriate re-enrolment reminder.
+- Confirmed that students already enrolled in another current-term class are correctly excluded.
+- Confirmed targeted email content is rendered according to each student's re-enrolment status.
+
+### Validation
+
+- TypeScript / production build: PASS
+- `git diff --check`: PASS
+- Special Arrangement attendance fix: applied and build-validated.
+- Re-enrolment 12:00 Scheduler: Production delivery verified.
+- 04:00 Attendance Generation and 20:00 Attendance Reminder remain scheduled for separate Production verification.
+
+### Frozen Baseline
+
+The existing PASS modules and business rules remain unchanged. This change is limited to the confirmed Special Arrangement attendance synchronization bug and the verified Re-enrolment scheduler updates.
+
 ## 2026-10-07 — Class Reminder Target Logic Update
 
 ### Class Reminder
