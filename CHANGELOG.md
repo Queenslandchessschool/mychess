@@ -1,3 +1,9 @@
+## 2026-10-08 — FIX: 8PM Attendance Reminder Lesson Time Query
+- Fixed 8PM Attendance Reminder failing with 42703 because it queried non-existent lessons.start_time / lessons.end_time.
+- Updated the reminder to read lesson start/end times from the related classes record.
+- npm run build PASS.
+- Production 8PM scheduler trigger was confirmed; final email delivery verification pending after deployment.
+
 ## 2026-10-08 — FIX: Special Arrangement Attendance Sync & Re-enrolment Scheduler
 
 ### Special Arrangement Attendance

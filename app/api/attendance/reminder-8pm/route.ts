@@ -76,8 +76,6 @@ export async function POST(request: Request) {
     .select(`
   id,
   lesson_date,
-  start_time,
-  end_time,
   status,
   classes:class_id (
     coach_id,
@@ -283,10 +281,10 @@ function formatTime(time?: string | null) {
 }
 
 const startTime =
-  formatTime(lesson.start_time);
+  formatTime(lesson.classes?.start_time);
 
 const endTime =
-  formatTime(lesson.end_time);
+  formatTime(lesson.classes?.end_time);
 
 const lessonLabel =
   `${startTime} – ${endTime} — ${className}`;
