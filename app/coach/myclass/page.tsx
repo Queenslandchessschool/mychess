@@ -232,7 +232,7 @@ endTime:
       className="
         mx-auto
         w-full
-        max-w-7xl
+        max-w-[1500px]
         px-4
         py-5
         sm:px-6
