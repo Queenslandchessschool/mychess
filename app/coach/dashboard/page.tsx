@@ -388,7 +388,7 @@ export default function CoachDashboard() {
 
   if (loading) {
     return (
-      <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-[1500px] px-4 py-8 sm:px-6 lg:px-8">
         <p className="text-sm text-[#C8D2DF]">
           Loading Coach Portal...
         </p>
@@ -404,7 +404,7 @@ export default function CoachDashboard() {
 
   if (error || !coach) {
     return (
-      <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-[1500px] px-4 py-8 sm:px-6 lg:px-8">
         <div
           className="
             rounded-2xl
@@ -438,11 +438,11 @@ export default function CoachDashboard() {
       className="
         mx-auto
         w-full
-        max-w-7xl
+        max-w-[1500px]
         px-4
         py-8
         sm:px-6
-        lg:px-5
+        lg:px-8
       "
     >
       {/* ======================================
