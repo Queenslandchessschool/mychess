@@ -81,6 +81,8 @@ export async function POST(request: Request) {
     coach_id,
     level,
     class_suffix,
+    start_time,
+    end_time,
     coaches:coach_id (
           id,
           email,
@@ -281,10 +283,10 @@ function formatTime(time?: string | null) {
 }
 
 const startTime =
-  formatTime(lesson.classes?.start_time);
+  formatTime(lesson.classes?.[0]?.start_time);
 
 const endTime =
-  formatTime(lesson.classes?.end_time);
+  formatTime(lesson.classes?.[0]?.end_time);
 
 const lessonLabel =
   `${startTime} – ${endTime} — ${className}`;
