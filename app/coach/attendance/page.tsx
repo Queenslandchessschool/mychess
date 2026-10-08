@@ -2272,6 +2272,10 @@ const {
   .eq(
     "coach_id",
     currentUser.coachId
+  )
+  .eq(
+    "status",
+    "Active"
   );
 
 
