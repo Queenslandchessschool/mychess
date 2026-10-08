@@ -1162,6 +1162,15 @@ async function addMakeupStudent(
           "en-CA"
         );
 
+      const { data: activeClasses, error: activeClassError } = await supabase
+        .from("classes")
+        .select("id")
+        .eq("status", "Active");
+
+      if (activeClassError) throw activeClassError;
+
+      const activeClassIds = (activeClasses ?? []).map((item: any) => item.id);
+
       const {
         data,
         error,
@@ -1182,6 +1191,10 @@ async function addMakeupStudent(
             )
           )
         `)
+        .in(
+          "class_id",
+          activeClassIds
+        )
         .gte(
           "lesson_date",
           today
