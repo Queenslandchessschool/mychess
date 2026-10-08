@@ -1,3 +1,38 @@
+## 2026-10-08 — FIX/ADD: Trial Feedback & Reminder
+
+### Trial Feedback Display Fix
+- Fixed Coach Trial page using a hardcoded academic term.
+- Updated the page to use the current Academic Calendar year and term.
+- This ensures current-term Trial students appear correctly on the Coach Trial page.
+- Verified with Sophia Andreenkova:
+  - Term 4 Trial
+  - Attendance = Present
+  - Trial Feedback pending
+  - Production Coach Trial page now correctly displays “Complete Feedback”.
+- `npm run build` PASS.
+- Production verification PASS.
+
+### Trial Feedback Reminder Email
+- Added the Trial Feedback Reminder email API for Coaches.
+- Targets Trial attendance where:
+  - Attendance Status = Present
+  - Attendance Type = Trial
+  - Trial Feedback is pending
+  - Lesson Date = previous Brisbane calendar day
+  - Coach is Active and has an email address
+- Uses the central `TRIAL_FEEDBACK_REMINDER` email template.
+- Sends the reminder to the assigned Coach, not the Parent.
+- Uses the central MyCHESS email service and email audit logging.
+- Includes duplicate-send protection using the attendance record as the reminder audit key.
+- Email variables:
+  - Coach Name
+  - Student Name
+  - Class Name
+  - Trial Date
+  - MyCHESS Login URL
+- `npm run build` PASS.
+- Production scheduler integration and final live email delivery verification remain pending.
+
 ## 2026-10-08 — FIX: 8PM Attendance Reminder Lesson Time Query
 - Fixed 8PM Attendance Reminder failing with 42703 because it queried non-existent lessons.start_time / lessons.end_time.
 - Updated the reminder to read lesson start/end times from the related classes record.
