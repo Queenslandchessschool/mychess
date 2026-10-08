@@ -94,13 +94,12 @@ function formatTime(value?: string | null) {
  */
 
 export default function CoachTrialPage() {
-  const currentYear = new Date().getFullYear();
 
-  const [academicYear] =
-    useState<number>(currentYear);
+  const [academicYear, setAcademicYear] =
+    useState<number | null>(null);
 
-  const [term] =
-    useState<number>(3);
+  const [term, setTerm] =
+    useState<number | null>(null);
 
   const [loading, setLoading] =
     useState(true);
@@ -191,6 +190,46 @@ export default function CoachTrialPage() {
     try {
       setLoading(true);
       setErrorMessage(null);
+            const today =
+        new Date().toISOString().slice(0, 10);
+
+      const {
+        data: calendar,
+        error: calendarError,
+      } = await supabase
+        .from("academic_calendar")
+        .select(
+          "academic_year, term, start_date, end_date"
+        )
+        .lte("start_date", today)
+        .gte("end_date", today)
+        .order("academic_year", {
+          ascending: false,
+        })
+        .order("term", {
+          ascending: false,
+        })
+        .limit(1)
+        .maybeSingle();
+
+      if (calendarError) {
+        throw calendarError;
+      }
+
+      if (!calendar) {
+        throw new Error(
+          "Current Academic Term could not be determined."
+        );
+      }
+
+      const currentAcademicYear =
+        calendar.academic_year;
+
+      const currentTerm =
+        calendar.term;
+
+      setAcademicYear(currentAcademicYear);
+      setTerm(currentTerm);
 
       const currentUser =
         await getCurrentUser();
@@ -320,11 +359,11 @@ export default function CoachTrialPage() {
         `)
         .eq(
           "academic_year",
-          academicYear
+          currentAcademicYear
         )
         .eq(
           "term",
-          term
+          currentTerm
         )
         .eq(
           "is_trial",
