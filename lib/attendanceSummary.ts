@@ -37,28 +37,28 @@ export function calculateAttendanceSummary(
   const present =
     students.filter(
       (student) =>
-        student.attendance_type !== "Excused" &&
+        student.attendance_type !== "Excused" && student.attendance_type !== "Holiday" &&
         student.attendance_status === "Present"
     ).length;
 
   const absent =
     students.filter(
       (student) =>
-        student.attendance_type !== "Excused" &&
+        student.attendance_type !== "Excused" && student.attendance_type !== "Holiday" &&
         student.attendance_status === "Absent"
     ).length;
 
   const late =
     students.filter(
       (student) =>
-        student.attendance_type !== "Excused" &&
+        student.attendance_type !== "Excused" && student.attendance_type !== "Holiday" &&
         student.attendance_status === "Late"
     ).length;
 
   const leave =
     students.filter(
       (student) =>
-        student.attendance_type === "Excused"
+        (student.attendance_type === "Excused" || student.attendance_type === "Holiday")
     ).length;
 
   const attendanceRate =
@@ -68,7 +68,7 @@ export function calculateAttendanceSummary(
           (
             students.filter(
               (student) =>
-                student.attendance_type !== "Excused" &&
+                student.attendance_type !== "Excused" && student.attendance_type !== "Holiday" &&
                 (
                   student.attendance_status === "Present" ||
                   student.attendance_status === "Late"
