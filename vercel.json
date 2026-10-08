@@ -21,6 +21,10 @@
       "schedule": "0 2 * * *"
     },
     {
+      "path": "/api/cron/email/trial-feedback-reminder",
+      "schedule": "0 2 * * *"
+    },
+    {
       "path": "/api/cron/email/reenrolment-opening-get",
       "schedule": "0 22 * * *"
     }
