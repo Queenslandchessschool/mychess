@@ -1,3 +1,17 @@
+## 2026-10-09 — Coach Portal: Info & Profile Pages
+
+- Added Coach Info page at `/coach/info`.
+- Added animated chess-piece presentation and Coming Soon content using the MyCHESS Navy / Gold visual style.
+- Added Coach Profile page at `/coach/profile`.
+- Coach Profile loads the authenticated coach through `coaches.auth_user_id`; no hard-coded Coach ID.
+- Displays coach name, contact details, status, and Blue Card information in a read-only layout.
+- Aligned Profile page content width, page margins, headings, and card styling with the existing MyClass page.
+- Applied responsive, mobile-first layouts while retaining the existing Coach Portal layout and chessboard background.
+- Updated the Profile identity icon to a king and removed duplicate display-name rendering.
+- Validation: `npm run build` PASS.
+- Scope: No database schema changes; existing Coach Dashboard and Coach Layout were not modified for these pages.
+
+
 ## 2026-10-08 — FIX/ADD: Trial Feedback & Reminder
 
 ### Trial Feedback Display Fix
@@ -32,6 +46,18 @@
   - MyCHESS Login URL
 - `npm run build` PASS.
 - Production scheduler integration and final live email delivery verification remain pending.
+
+### Production Verification — 2026-10-09
+
+- Fixed the Vercel Cron entry to use the GET scheduler wrapper.
+- Production deployment: PASS (`aacf41e`).
+- Manual production email delivery: PASS.
+- Trial Feedback Reminder sent successfully to the assigned Coach for Sophia Andreenkova's 2026-10-08 Trial.
+- Email audit log: PASS (`Success`).
+- Duplicate-send protection: PASS. Repeated invocation returned `sent: 0`, `skipped: 1`, `failed: 0`.
+- Production build: PASS (`npm run build`).
+- Automated Vercel Cron execution: PENDING.
+- Final module acceptance remains PENDING until scheduled execution is verified.
 
 ## 2026-10-08 — FIX: 8PM Attendance Reminder Lesson Time Query
 - Fixed 8PM Attendance Reminder failing with 42703 because it queried non-existent lessons.start_time / lessons.end_time.
