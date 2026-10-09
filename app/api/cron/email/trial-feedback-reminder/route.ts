@@ -60,15 +60,7 @@ function getCoachName(coach: {
   first_name?: string | null;
   last_name?: string | null;
 } | null): string {
-  return (
-    [
-      coach?.first_name,
-      coach?.last_name,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .trim() || "Coach"
-  );
+  return coach?.first_name?.trim() || "Coach";
 }
 
 export async function POST(request: Request) {
