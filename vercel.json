@@ -21,7 +21,7 @@
       "schedule": "0 2 * * *"
     },
     {
-      "path": "/api/cron/email/trial-feedback-reminder",
+      "path": "/api/cron/email/trial-feedback-reminder-get",
       "schedule": "0 2 * * *"
     },
     {

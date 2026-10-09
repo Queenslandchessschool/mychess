@@ -113,7 +113,7 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
-    const { data: pendingTrials, error: trialError } =
+        const { data: attendanceRecords, error: attendanceError } =
       await supabaseServer
         .from("attendance")
         .select(`
@@ -121,70 +121,132 @@ export async function POST(request: Request) {
           student_id,
           attendance_status,
           attendance_type,
-          lesson_id,
-          students:student_id (
-            first_name,
-            last_name
-          ),
-          lessons:lesson_id (
-            id,
-            lesson_date,
-            class_id,
-            classes:class_id (
-              level,
-              class_suffix,
-              coach_id,
-              coaches:coach_id (
-                first_name,
-                last_name,
-                email,
-                status
-              )
-            )
-          ),
-          trial_feedback (
-            id
-          )
+          lesson_id
         `)
         .eq("attendance_status", "Present")
-        .eq("attendance_type", "Trial")
-        .eq("trial_feedback.id", null)
-        .eq("lessons.lesson_date", previousDateKey);
+        .eq("attendance_type", "Trial");
 
-    if (trialError) {
+    if (attendanceError) {
       return NextResponse.json(
         {
           error:
-            `Failed to load pending Trial Feedback: ${trialError.message}`,
+            `Failed to load Trial attendance: ${attendanceError.message}`,
         },
         { status: 500 }
       );
     }
 
-    const pendingFeedback = (pendingTrials ?? [])
-      .filter((attendance: any) => {
-        const lesson = Array.isArray(attendance.lessons)
-          ? attendance.lessons[0]
-          : attendance.lessons;
+    const { data: lessons, error: lessonError } =
+      await supabaseServer
+        .from("lessons")
+        .select(`
+          id,
+          lesson_date,
+          class_id,
+          classes:class_id (
+            level,
+            class_suffix,
+            coach_id,
+            coaches:coach_id (
+              first_name,
+              last_name,
+              email,
+              status
+            )
+          )
+        `)
+        .eq("lesson_date", previousDateKey);
 
-        const classData = Array.isArray(lesson?.classes)
-          ? lesson.classes[0]
-          : lesson?.classes;
+    if (lessonError) {
+      return NextResponse.json(
+        {
+          error:
+            `Failed to load Trial lessons: ${lessonError.message}`,
+        },
+        { status: 500 }
+      );
+    }
 
-        const coach = Array.isArray(classData?.coaches)
-          ? classData.coaches[0]
-          : classData?.coaches;
+    const previousDayLessons = lessons ?? [];
+    const lessonMap = new Map(
+      previousDayLessons.map((lesson: any) => [
+        lesson.id,
+        lesson,
+      ])
+    );
 
-        return (
-          lesson?.lesson_date === previousDateKey &&
-          coach?.status === "Active" &&
-          Boolean(coach?.email)
+    const matchingAttendance = (attendanceRecords ?? [])
+      .filter((attendance: any) =>
+        lessonMap.has(attendance.lesson_id)
+      );
+
+    const attendanceIds = matchingAttendance.map(
+      (attendance: any) => attendance.id
+    );
+
+    const { data: existingFeedback, error: feedbackError } =
+      attendanceIds.length > 0
+        ? await supabaseServer
+            .from("trial_feedback")
+            .select("attendance_id")
+            .in("attendance_id", attendanceIds)
+        : { data: [], error: null };
+
+    if (feedbackError) {
+      return NextResponse.json(
+        {
+          error:
+            `Failed to load existing Trial Feedback: ${feedbackError.message}`,
+        },
+        { status: 500 }
+      );
+    }
+
+    const feedbackAttendanceIds = new Set(
+      (existingFeedback ?? []).map(
+        (feedback: any) => feedback.attendance_id
+      )
+    );
+
+    const { data: students, error: studentError } =
+      await supabaseServer
+        .from("students")
+        .select("id, first_name, last_name")
+        .in(
+          "id",
+          Array.from(
+            new Set(
+              matchingAttendance.map(
+                (attendance: any) => attendance.student_id
+              )
+            )
+          )
         );
-      })
+
+    if (studentError) {
+      return NextResponse.json(
+        {
+          error:
+            `Failed to load Trial students: ${studentError.message}`,
+        },
+        { status: 500 }
+      );
+    }
+
+    const studentMap = new Map(
+      (students ?? []).map((student: any) => [
+        student.id,
+        student,
+      ])
+    );
+
+    const pendingFeedback = matchingAttendance
+      .filter(
+        (attendance: any) =>
+          !feedbackAttendanceIds.has(attendance.id)
+      )
       .map((attendance: any) => {
-        const lesson = Array.isArray(attendance.lessons)
-          ? attendance.lessons[0]
-          : attendance.lessons;
+        const lesson = lessonMap.get(attendance.lesson_id);
 
         const classData = Array.isArray(lesson?.classes)
           ? lesson.classes[0]
@@ -194,9 +256,9 @@ export async function POST(request: Request) {
           ? classData.coaches[0]
           : classData?.coaches;
 
-        const student = Array.isArray(attendance.students)
-          ? attendance.students[0]
-          : attendance.students;
+        const student = studentMap.get(
+          attendance.student_id
+        );
 
         return {
           attendanceId: attendance.id,
@@ -215,7 +277,11 @@ export async function POST(request: Request) {
             .join(" ")
             .trim(),
         };
-      });
+      })
+      .filter(
+        (trial: any) =>
+          Boolean(trial.coachEmail)
+      );
 
     let sent = 0;
     let skipped = 0;
