@@ -169,51 +169,38 @@ export async function reconcileAttendance(
   // ======================================================
 
   const eligibleEnrolments =
-    (enrolments ?? []).filter(
-      (enrolment: any) => {
+  (enrolments ?? []).filter(
+    (enrolment: any) => {
 
-        // --------------------------------------------------
-        // Regular enrolment
-        // --------------------------------------------------
-        if (enrolment.is_trial !== true) {
-          return true;
-        }
-
-
-        // --------------------------------------------------
-        // Trial already converted to Regular
-        //
-        // Historical Trial Attendance remains untouched.
-        // Future Attendance is Regular.
-        // --------------------------------------------------
-        if (
-          enrolment.trial_status ===
-          "Enrolled"
-        ) {
-          return true;
-        }
-
-
-        // --------------------------------------------------
-        // Trial not yet Enrolled
-        //
-        // Trial Date is student_enrolments.join_date.
-        //
-        // A Trial student may enter Attendance ONLY
-        // for the lesson on that Trial Date.
-        // --------------------------------------------------
+      // Trial not yet Enrolled:
+      // eligible only on the exact Trial Date.
+      if (
+        enrolment.is_trial === true &&
+        enrolment.trial_status !== "Enrolled"
+      ) {
         if (!enrolment.join_date) {
           return false;
         }
-
 
         return (
           String(enrolment.join_date) ===
           String(lesson.lesson_date)
         );
       }
-    );
 
+      // Regular enrolment and Trial already Enrolled:
+      // attendance starts on or after join_date.
+      // Keep existing behaviour when join_date is NULL.
+      if (enrolment.join_date) {
+        return (
+          String(lesson.lesson_date) >=
+          String(enrolment.join_date)
+        );
+      }
+
+      return true;
+    }
+  );
 
   // ======================================================
   // 3. Load Booked Make-up Bookings
