@@ -212,10 +212,15 @@ export default function RegistrationForm({
     }
 
     const { data: existingParents, error: parentCheckError } =
+    
       await supabase
         .from("parents")
         .select("student_id")
         .ilike("email", normalizedEmail);
+
+    console.log("[Duplicate Check] Email:", normalizedEmail);
+    console.log("[Duplicate Check] Parents:", existingParents);
+    console.log("[Duplicate Check] Error:", parentCheckError);    
 
     if (parentCheckError) {
       console.error("Duplicate registration check failed:", parentCheckError);
