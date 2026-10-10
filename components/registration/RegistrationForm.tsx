@@ -199,6 +199,71 @@ export default function RegistrationForm({
   setIsSubmitting(true);
 
   try {
+    
+    // Check for an existing student with the same name
+    // and the same parent email before creating a new record.
+    const normalizedEmail = formData.parent.email.trim().toLowerCase();
+    const normalizedFirstName = formData.student.first_name.trim().toLowerCase();
+    const normalizedLastName = formData.student.last_name.trim().toLowerCase();
+
+    if (!normalizedEmail || !normalizedFirstName || !normalizedLastName) {
+      alert("Student name and parent email are required.");
+      return;
+    }
+
+    const { data: existingParents, error: parentCheckError } =
+      await supabase
+        .from("parents")
+        .select("student_id")
+        .ilike("email", normalizedEmail);
+
+    if (parentCheckError) {
+      console.error("Duplicate registration check failed:", parentCheckError);
+      alert("Unable to check for duplicate registration. Please try again.");
+      return;
+    }
+
+    const existingStudentIds = [
+      ...new Set(
+        (existingParents ?? [])
+          .map((parent) => parent.student_id)
+          .filter((id): id is string => Boolean(id))
+      ),
+    ];
+
+    if (existingStudentIds.length > 0) {
+      const { data: existingStudents, error: studentCheckError } =
+        await supabase
+          .from("students")
+          .select("id, first_name, last_name, student_code")
+          .in("id", existingStudentIds);
+
+      if (studentCheckError) {
+        console.error("Duplicate student check failed:", studentCheckError);
+        alert("Unable to check for duplicate registration. Please try again.");
+        return;
+      }
+
+      const duplicate = (existingStudents ?? []).find(
+        (student) =>
+          student.first_name?.trim().toLowerCase() === normalizedFirstName &&
+          student.last_name?.trim().toLowerCase() === normalizedLastName
+      );
+
+      if (duplicate) {
+        const continueRegistration = window.confirm(
+          `A student with the same name and parent email already exists.\n\n` +
+          `Student: ${duplicate.first_name} ${duplicate.last_name}\n` +
+          `Student Code: ${duplicate.student_code ?? "Unavailable"}\n\n` +
+          `Do you want to continue creating another registration?`
+        );
+
+        if (!continueRegistration) {
+          return;
+        }
+      }
+    }
+
     await onSubmit(formData);
 
     setFormData(initialFormData);
@@ -1115,9 +1180,9 @@ export default function RegistrationForm({
               type="submit"
               disabled={isSubmitting}
               className="rounded-xl bg-[#011029] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#102B4D] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isSubmitting ? "Submitting..." : "Submit Registration"}
-            </button>
+         >
+  {isSubmitting ? "Submitting..." : "Submit Registration"}
+</button>
           )}
         </div>
       </form>
