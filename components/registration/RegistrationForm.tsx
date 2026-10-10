@@ -1,7 +1,7 @@
 "use client";
 
 import { supabase } from "@/lib/supabase";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { RegistrationData } from "@/lib/registration";
 import {
@@ -60,6 +60,8 @@ export default function RegistrationForm({
     useState<RegistrationData>(initialFormData);
 
   const [step, setStep] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitLockRef = useRef(false);
 
   const [campuses, setCampuses] = useState<any[]>([]);
 
@@ -185,23 +187,30 @@ export default function RegistrationForm({
     setClasses(data ?? []);
   }
 
-  async function handleSubmit(
-    e: React.FormEvent
-  ) {
-    e.preventDefault();
+  async function handleSubmit(e: React.FormEvent) {
+  e.preventDefault();
 
-    try {
-      await onSubmit(formData);
-
-      setFormData(initialFormData);
-      setStep(1);
-
-      // router.push("/admin/students");
-    } catch (error) {
-      console.error(error);
-      alert("Registration failed.");
-    }
+  // Prevent duplicate submissions before React re-renders.
+  if (submitLockRef.current) {
+    return;
   }
+
+  submitLockRef.current = true;
+  setIsSubmitting(true);
+
+  try {
+    await onSubmit(formData);
+
+    setFormData(initialFormData);
+    setStep(1);
+  } catch (error) {
+    console.error(error);
+    alert("Registration failed. Please check the error before trying again.");
+  } finally {
+    submitLockRef.current = false;
+    setIsSubmitting(false);
+  }
+}
 
   const selectedCampus = campuses.find(
     (c) => c.id === formData.enrollment.campus_id
@@ -1104,9 +1113,10 @@ export default function RegistrationForm({
           ) : (
             <button
               type="submit"
-              className="rounded-xl bg-[#011029] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#102B4D] active:scale-[0.98]"
+              disabled={isSubmitting}
+              className="rounded-xl bg-[#011029] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#102B4D] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Submit Registration
+              {isSubmitting ? "Submitting..." : "Submit Registration"}
             </button>
           )}
         </div>
