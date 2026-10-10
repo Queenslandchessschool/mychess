@@ -1,3 +1,16 @@
+## 2026-10-11 — FIX: Duplicate Student Registration Prevention
+
+- Added an authenticated duplicate-registration API at `/api/registration/duplicate-check`.
+- Added a registration-form check using normalized student first name, last name, and parent email.
+- Registration is blocked when a matching student already exists; the form displays the existing student code when available.
+- Added a second duplicate check in `activateEnrollment()` before student creation.
+- Updated new-student registration error handling to distinguish registration creation failures from confirmation email failures.
+- When registration is saved but confirmation email delivery fails, the page reports the saved Enrollment ID and advises against resubmitting.
+- Validation so far: `npx tsc --noEmit` PASS; duplicate-check API read-only test PASS for existing student `STU0199`.
+- Pending validation: full registration flow, non-duplicate registration flow, and confirmation-email failure handling.
+- Known limitation: application-level checks are not atomic and do not guarantee prevention of concurrent duplicate requests.
+- Deployment: Not deployed.
+
 ## 2026-10-09 — Coach Portal: Info & Profile Pages
 
 - Added Coach Info page at `/coach/info`.
