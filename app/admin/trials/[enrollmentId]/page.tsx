@@ -802,6 +802,40 @@ const {
 if (trialUpdateError) {
   throw trialUpdateError;
 }
+
+      // Send the enrolment confirmation email after enrolment succeeds.
+      // Email failure must not roll back the successful enrolment.
+      if (newRegularEnrollmentId) {
+        try {
+          const emailResponse = await fetch(
+            "/api/email/enrolment-confirmation",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                enrollmentId: newRegularEnrollmentId,
+                enrolmentSource: "trial_conversion",
+              }),
+            }
+          );
+
+          if (!emailResponse.ok) {
+            const emailError = await emailResponse.text();
+            console.error(
+              "ENROLMENT CONFIRMATION EMAIL FAILED:",
+              emailResponse.status,
+              emailError
+            );
+          }
+        } catch (emailError) {
+          console.error(
+            "ENROLMENT CONFIRMATION EMAIL FAILED:",
+            emailError
+          );
+        }
+      }
       setShowEnrolmentConfirmation(false);
 
       router.push("/admin/trials");
