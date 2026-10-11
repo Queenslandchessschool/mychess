@@ -1137,7 +1137,7 @@ if (duplicate) {
                 </div>
               </div>
             </div>
-            <div className="rounded-xl border border-[#D8E4EF] bg-[#EEF5FB]/70 p-4">
+            <div className="mt-3 rounded-xl border border-[#D8E4EF] bg-[#EEF5FB]/70 p-4">
               <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-[#7B5B16]">
                 Lessons and Tuition Fee
               </h3>
