@@ -1,3 +1,28 @@
+## 2026-10-11 — Registration Review: Lessons & Tuition Fee Preview
+
+### Added
+- Added the read-only registration fee preview API at `/api/registration/fee-preview`.
+- Added a **Lessons and Tuition Fee** summary card to the Admin Registration Review step.
+- Added dynamic display of the number of remaining lessons.
+- Added dynamic display of the tuition fee, formatted in AUD and labelled as including GST.
+- Added authenticated administrator access verification for the preview API.
+
+### Business Logic
+- Reused the existing registration tuition calculation formula.
+- Excluded cancelled lessons and lessons before the join date from the remaining lesson count.
+- Preserved the existing registration and enrolment confirmation email logic.
+- The preview API does not create enrolment records or send emails.
+
+### Validation Status
+- Next.js production build: PASS.
+- `git diff --check`: PASS.
+- Tuition calculation formula comparison: PASS.
+- Runtime UI and API verification: PENDING.
+- Git commit: PENDING.
+- Production deployment: NOT DEPLOYED.
+
+### Scope
+This is an additive change to the Admin Registration Review workflow. Existing registration records, email templates and production data remain unchanged.
 ## 2026-10-11 — FIX: Duplicate Student Registration Prevention
 
 - Added an authenticated duplicate-registration API at `/api/registration/duplicate-check`.

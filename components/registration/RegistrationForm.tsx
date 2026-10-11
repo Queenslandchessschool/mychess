@@ -67,6 +67,14 @@ export default function RegistrationForm({
 
   const [classes, setClasses] = useState<any[]>([]);
 
+  const [feePreview, setFeePreview] = useState<{
+  remainingLessons: number;
+  tuitionFee: number;
+} | null>(null);
+
+const [feePreviewLoading, setFeePreviewLoading] = useState(false);
+const [feePreviewError, setFeePreviewError] = useState("");
+
   const router = useRouter();
 
   function updateStudent(
@@ -155,6 +163,88 @@ export default function RegistrationForm({
       setClasses([]);
     }
   }, [formData.enrollment.campus_id]);
+  useEffect(() => {
+  let cancelled = false;
+
+  async function loadFeePreview() {
+    const { class_id, academic_year, term, join_date } =
+      formData.enrollment;
+
+    if (!class_id) {
+      setFeePreview(null);
+      setFeePreviewError("");
+      setFeePreviewLoading(false);
+      return;
+    }
+
+    setFeePreview(null);
+    setFeePreviewError("");
+    setFeePreviewLoading(true);
+
+    try {
+      const { data: sessionData, error: sessionError } =
+        await supabase.auth.getSession();
+
+      const accessToken = sessionData.session?.access_token;
+
+      if (sessionError || !accessToken) {
+        throw new Error("Please sign in again to view the tuition preview.");
+      }
+
+      const response = await fetch("/api/registration/fee-preview", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          classId: class_id,
+          academicYear: academic_year,
+          term,
+          joinDate: join_date,
+        }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          result.error ?? "Unable to load lesson and tuition preview."
+        );
+      }
+
+      if (!cancelled) {
+        setFeePreview({
+          remainingLessons: result.remainingLessons,
+          tuitionFee: result.tuitionFee,
+        });
+      }
+    } catch (error) {
+      if (!cancelled) {
+        setFeePreviewError(
+          error instanceof Error
+            ? error.message
+            : "Unable to load lesson and tuition preview."
+        );
+      }
+    } finally {
+      if (!cancelled) {
+        setFeePreviewLoading(false);
+      }
+    }
+  }
+
+  loadFeePreview();
+
+  return () => {
+    cancelled = true;
+  };
+}, [
+  formData.enrollment.class_id,
+  formData.enrollment.academic_year,
+  formData.enrollment.term,
+  formData.enrollment.join_date,
+]);
 
   async function loadCampuses() {
     const { data } = await supabase
@@ -1046,6 +1136,48 @@ if (duplicate) {
                   </div>
                 </div>
               </div>
+            </div>
+            <div className="rounded-xl border border-[#D8E4EF] bg-[#EEF5FB]/70 p-4">
+              <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-[#7B5B16]">
+                Lessons and Tuition Fee
+              </h3>
+
+              {feePreviewLoading ? (
+                <p className="text-sm text-[#5F7690]">
+                  Loading lesson and tuition details...
+                </p>
+              ) : feePreviewError ? (
+                <p className="text-sm text-red-600">
+                  {feePreviewError}
+                </p>
+              ) : feePreview ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-4">
+                    <p className="text-sm text-[#5F7690]">
+                      Number of remaining lessons
+                    </p>
+                    <p className="text-sm font-semibold text-[#10213A]">
+                      {feePreview.remainingLessons}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-4 border-t border-[#D8E4EF] pt-3">
+                    <p className="text-sm text-[#5F7690]">
+                      Tuition Fee (including GST)
+                    </p>
+                    <p className="text-base font-semibold text-[#7B5B16]">
+                      {feePreview.tuitionFee.toLocaleString("en-AU", {
+                        style: "currency",
+                        currency: "AUD",
+                      })}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-[#5F7690]">
+                  Select a class to view the lesson and tuition details.
+                </p>
+              )}
             </div>
 
             <div className="mt-5 rounded-xl border border-[#D4AF37]/30 bg-[#FFF7DD] px-4 py-3">
