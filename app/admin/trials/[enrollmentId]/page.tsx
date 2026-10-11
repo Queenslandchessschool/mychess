@@ -715,6 +715,72 @@ trialStatus,
           "An active regular enrolment already exists for this student and term."
         );
       }
+      // Calculate tuition using the same rules as new student registration.
+      const {
+        data: tuitionConfig,
+        error: tuitionConfigError,
+      } = await supabase
+        .from("tuition_configurations")
+        .select("id, standard_tuition, single_lesson_fee, total_lessons")
+        .eq("academic_year", details.academicYear)
+        .eq("term", details.term)
+        .eq("class_id", enrolmentClassId)
+        .maybeSingle();
+
+      if (tuitionConfigError) {
+        throw tuitionConfigError;
+      }
+
+      if (!tuitionConfig) {
+        throw new Error(
+          "Tuition configuration could not be found for the selected class and term."
+        );
+      }
+
+      const {
+        data: lessons,
+        error: lessonsError,
+      } = await supabase
+        .from("lessons")
+        .select("id, lesson_date, status, chargeable")
+        .eq("class_id", enrolmentClassId)
+        .eq("academic_year", details.academicYear)
+        .eq("term", details.term);
+
+      if (lessonsError) {
+        throw lessonsError;
+      }
+
+      const standardTuition = Number(
+        tuitionConfig.standard_tuition ?? 0
+      );
+
+      const singleLessonFee = Number(
+        tuitionConfig.single_lesson_fee ?? 0
+      );
+
+      const chargeableLessonsBeforeJoinDate = (lessons ?? []).filter(
+        lesson =>
+          lesson.chargeable === true &&
+          Boolean(enrolmentStartDate) &&
+          lesson.lesson_date < enrolmentStartDate
+      );
+
+      const nonChargeableLessons = (lessons ?? []).filter(
+        lesson => lesson.chargeable === false
+      );
+
+      const applicableStandardTuition = Math.max(
+        0,
+        standardTuition -
+          nonChargeableLessons.length * singleLessonFee
+      );
+
+      const amountPayable = Math.max(
+        0,
+        applicableStandardTuition -
+          chargeableLessonsBeforeJoinDate.length * singleLessonFee
+      );
 
       /**
        * --------------------------------------------------------
@@ -744,6 +810,11 @@ trialStatus,
           join_date: enrolmentStartDate,
           is_trial: false,
           trial_status: null,
+          tuition_configuration_id: tuitionConfig.id,
+          pricing_method: "Calculated",
+          standard_tuition: applicableStandardTuition,
+          redeem_amount: 0,
+          amount_payable: amountPayable,
           payment_status: "Pending",
           payment_amount: null,
         })

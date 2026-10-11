@@ -1,3 +1,18 @@
+## 2026-10-11 — Trial-to-Regular Enrolment Tuition Fix
+
+### Fixed
+- Fixed tuition calculation when converting a Trial student to a Regular Enrollment.
+- Saved `tuition_configuration_id`, `pricing_method`, `standard_tuition`, `redeem_amount` and `amount_payable` to the new Regular Enrollment record.
+- Ensured the enrolment confirmation email displays the saved tuition amount instead of `$0.00`.
+
+### Validation Status
+- Next.js production build: PASS.
+- Local Trial conversion test: PASS.
+- Verified 4 remaining lessons at $25 per lesson: $100.00.
+- Confirmation email tuition amount: PASS.
+- Git commit: PENDING.
+- Production deployment: NOT DEPLOYED.
+
 ## 2026-10-11 — Registration Review: Lessons & Tuition Fee Preview
 
 ### Added
