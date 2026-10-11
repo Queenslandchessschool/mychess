@@ -2,6 +2,63 @@ import { supabase } from "@/lib/supabase";
 import { RegistrationData } from "@/lib/registration";
 import { synchroniseStudentStage } from "@/lib/studentSynchronisation";
 
+async function assertNoDuplicateStudent(data: RegistrationData) {
+  const email = data.parent.email.trim().toLowerCase();
+  const firstName = data.student.first_name.trim().toLowerCase();
+  const lastName = data.student.last_name.trim().toLowerCase();
+
+  const { data: parents, error: parentError } = await supabase
+    .from("parents")
+    .select("student_id, email")
+    .ilike("email", email);
+
+  if (parentError) {
+    throw new Error(
+      `Unable to verify duplicate registration: ${parentError.message}`
+    );
+  }
+
+  const studentIds = [
+    ...new Set(
+      (parents ?? [])
+        .filter(
+          (parent) =>
+            parent.student_id &&
+            (parent.email ?? "").trim().toLowerCase() === email
+        )
+        .map((parent) => parent.student_id)
+    ),
+  ];
+
+  if (studentIds.length === 0) return;
+
+  const { data: students, error: studentError } = await supabase
+    .from("students")
+    .select("id, first_name, last_name, student_code")
+    .in("id", studentIds);
+
+  if (studentError) {
+    throw new Error(
+      `Unable to verify duplicate registration: ${studentError.message}`
+    );
+  }
+
+  const duplicate = (students ?? []).find(
+    (student) =>
+      (student.first_name ?? "").trim().toLowerCase() === firstName &&
+      (student.last_name ?? "").trim().toLowerCase() === lastName
+  );
+
+  if (duplicate) {
+    throw new Error(
+      `This student is already registered.\n` +
+      `Student: ${duplicate.first_name} ${duplicate.last_name}\n` +
+      `Student Code: ${duplicate.student_code ?? "Unavailable"}\n` +
+      `Duplicate registrations are not allowed.`
+    );
+  }
+}
+
 /**
  * ============================================================
  * Family ID
@@ -446,6 +503,8 @@ async function synchroniseStudentSnapshot(
 export async function activateEnrollment(
   data: RegistrationData
 ) {
+
+  await assertNoDuplicateStudent(data);
   /**
    * 1. Resolve Family
    */

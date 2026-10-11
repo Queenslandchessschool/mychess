@@ -1,3 +1,24 @@
+## 2026-10-11 — FIX: Duplicate Student Registration Prevention
+
+- Added an authenticated duplicate-registration API at `/api/registration/duplicate-check`.
+- Added a registration-form check using normalized student first name, last name, and parent email.
+- Registration is blocked when a matching student already exists; the form displays the existing student code when available.
+- Added a second duplicate check in `activateEnrollment()` before student creation.
+- Updated new-student registration error handling to distinguish registration creation failures from confirmation email failures.
+- When registration is saved but confirmation email delivery fails, the page reports the saved Enrollment ID and advises against resubmitting.
+- Validation so far: `npx tsc --noEmit` PASS; duplicate-check API read-only test PASS for existing student `STU0199`.
+- Validation completed: `npx tsc --noEmit` PASS; duplicate-check API read-only test PASS for existing student `STU0199`; duplicate-registration blocking verified in the local UI.
+- Post-deployment validation required:
+  1. Verify the full non-duplicate registration flow, including student creation, parent linkage, enrollment creation, tuition calculation, snapshot/stage synchronization, and confirmation email.
+  2. Verify confirmation-email failure handling when the enrollment has already been saved; confirm the Enrollment ID is shown and the administrator is advised not to resubmit.
+  3. Verify duplicate-registration behaviour under concurrent requests and assess whether database-level atomic protection is required.
+- Troubleshooting guide:
+  - Registration incorrectly blocked: inspect parent-email matching, student-name normalization, and duplicate-check API responses.
+  - Valid registration fails: inspect `activateEnrollment()`, Supabase permissions/RLS, and student/parent/enrollment creation errors.
+  - Enrollment saved but email fails: inspect the confirmation-email API, Resend configuration, server logs, and error-state UI. Do not resubmit the registration.
+  - Concurrent duplicate registrations: inspect database constraints and transaction/RPC design; application-level checks alone are not atomic.
+- Deployment status: Pending deployment and post-deployment validation.
+
 ## 2026-10-09 — Coach Portal: Info & Profile Pages
 
 - Added Coach Info page at `/coach/info`.

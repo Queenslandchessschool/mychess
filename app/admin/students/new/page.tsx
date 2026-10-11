@@ -1,3 +1,4 @@
+
 "use client";
 
 import RegistrationForm from "@/components/registration/RegistrationForm";
@@ -5,7 +6,7 @@ import { activateEnrollment } from "@/lib/registrationService";
 import { useState } from "react";
 
 export default function NewStudentPage() {
-    const [successModal, setSuccessModal] = useState<{
+  const [successModal, setSuccessModal] = useState<{
     open: boolean;
     title: string;
     message: string;
@@ -14,19 +15,39 @@ export default function NewStudentPage() {
     title: "",
     message: "",
   });
-  async function handleSubmit(data: any) {
-  try {
-    const result = await activateEnrollment(data);
 
+  async function handleSubmit(data: any) {
+    // Step 1: Create the registration.
+    // If this fails, report registration failure and let the form handle the error.
+    let result: Awaited<ReturnType<typeof activateEnrollment>>;
+
+    try {
+      result = await activateEnrollment(data);
+    } catch (err) {
+      console.error("Registration creation failed:", err);
+
+      setSuccessModal({
+        open: true,
+        title: "Registration Failed",
+        message:
+          err instanceof Error
+            ? err.message
+            : "Registration failed. Please try again.",
+      });
+
+      throw err;
+    }
+
+    // Step 2: Send the appropriate confirmation email.
+    // The registration already exists at this point.
     const isTrial = Boolean(result.enrollment.is_trial);
 
-const emailEndpoint = isTrial
-  ? "/api/email/trial-confirmation"
-  : "/api/email/enrolment-confirmation";
+    const emailEndpoint = isTrial
+      ? "/api/email/trial-confirmation"
+      : "/api/email/enrolment-confirmation";
 
-    const response = await fetch(
-      emailEndpoint,
-      {
+    try {
+      const response = await fetch(emailEndpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -34,40 +55,44 @@ const emailEndpoint = isTrial
         body: JSON.stringify({
           enrollmentId: result.enrollment.id,
         }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+
+        throw new Error(
+          payload.error ?? "Confirmation email failed."
+        );
       }
-    );
 
-    if (!response.ok) {
-      const payload = await response.json().catch(() => ({}));
-
-      throw new Error(
-        payload.error ?? "Confirmation email failed."
+      setSuccessModal({
+        open: true,
+        title: isTrial
+          ? "Trial Registration Successful"
+          : "Registration Successful",
+        message: isTrial
+          ? "Your trial lesson registration has been submitted successfully.\n\nA trial lesson confirmation email has been sent to you.\n\nWe look forward to welcoming your family to Queensland Chess School."
+          : "Your registration has been submitted successfully.\n\nA confirmation email including your class details, tuition fees and payment instructions has been sent to you.\n\nYour place will be secured once payment has been received.\n\nWe look forward to welcoming your family to Queensland Chess School.",
+      });
+    } catch (err) {
+      // The registration was created, but the email failed.
+      // Do not throw here, because that could make the form appear
+      // to have failed and encourage the user to submit it again.
+      console.error(
+        "Registration created, but confirmation email failed:",
+        err
       );
+
+      setSuccessModal({
+        open: true,
+        title: "Registration Saved — Email Failed",
+        message:
+          `The registration was created successfully, but the confirmation email could not be sent.\n\n` +
+          `Enrollment ID: ${result.enrollment.id}\n\n` +
+          `Please do not submit the registration again. Contact the administrator to check the email delivery issue and resend the confirmation email separately.`,
+      });
     }
-
-    setSuccessModal({
-  open: true,
-  title: isTrial
-    ? "Trial Registration Successful"
-    : "Registration Successful",
-  message: isTrial
-    ? "Your trial lesson registration has been submitted successfully.\n\nA trial lesson confirmation email has been sent to you.\n\nWe look forward to welcoming your family to Queensland Chess School."
-    : "Your registration has been submitted successfully.\n\nA confirmation email including your class details, tuition fees and payment instructions has been sent to you.\n\nYour place will be secured once payment has been received.\n\nWe look forward to welcoming your family to Queensland Chess School.",
-});
-
-  } catch (err) {
-    console.error(err);
-
-    setSuccessModal({
-  open: true,
-  title: "Registration Failed",
-  message:
-    err instanceof Error
-      ? err.message
-      : "Registration failed.",
-});
   }
-}
 
   return (
     <div className="w-full">
@@ -156,7 +181,8 @@ const emailEndpoint = isTrial
             <RegistrationForm onSubmit={handleSubmit} />
           </div>
         </section>
-                {successModal.open && (
+
+        {successModal.open && (
           <div
             className="
               fixed

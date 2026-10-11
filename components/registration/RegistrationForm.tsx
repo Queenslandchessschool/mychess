@@ -211,58 +211,51 @@ export default function RegistrationForm({
       return;
     }
 
-    const { data: existingParents, error: parentCheckError } =
-      await supabase
-        .from("parents")
-        .select("student_id")
-        .ilike("email", normalizedEmail);
+    
+    const { data: sessionData, error: sessionError } =
+      await supabase.auth.getSession();
 
-    if (parentCheckError) {
-      console.error("Duplicate registration check failed:", parentCheckError);
-      alert("Unable to check for duplicate registration. Please try again.");
+    const accessToken = sessionData.session?.access_token;
+
+    if (sessionError || !accessToken) {
+      alert("Your session has expired. Please sign in again before registering.");
       return;
     }
 
-    const existingStudentIds = [
-      ...new Set(
-        (existingParents ?? [])
-          .map((parent) => parent.student_id)
-          .filter((id): id is string => Boolean(id))
-      ),
-    ];
+    const duplicateResponse = await fetch("/api/registration/duplicate-check", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        email: normalizedEmail,
+        firstName: formData.student.first_name.trim(),
+        lastName: formData.student.last_name.trim(),
+      }),
+    });
 
-    if (existingStudentIds.length > 0) {
-      const { data: existingStudents, error: studentCheckError } =
-        await supabase
-          .from("students")
-          .select("id, first_name, last_name, student_code")
-          .in("id", existingStudentIds);
+    const duplicateResult = await duplicateResponse.json().catch(() => ({}));
 
-      if (studentCheckError) {
-        console.error("Duplicate student check failed:", studentCheckError);
-        alert("Unable to check for duplicate registration. Please try again.");
-        return;
-      }
-
-      const duplicate = (existingStudents ?? []).find(
-        (student) =>
-          student.first_name?.trim().toLowerCase() === normalizedFirstName &&
-          student.last_name?.trim().toLowerCase() === normalizedLastName
+    if (!duplicateResponse.ok) {
+      console.error("Duplicate registration check failed:", duplicateResult);
+      alert(
+        duplicateResult.error ??
+          "Unable to check for duplicate registration. Please try again."
       );
-
-      if (duplicate) {
-        const continueRegistration = window.confirm(
-          `A student with the same name and parent email already exists.\n\n` +
-          `Student: ${duplicate.first_name} ${duplicate.last_name}\n` +
-          `Student Code: ${duplicate.student_code ?? "Unavailable"}\n\n` +
-          `Do you want to continue creating another registration?`
-        );
-
-        if (!continueRegistration) {
-          return;
-        }
-      }
+      return;
     }
+const duplicate = duplicateResult.duplicate;
+
+if (duplicate) {
+  alert(
+    `This student is already registered.\n\n` +
+    `Student: ${duplicate.first_name} ${duplicate.last_name}\n` +
+    `Student Code: ${duplicate.student_code ?? "Unavailable"}\n\n` +
+    `Duplicate registrations are not allowed. Please check the existing student record.`
+  );
+  return;
+}
 
     await onSubmit(formData);
 
