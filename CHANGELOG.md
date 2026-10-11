@@ -7,9 +7,17 @@
 - Updated new-student registration error handling to distinguish registration creation failures from confirmation email failures.
 - When registration is saved but confirmation email delivery fails, the page reports the saved Enrollment ID and advises against resubmitting.
 - Validation so far: `npx tsc --noEmit` PASS; duplicate-check API read-only test PASS for existing student `STU0199`.
-- Pending validation: full registration flow, non-duplicate registration flow, and confirmation-email failure handling.
-- Known limitation: application-level checks are not atomic and do not guarantee prevention of concurrent duplicate requests.
-- Deployment: Not deployed.
+- Validation completed: `npx tsc --noEmit` PASS; duplicate-check API read-only test PASS for existing student `STU0199`; duplicate-registration blocking verified in the local UI.
+- Post-deployment validation required:
+  1. Verify the full non-duplicate registration flow, including student creation, parent linkage, enrollment creation, tuition calculation, snapshot/stage synchronization, and confirmation email.
+  2. Verify confirmation-email failure handling when the enrollment has already been saved; confirm the Enrollment ID is shown and the administrator is advised not to resubmit.
+  3. Verify duplicate-registration behaviour under concurrent requests and assess whether database-level atomic protection is required.
+- Troubleshooting guide:
+  - Registration incorrectly blocked: inspect parent-email matching, student-name normalization, and duplicate-check API responses.
+  - Valid registration fails: inspect `activateEnrollment()`, Supabase permissions/RLS, and student/parent/enrollment creation errors.
+  - Enrollment saved but email fails: inspect the confirmation-email API, Resend configuration, server logs, and error-state UI. Do not resubmit the registration.
+  - Concurrent duplicate registrations: inspect database constraints and transaction/RPC design; application-level checks alone are not atomic.
+- Deployment status: Pending deployment and post-deployment validation.
 
 ## 2026-10-09 — Coach Portal: Info & Profile Pages
 
