@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { Resend } from "resend";
 import { supabaseServer } from "@/lib/supabaseServer";
+import { getRenderedEmailTemplate } from "@/lib/email/templateService";
+import { sendEmail } from "@/lib/email/emailService";
+import { logEmailAudit } from "@/lib/email/emailAudit";
 
-const resend = new Resend(
-  process.env.RESEND_API_KEY
-);
-
+const BUSINESS_EVENT = "EIGHT_PM_ATTENDANCE_REMINDER";
 const REMINDER_TYPE = "EIGHT_PM";
+const LOGIN_URL = "https://mychess.queenslandchessschool.com.au/";
 
 function getBrisbaneDate(): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -17,56 +17,60 @@ function getBrisbaneDate(): string {
   }).format(new Date());
 }
 
-export async function POST(request: Request) {
-  // ======================================================
-  // Security
-  // ======================================================
+function formatTime(time?: string | null): string {
+  if (!time) return "";
 
-  const cronSecret =
-    process.env.CRON_SECRET;
+  const [hourString, minute] = time.split(":");
+  const hour = Number(hourString);
+
+  if (Number.isNaN(hour)) return time;
+
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour % 12 || 12;
+
+  return `${displayHour}:${minute} ${suffix}`;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error
+  ) {
+    return String(
+      (error as { message?: unknown }).message
+    );
+  }
+
+  return String(error);
+}
+
+export async function POST(request: Request) {
+  const cronSecret = process.env.CRON_SECRET;
 
   if (!cronSecret) {
     return NextResponse.json(
       {
         success: false,
-        error:
-          "CRON_SECRET is not configured.",
+        error: "CRON_SECRET is not configured.",
       },
       { status: 500 }
     );
   }
 
-  const authorization =
-    request.headers.get("authorization");
-
   if (
-    authorization !==
+    request.headers.get("authorization") !==
     `Bearer ${cronSecret}`
   ) {
     return NextResponse.json(
-      {
-        success: false,
-        error: "Unauthorized.",
-      },
+      { success: false, error: "Unauthorized." },
       { status: 401 }
     );
   }
 
-  // ======================================================
-  // Brisbane Business Date
-  // ======================================================
-
-  const lessonDate =
-    getBrisbaneDate();
-
-  // ======================================================
-  // Load today's lessons
-  //
-  // Coach comes from:
-  // lessons → classes → coaches
-  //
-  // Email MUST come from coaches.email.
-  // ======================================================
+  const lessonDate = getBrisbaneDate();
 
   const {
     data: lessons,
@@ -74,16 +78,16 @@ export async function POST(request: Request) {
   } = await supabaseServer
     .from("lessons")
     .select(`
-  id,
-  lesson_date,
-  status,
-  classes:class_id (
-    coach_id,
-    level,
-    class_suffix,
-    start_time,
-    end_time,
-    coaches:coach_id (
+      id,
+      lesson_date,
+      status,
+      classes:class_id (
+        coach_id,
+        level,
+        class_suffix,
+        start_time,
+        end_time,
+        coaches:coach_id (
           id,
           email,
           title,
@@ -91,14 +95,8 @@ export async function POST(request: Request) {
         )
       )
     `)
-    .eq(
-      "lesson_date",
-      lessonDate
-    )
-    .neq(
-      "status",
-      "Cancelled"
-    );
+    .eq("lesson_date", lessonDate)
+    .neq("status", "Cancelled");
 
   if (lessonError) {
     console.error(
@@ -115,47 +113,36 @@ export async function POST(request: Request) {
     );
   }
 
-  const lessonRows =
-    lessons ?? [];
-
   const results: any[] = [];
-
-  // ======================================================
-  // Process each lesson
-  // ======================================================
+  const lessonRows = lessons ?? [];
 
   for (const lesson of lessonRows) {
     try {
-      const classData =
-        Array.isArray(lesson.classes)
-          ? lesson.classes[0]
-          : lesson.classes;
+      const classData = Array.isArray(lesson.classes)
+        ? lesson.classes[0]
+        : lesson.classes;
 
-      const coachData =
-        classData?.coaches;
+      const coachData = classData?.coaches;
 
-      const coach =
-        Array.isArray(coachData)
-          ? coachData[0]
-          : coachData;
+      const coach = Array.isArray(coachData)
+        ? coachData[0]
+        : coachData;
 
-      const coachEmail =
-        coach?.email?.trim();
+      const coachEmail = coach?.email?.trim();
 
-      const firstName =
-        coach?.first_name?.trim() ?? "";
-
-      const title =
-        coach?.title?.trim() ?? "";
+      const coachName = [
+        coach?.title?.trim(),
+        coach?.first_name?.trim(),
+      ]
+        .filter(Boolean)
+        .join(" ");
 
       if (!coach?.id) {
         results.push({
           lessonId: lesson.id,
           skipped: true,
-          reason:
-            "Coach not found.",
+          reason: "Coach not found.",
         });
-
         continue;
       }
 
@@ -163,255 +150,185 @@ export async function POST(request: Request) {
         results.push({
           lessonId: lesson.id,
           skipped: true,
-          reason:
-            "Coach email not found.",
+          reason: "Coach email not found.",
         });
-
         continue;
       }
 
-      // ==================================================
-      // Check Submission
-      // ==================================================
-
+      // Do not remind if attendance has been submitted.
       const {
         data: submission,
-        error:
-          submissionError,
+        error: submissionError,
       } = await supabaseServer
-        .from(
-          "attendance_submissions"
-        )
+        .from("attendance_submissions")
         .select("submitted_at")
-        .eq(
-          "lesson_id",
-          lesson.id
-        )
+        .eq("lesson_id", lesson.id)
         .maybeSingle();
 
-      if (submissionError) {
-        throw submissionError;
-      }
+      if (submissionError) throw submissionError;
 
-      // Already submitted
-      // → NO reminder
-      if (
-        submission?.submitted_at
-      ) {
+      if (submission?.submitted_at) {
         results.push({
           lessonId: lesson.id,
           skipped: true,
-          reason:
-            "Attendance already submitted.",
+          reason: "Attendance already submitted.",
         });
-
         continue;
       }
 
-      // ==================================================
-      // Duplicate Protection
-      // ==================================================
-
+      // Preserve existing EIGHT_PM duplicate protection.
       const {
         data: existingLog,
         error: logCheckError,
       } = await supabaseServer
-        .from(
-          "attendance_reminder_logs"
-        )
+        .from("attendance_reminder_logs")
         .select("id")
-        .eq(
-          "lesson_id",
-          lesson.id
-        )
-        .eq(
-          "reminder_type",
-          REMINDER_TYPE
-        )
+        .eq("lesson_id", lesson.id)
+        .eq("reminder_type", REMINDER_TYPE)
         .maybeSingle();
 
-      if (logCheckError) {
-        throw logCheckError;
-      }
+      if (logCheckError) throw logCheckError;
 
       if (existingLog) {
         results.push({
           lessonId: lesson.id,
           skipped: true,
-          reason:
-            "8PM reminder already sent.",
+          reason: "8PM reminder already sent.",
+        });
+        continue;
+      }
+
+      const className = [
+        classData?.level,
+        classData?.class_suffix,
+      ]
+        .filter(Boolean)
+        .join(" ") || "Class";
+
+      const startTime = formatTime(classData?.start_time);
+      const endTime = formatTime(classData?.end_time);
+
+      const variables: Record<string, string> = {
+        "Coach Name": coachName || "Coach",
+        "Class Name": className,
+        "Start Time": startTime,
+        "End Time": endTime,
+        "MyCHESS Login URL": LOGIN_URL,
+      };
+
+      let email;
+
+      try {
+        email = await getRenderedEmailTemplate({
+          businessEvent: BUSINESS_EVENT,
+          variables,
+        });
+      } catch (error) {
+        const errorMessage = getErrorMessage(error);
+
+        await logEmailAudit({
+          triggeredBy: "8PM Attendance Reminder",
+          businessEvent: BUSINESS_EVENT,
+          recipientEmail: coachEmail,
+          dataUsed: variables,
+          status: "Failed",
+          errorMessage,
+        });
+
+        results.push({
+          lessonId: lesson.id,
+          sent: false,
+          error: errorMessage,
         });
 
         continue;
       }
 
-      // ==================================================
-      // Greeting
-      // ==================================================
-
-      const coachGreeting =
-  `${title ? `${title} ` : ""}${firstName}`
-    .trim();
-
-const className =
-  [
-    classData?.level,
-    classData?.class_suffix,
-  ]
-    .filter(Boolean)
-    .join(" ") || "Class";
-
-function formatTime(time?: string | null) {
-  if (!time) return "";
-
-  const [hourString, minute] =
-    time.split(":");
-
-  const hour = Number(hourString);
-
-  if (Number.isNaN(hour)) {
-    return time;
-  }
-
-  const suffix =
-    hour >= 12 ? "PM" : "AM";
-
-  const displayHour =
-    hour % 12 || 12;
-
-  return `${displayHour}:${minute} ${suffix}`;
-}
-
-const startTime =
-  formatTime(lesson.classes?.[0]?.start_time);
-
-const endTime =
-  formatTime(lesson.classes?.[0]?.end_time);
-
-const lessonLabel =
-  `${startTime} – ${endTime} — ${className}`;
-
-const message =
-  `Hi ${coachGreeting},
-
-The attendance for the following lesson has not been submitted yet:
-
-Today's Lesson
-
-${lessonLabel}
-
-Please complete the attendance before 11:59 PM, when attendance will be locked.
-
-Cheers,
-Admin Team
-Queensland Chess School`;
-
-      // ==================================================
-      // Send Email
-      // ==================================================
-
-      const {
-        data: emailData,
-        error: emailError,
-      } = await resend.emails.send({
-        from:
-          "MyCHESS <noreply@queenslandchessschool.com.au>",
-        to: [coachEmail],
-        subject:
-  `MyCHESS Attendance Reminder — ${className}`,
-        text: message,
-        html: `
-          <p>${message}</p>
-        `,
+      const sendResult = await sendEmail({
+        to: coachEmail,
+        subject: email.subject,
+        html: email.body,
       });
 
-      if (emailError) {
-        throw emailError;
+      await logEmailAudit({
+        triggeredBy: "8PM Attendance Reminder",
+        businessEvent: BUSINESS_EVENT,
+        templateName: email.templateName,
+        recipientEmail: coachEmail,
+        dataUsed: variables,
+        status: sendResult.success ? "Success" : "Failed",
+        messageId: sendResult.messageId ?? null,
+        errorMessage: sendResult.success
+          ? null
+          : getErrorMessage(sendResult.error ?? "Email sending failed"),
+      });
+
+      if (!sendResult.success) {
+        results.push({
+          lessonId: lesson.id,
+          sent: false,
+          error: getErrorMessage(
+            sendResult.error ?? "Email sending failed"
+          ),
+        });
+        continue;
       }
 
-      // ==================================================
-      // Record Reminder
-      // ==================================================
-
+      // Record only after the central sender reports success.
       const {
         error: insertError,
       } = await supabaseServer
-        .from(
-          "attendance_reminder_logs"
-        )
+        .from("attendance_reminder_logs")
         .insert({
-          lesson_id:
-            lesson.id,
-          coach_id:
-            coach.id,
-          reminder_type:
-            REMINDER_TYPE,
-          sent_at:
-            new Date().toISOString(),
+          lesson_id: lesson.id,
+          coach_id: coach.id,
+          reminder_type: REMINDER_TYPE,
+          sent_at: new Date().toISOString(),
         });
 
-      // Unique constraint protection
-      if (
-        insertError &&
-        insertError.code === "23505"
-      ) {
+      if (insertError?.code === "23505") {
         results.push({
           lessonId: lesson.id,
           skipped: true,
-          reason:
-            "Reminder log already exists.",
+          reason: "Reminder log already exists.",
         });
-
         continue;
       }
 
-      if (insertError) {
-        throw insertError;
-      }
+      if (insertError) throw insertError;
 
       results.push({
         lessonId: lesson.id,
         sent: true,
         email: coachEmail,
-        messageId:
-          emailData?.id ?? null,
+        messageId: sendResult.messageId ?? null,
+        templateName: email.templateName,
       });
     } catch (error) {
-  const errorMessage =
-    error instanceof Error
-      ? error.message
-      : typeof error === "object" &&
-        error !== null &&
-        "message" in error
-      ? String(
-          (error as { message?: unknown }).message
-        )
-      : JSON.stringify(error);
+      const errorMessage = getErrorMessage(error);
 
-  console.error(
-    "8PM ATTENDANCE REMINDER ERROR:",
-    {
-      lessonId: lesson.id,
-      error,
-      errorMessage,
+      console.error(
+        "8PM ATTENDANCE REMINDER ERROR:",
+        {
+          lessonId: lesson.id,
+          error,
+          errorMessage,
+        }
+      );
+
+      results.push({
+        lessonId: lesson.id,
+        sent: false,
+        error: errorMessage,
+      });
     }
-  );
-
-  results.push({
-    lessonId: lesson.id,
-    sent: false,
-    error: errorMessage,
-  });
-}
   }
 
   return NextResponse.json({
     success: true,
     lessonDate,
-    reminderType:
-      REMINDER_TYPE,
-    lessonCount:
-      lessonRows.length,
+    reminderType: REMINDER_TYPE,
+    lessonCount: lessonRows.length,
     results,
   });
 }
