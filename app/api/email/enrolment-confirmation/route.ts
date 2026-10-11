@@ -5,6 +5,15 @@ import { sendEmail } from "@/lib/email/emailService";
 import { logEmailAudit } from "@/lib/email/emailAudit";
 
 const BUSINESS_EVENT = "ENROLMENT_CONFIRMED";
+function getEnrolmentIntroduction(
+  source: string
+): string {
+  if (source === "trial_conversion") {
+    return "Thank you for bringing your child to try a chess lesson with Queensland Chess School. We're delighted that you've decided to continue your child's chess journey with us!<br /><br />We look forward to helping your child develop their chess skills, confidence and enjoyment of the game.<br /><br />Below are the confirmed enrolment details for your reference.";
+  }
+
+  return "Thank you for enrolling with Queensland Chess School. We're delighted to welcome your family to our chess community!<br /><br />Below are your confirmed enrolment details for your reference.";
+}
 
 function formatDate(value: string | null | undefined): string {
   if (!value) return "";
@@ -34,6 +43,7 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     const enrollmentId = String(body.enrollmentId ?? "").trim();
+    const enrolmentSource = String(body.enrolmentSource ?? "");
 
     if (!enrollmentId) {
       return NextResponse.json(
@@ -332,6 +342,7 @@ const medicalInformationSection = medicalInformation
 const variables = {
   "Parent Name": String(parent.parent1_name ?? ""),
   "Student Name": studentName,
+  "Enrolment Introduction": getEnrolmentIntroduction(enrolmentSource),
   "Special Request Section": specialRequestSection,
   "Medical Information Section": medicalInformationSection,
       "Class Name": className,
