@@ -418,10 +418,7 @@ function getStudentListPriority(
   student: AttendanceStudent
 ): number {
   // 1. Trial
-  if (
-    student.isTrial ||
-    student.attendance_type === "Trial"
-  ) {
+  if (student.isTrial) {
     return 1;
   }
 
@@ -638,10 +635,14 @@ if (studentIds.length > 0) {
   if (enrolmentError) throw enrolmentError;
 
   for (const enrolment of enrolments ?? []) {
-    enrollmentMap.set(
-      enrolment.student_id,
-      enrolment
-    );
+    const existing = enrollmentMap.get(enrolment.student_id);
+
+    if (
+      !existing ||
+      (existing.is_trial === true && enrolment.is_trial === false)
+    ) {
+      enrollmentMap.set(enrolment.student_id, enrolment);
+    }
   }
 }
 let specialArrangementStudentIds = new Set<string>();
@@ -825,8 +826,11 @@ parent_mobile: parent?.mobile ?? "",
               ),
 
             isTrial:
-              row.attendance_type === "Trial" ||
-              enrollment?.is_trial === true,
+              enrollment?.is_trial === false
+                ? false
+                : enrollment?.is_trial === true
+                  ? true
+                  : row.attendance_type === "Trial",
 
             isSpecialArrangement:
   specialArrangementStudentIds.has(row.student_id),
@@ -862,7 +866,7 @@ attendanceStudents.sort((a, b) => {
     // 1. Attendance / enrolment type
     // --------------------------------------------------
 
-    if (student.attendance_type === "Trial") {
+    if (student.isTrial) {
       return 1;
     }
 
