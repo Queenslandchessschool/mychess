@@ -71,7 +71,6 @@ export default function ParentsPage() {
     setEditingParent(null);
     setForm(emptyForm);
   }
-
   async function updateParent() {
     if (!editingParent) return;
 
@@ -82,41 +81,50 @@ export default function ParentsPage() {
       return;
     }
 
-    const { error } = await supabase
+    const newEmail = form.email.trim();
+
+    const { data, error } = await supabase
       .from("parents")
       .update({
-        parent1_name:
-          form.parent1_name.trim(),
-
-        parent2_name:
-          form.parent2_name.trim(),
-
-        email:
-          form.email.trim(),
-
-        mobile:
-          form.mobile.trim(),
-
-        preferred_contact:
-          form.preferred_contact || null,
-
-        relationship:
-          form.relationship.trim() || null,
-
-        address:
-          form.address.trim() || null,
+        parent1_name: form.parent1_name.trim(),
+        parent2_name: form.parent2_name.trim(),
+        email: newEmail,
+        mobile: form.mobile.trim(),
+        preferred_contact: form.preferred_contact || null,
+        relationship: form.relationship.trim() || null,
+        address: form.address.trim() || null,
       })
-      .eq("family_id", familyId);
+      .eq("family_id", familyId)
+      .select("id, family_id, email");
 
     if (error) {
-      alert(error.message);
+      alert(`Failed to update parent: ${error.message}`);
       return;
     }
+
+    if (!data || data.length === 0) {
+      alert(
+        "No parent records were updated. Check database permissions and Family ID."
+      );
+      return;
+    }
+
+    const mismatched = data.filter(
+      (parent) => parent.email !== newEmail
+    );
+
+    if (mismatched.length > 0) {
+      alert(
+        "The saved email does not match the requested email. Please check the database update policy."
+      );
+      return;
+    }
+
+    alert(`Saved successfully. Updated ${data.length} parent record(s).`);
 
     resetForm();
     await loadData();
   }
-
   /*
    * Build one Family record from multiple
    * parent records.

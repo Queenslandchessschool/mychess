@@ -1,3 +1,23 @@
+## 12 October 2026 Attendance — Trial Status Recognition Fix
+
+Changes
+
+Updated Attendance Trial identification to respect the student's active enrolment status.
+
+Prioritised regular Active Enrolment (is_trial = false) when multiple active enrolment records exist for the same student.
+
+Updated Trial sorting to use the resolved isTrial flag instead of relying directly on the historical attendance type.
+
+Preserved historical Trial enrolment and attendance records.
+
+Verification
+
+Local production build: PASS (npm run build).
+
+Production deployment and Attendance UI verification: Pending.
+
+Status: Awaiting Production Verification.
+
 ## 2026-10-11 — Trial-to-Regular Enrolment Tuition Fix
 
 ### Fixed
