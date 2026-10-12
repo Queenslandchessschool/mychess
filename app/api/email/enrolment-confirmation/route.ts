@@ -9,7 +9,7 @@ function getEnrolmentIntroduction(
   source: string
 ): string {
   if (source === "trial_conversion") {
-    return "Thank you for bringing your child to try a chess lesson with Queensland Chess School. We're delighted that you've decided to continue your child's chess journey with us!<br /><br />We look forward to helping your child develop their chess skills, confidence and enjoyment of the game.<br /><br />Below are the confirmed enrolment details for your reference.";
+    return "Thank you for bringing your child to try a chess lesson with Queensland Chess School.<br /><br />We're delighted that you've decided to continue your child's chess journey with us!<br /><br />We look forward to helping your child develop their chess skills, confidence and enjoyment of the game.<br /><br />Below are the confirmed enrolment details for your reference.";
   }
 
   return "Thank you for enrolling with Queensland Chess School. We're delighted to welcome your family to our chess community!<br /><br />Below are your confirmed enrolment details for your reference.";

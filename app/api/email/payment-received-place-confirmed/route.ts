@@ -5,7 +5,11 @@ import { sendEmail } from "@/lib/email/emailService";
 import { logEmailAudit } from "@/lib/email/emailAudit";
 
 const BUSINESS_EVENT = "PAYMENT_RECEIVED_PLACE_CONFIRMED";
+function formatTime(value: string | null | undefined): string {
+  if (!value) return "";
 
+  return String(value).slice(0, 5);
+}
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -42,6 +46,9 @@ export async function POST(request: Request) {
             campus_id,
             level,
             class_suffix,
+            day,
+            start_time,
+            end_time,
             campus:campuses (
               campus_name,
               campus_code,
@@ -153,6 +160,9 @@ export async function POST(request: Request) {
       "Academic Year": String(enrollment.academic_year ?? ""),
       "Term": String(enrollment.term ?? ""),
       "Class Name": className,
+      "Class Day": String(classData.day ?? ""),
+      "Class Start Time": formatTime(classData.start_time),
+      "Class End Time": formatTime(classData.end_time),
       "Campus Name": String(campus.campus_name ?? ""),
       "Tuition Fee": tuitionFee,
     };
