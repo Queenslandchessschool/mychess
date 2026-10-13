@@ -14,13 +14,14 @@
 - `git diff --check`: PASS.
 - Local cancelled lesson filtering: PASS.
 - Duplicate lesson check: PASS for the tested parent account.
-- Make-up lesson display: PENDING — no suitable test account with an existing `Booked` make-up reservation was available.
-- Production database and live make-up display verification: PENDING.
+- Make-up lesson display: PASS — verified in production using a future `Booked` make-up reservation.
+- Production UAT: PASS — cancelled lesson filtering, normal lesson information, deduplication for the tested parent account, and make-up lesson display all passed.
+- Production deployment: verified as Ready; live Parent Dashboard checks completed successfully.
 
 ### Deployment Status
-- Production deployment: NOT YET DEPLOYED.
-- Git commit: PENDING.
-- Overall UAT: PARTIALLY VERIFIED.
+- Production deployment: READY; production UAT completed.
+- Feature code commit: `8e9d606` — pushed to `origin/main`.
+- Overall UAT: PASS.
 
 ## 12 October 2026 Attendance — Trial Status Recognition Fix
 
