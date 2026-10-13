@@ -1,3 +1,27 @@
+## 2026-10-13 — FIX: Parent Dashboard Upcoming Lessons
+
+### Changes
+- Replaced synthetic weekly lesson generation with actual lesson records from the `lessons` table.
+- Excluded cancelled lessons from Parent Dashboard Upcoming Lessons.
+- Added successfully booked make-up lessons (`Booked`) to the upcoming lesson list when the actual lesson is upcoming and not cancelled.
+- Deduplicated upcoming lessons by student ID and actual lesson ID.
+- Preserved chronological sorting by lesson date and start time.
+- Limited code changes to `app/parent/dashboard/page.tsx`; the make-up booking engine and existing frozen business rules were not modified.
+
+### Verification
+- Next.js production build (`npm run build`): PASS.
+- TypeScript check: PASS.
+- `git diff --check`: PASS.
+- Local cancelled lesson filtering: PASS.
+- Duplicate lesson check: PASS for the tested parent account.
+- Make-up lesson display: PENDING — no suitable test account with an existing `Booked` make-up reservation was available.
+- Production database and live make-up display verification: PENDING.
+
+### Deployment Status
+- Production deployment: NOT YET DEPLOYED.
+- Git commit: PENDING.
+- Overall UAT: PARTIALLY VERIFIED.
+
 ## 12 October 2026 Attendance — Trial Status Recognition Fix
 
 Changes

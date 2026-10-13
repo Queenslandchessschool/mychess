@@ -767,12 +767,66 @@ export default function ParentDashboard() {
           );
         }
       }
-
       const lessonsByStudent =
-        new Map<
-          string,
-          UpcomingLesson[]
-        >();
+        new Map<string, UpcomingLesson[]>();
+
+      // Deduplicate by student ID + actual lesson ID.
+      const seenLessonKeys = new Set<string>();
+
+      const addUpcomingLesson = (
+        studentId: string,
+        lesson: any,
+        classInfo: any
+      ) => {
+        if (
+          !lesson?.id ||
+          !lesson?.lesson_date ||
+          lesson.lesson_date < today ||
+          lesson.status === "Cancelled" ||
+          !classInfo
+        ) {
+          return;
+        }
+
+        const uniqueKey =
+          `${studentId}|${lesson.id}`;
+
+        if (seenLessonKeys.has(uniqueKey)) {
+          return;
+        }
+
+        seenLessonKeys.add(uniqueKey);
+
+        const campusValue = classInfo.campus;
+        const campus = Array.isArray(campusValue)
+          ? campusValue[0]?.campus_code ?? ""
+          : campusValue?.campus_code ?? "";
+
+        const lessons =
+          lessonsByStudent.get(studentId) ?? [];
+
+        lessons.push({
+          id: lesson.id,
+          studentId,
+          academicYear: Number(lesson.academic_year),
+          term: Number(lesson.term),
+          lessonDate: lesson.lesson_date,
+          startTime: formatTime(classInfo.start_time),
+          endTime: formatTime(classInfo.end_time),
+          campus,
+          level: classInfo.level ?? "",
+          suffix: classInfo.class_suffix?.trim() ?? "",
+          weekday: formatWeekday(
+            parseLocalDate(lesson.lesson_date)
+          ),
+        });
+
+        lessonsByStudent.set(studentId, lessons);
+      };
+
+      // Build the active enrolment lookup.
+      const enrollmentsByClassTerm =
+        new Map<string, Enrollment[]>();
 
       for (
         const enrollment of
@@ -786,126 +840,162 @@ export default function ParentDashboard() {
           continue;
         }
 
-        const schedule =
-          scheduleMap.get(
-            buildScheduleKey(
-              enrollment.class_id,
-              enrollment.academic_year,
-              enrollment.term
+        const key = buildScheduleKey(
+          enrollment.class_id,
+          enrollment.academic_year,
+          enrollment.term
+        );
+
+        const matching =
+          enrollmentsByClassTerm.get(key) ?? [];
+
+        matching.push(enrollment);
+        enrollmentsByClassTerm.set(key, matching);
+      }
+
+      // 1. Load actual lessons for active enrolments.
+      const enrolledClassIds = Array.from(
+        new Set(
+          Array.from(latestActiveByStudentTerm.values())
+            .map((item) => item.class_id)
+            .filter((id): id is string => !!id)
+        )
+      );
+
+      if (enrolledClassIds.length > 0) {
+        const {
+          data: actualLessonData,
+          error: actualLessonError,
+        } = await supabase
+          .from("lessons")
+          .select(`
+            id,
+            class_id,
+            lesson_date,
+            academic_year,
+            term,
+            status,
+            classes:class_id (
+              id,
+              start_time,
+              end_time,
+              level,
+              class_suffix,
+              campus:campuses (
+                campus_code
+              )
             )
-          );
+          `)
+          .in("class_id", enrolledClassIds)
+          .gte("lesson_date", today)
+          .neq("status", "Cancelled")
+          .order("lesson_date", { ascending: true });
 
-        const classInfo =
-          classMap.get(
-            enrollment.class_id
-          );
-
-        if (
-          !schedule?.first_lesson ||
-          !schedule?.final_lesson ||
-          !classInfo
-        ) {
-          continue;
+        if (actualLessonError) {
+          throw actualLessonError;
         }
 
-        const firstDate =
-          parseLocalDate(
-            schedule.first_lesson
+        for (const lesson of actualLessonData ?? []) {
+          if (
+            !lesson.class_id ||
+            lesson.academic_year == null ||
+            lesson.term == null
+          ) {
+            continue;
+          }
+
+          const key = buildScheduleKey(
+            lesson.class_id,
+            lesson.academic_year,
+            lesson.term
           );
 
-        const finalDate =
-          parseLocalDate(
-            schedule.final_lesson
-          );
+          const matchingEnrollments =
+            enrollmentsByClassTerm.get(key) ?? [];
 
-        const todayDate =
-          parseLocalDate(today);
+          const classValue: any = lesson.classes;
+          const classInfo = Array.isArray(classValue)
+            ? classValue[0]
+            : classValue;
 
-        let nextDate =
-          new Date(firstDate);
-
-        /**
-         * Keep today's lesson.
-         * Skip only dates strictly before today.
-         */
-        while (
-          nextDate < todayDate &&
-          nextDate <= finalDate
-        ) {
-          nextDate = new Date(nextDate);
-
-          nextDate.setDate(
-            nextDate.getDate() + 7
-          );
-        }
-
-        if (
-          nextDate > finalDate
-        ) {
-          continue;
-        }
-
-        const campusValue: any =
-          classInfo.campus;
-
-        const campus =
-          Array.isArray(campusValue)
-            ? campusValue[0]
-                ?.campus_code ?? ""
-            : campusValue?.campus_code ??
-              "";
-
-        const lessons =
-          lessonsByStudent.get(
-            enrollment.student_id
-          ) ?? [];
-
-        for (
-          let date =
-            new Date(nextDate);
-          date <= finalDate;
-          date.setDate(
-            date.getDate() + 7
-          )
-        ) {
-          lessons.push({
-            id:
-              `${schedule.id}-` +
-              `${formatISODate(date)}`,
-            studentId:
+          for (const enrollment of matchingEnrollments) {
+            addUpcomingLesson(
               enrollment.student_id,
-            academicYear:
-              Number(
-                enrollment.academic_year
-              ),
-            term:
-              Number(
-                enrollment.term
-              ),
-            lessonDate:
-              formatISODate(date),
-            startTime:
-              formatTime(
-                classInfo.start_time
-              ),
-            endTime:
-              formatTime(
-                classInfo.end_time
-              ),
-            campus,
-            level:
-              classInfo.level ?? "",
-            suffix:
-              classInfo.class_suffix?.trim() ??
-              "",
-            weekday:
-              formatWeekday(date),
-          });
+              lesson,
+              classInfo
+            );
+          }
+        }
+      }
+
+      // 2. Load successfully booked make-up lessons.
+      const {
+        data: makeupBookingData,
+        error: makeupBookingError,
+      } = await supabase
+        .from("makeup_bookings")
+        .select(`
+          id,
+          student_id,
+          lesson_id,
+          status,
+          lessons:lesson_id (
+            id,
+            lesson_date,
+            academic_year,
+            term,
+            status,
+            class_id,
+            classes:class_id (
+              id,
+              start_time,
+              end_time,
+              level,
+              class_suffix,
+              campus:campuses (
+                campus_code
+              )
+            )
+          )
+        `)
+        .in("student_id", studentIds)
+        .eq("status", "Booked");
+
+      if (makeupBookingError) {
+        throw makeupBookingError;
+      }
+
+      for (const booking of makeupBookingData ?? []) {
+        if (
+          booking.status !== "Booked" ||
+          !booking.student_id
+        ) {
+          continue;
         }
 
-        lessonsByStudent.set(
-          enrollment.student_id,
-          lessons
+        const lessonValue: any = booking.lessons;
+        const lesson = Array.isArray(lessonValue)
+          ? lessonValue[0]
+          : lessonValue;
+
+        if (
+          !lesson ||
+          lesson.status === "Cancelled" ||
+          !lesson.lesson_date ||
+          lesson.lesson_date < today
+        ) {
+          continue;
+        }
+
+        const classValue: any = lesson.classes;
+        const classInfo = Array.isArray(classValue)
+          ? classValue[0]
+          : classValue;
+
+        addUpcomingLesson(
+          booking.student_id,
+          lesson,
+          classInfo
         );
       }
 
