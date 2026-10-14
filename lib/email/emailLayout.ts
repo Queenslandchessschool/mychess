@@ -109,8 +109,23 @@ function renderEmailBody(
     );
 
   if (containsBlockHtml) {
-    if (loginUrl && trimmedBody.includes(loginUrl)) {
-      return trimmedBody.replace(loginUrl, loginButton);
+    if (loginUrl) {
+      const escapedLoginUrl = loginUrl.replace(
+        /[.*+?^${}()|[\]\\]/g,
+        "\\$&"
+      );
+
+      const standaloneLoginUrl = new RegExp(
+        `<p([^>]*)>\\s*${escapedLoginUrl}\\s*</p>`,
+        "i"
+      );
+
+      if (standaloneLoginUrl.test(trimmedBody)) {
+        return trimmedBody.replace(
+          standaloneLoginUrl,
+          loginButton
+        );
+      }
     }
 
     return trimmedBody;

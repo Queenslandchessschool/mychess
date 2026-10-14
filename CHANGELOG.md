@@ -1,3 +1,17 @@
+## 2026-10-14 — Email Layout: 8PM Attendance Reminder Button Rendering Fix
+
+- Updated `lib/email/emailLayout.ts` to replace a standalone login URL paragraph with the shared MyCHESS login button.
+- Avoided replacing a URL inside an existing HTML link attribute, which could corrupt the button markup.
+- Preserved the existing 8PM reminder schedule, attendance-submission checks, duplicate-send protection, and email audit logging.
+- Preserved other email templates and the shared email layout structure.
+
+**Validation**
+- `npm run build`: PASS
+- `git diff --check`: PASS
+- Local email HTML rendering verification: PASS (6 checks).
+- Production email client display verification: PENDING.
+
+
 ## 2026-10-14 — UAT-PP-003: Global Dialog Service Migration
 
 ### Scope
