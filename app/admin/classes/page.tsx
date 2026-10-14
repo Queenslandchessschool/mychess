@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAppDialog } from "@/components/dialog/DialogProvider";
 import { supabase } from "@/lib/supabase";
 
 import ClassForm from "@/components/classes/ClassForm";
@@ -28,18 +29,13 @@ const emptyForm: ClassFormData = {
 };
 
 export default function ClassesPage() {
+  const { showAlert, showConfirm } = useAppDialog();
   const [classes, setClasses] = useState<ClassRecord[]>([]);
-
   const [tableData, setTableData] = useState<ClassTableRow[]>([]);
-
   const [campuses, setCampuses] = useState<CampusLookup[]>([]);
-
   const [coaches, setCoaches] = useState<CoachLookup[]>([]);
-
   const [searchTerm, setSearchTerm] = useState("");
-
   const [statusFilter, setStatusFilter] = useState("All");
-
   const [editingClass, setEditingClass] =
     useState<ClassRecord | null>(null);
 
@@ -196,7 +192,9 @@ export default function ClassesPage() {
       validateClassForm();
 
     if (validation) {
-      alert(validation);
+      await showAlert(validation, {
+  title: "Class Validation",
+});
       return;
     }
 
@@ -218,7 +216,9 @@ export default function ClassesPage() {
       ]);
 
     if (error) {
-      alert(error.message);
+      await showAlert(error.message, {
+  title: "Operation Failed",
+});
       return;
     }
 
@@ -234,7 +234,9 @@ export default function ClassesPage() {
       validateClassForm();
 
     if (validation) {
-      alert(validation);
+      await showAlert(validation, {
+  title: "Class Validation",
+});
       return;
     }
 
@@ -255,7 +257,9 @@ export default function ClassesPage() {
       .eq("id", editingClass.id);
 
     if (error) {
-      alert(error.message);
+      await showAlert(error.message, {
+  title: "Operation Failed",
+});
       return;
     }
 
@@ -375,10 +379,12 @@ export default function ClassesPage() {
   async function deleteClass(
     id: string
   ) {
-    const confirmed =
-      window.confirm(
-        "Delete this class?"
-      );
+  const confirmed = await showConfirm("Delete this class?", {
+  title: "Delete Class",
+  confirmText: "Delete",
+  cancelText: "Cancel",
+  variant: "danger",
+});
 
     if (!confirmed) return;
 
@@ -389,7 +395,9 @@ export default function ClassesPage() {
         .eq("id", id);
 
     if (error) {
-      alert(error.message);
+      await showAlert(error.message, {
+  title: "Operation Failed",
+});
       return;
     }
 

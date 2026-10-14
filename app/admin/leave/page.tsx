@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAppDialog } from "@/components/dialog/DialogProvider";
 
 import { supabase } from "@/lib/supabase";
 
@@ -15,6 +16,7 @@ import type {
 } from "@/components/leave/types";
 
 export default function LeavePage() {
+  const { showAlert, showConfirm } = useAppDialog();
   const [records, setRecords] =
     useState<LeaveRecord[]>([]);
 
@@ -234,21 +236,21 @@ export default function LeavePage() {
 
   async function handleSave() {
     if (!form.student_id) {
-      alert(
+      await showAlert(
         "Please select a student."
       );
       return;
     }
 
     if (!form.lesson_id) {
-      alert(
+      await showAlert(
         "Please select a lesson."
       );
       return;
     }
 
     if (!form.reason) {
-      alert(
+      await showAlert(
         "Please select a leave reason."
       );
       return;
@@ -297,7 +299,7 @@ export default function LeavePage() {
     if (error) {
       console.error(error);
 
-      alert(
+      await showAlert(
         "Failed to save leave record."
       );
 
@@ -315,7 +317,7 @@ export default function LeavePage() {
       comments: "",
     });
 
-    alert(
+    await showAlert(
       "Leave record saved."
     );
   }
@@ -364,8 +366,7 @@ export default function LeavePage() {
   async function handleDelete(
     record: LeaveRecord
   ) {
-    const confirmed =
-      window.confirm(
+    const confirmed = await showConfirm(
         "Are you sure you want to delete this leave record?"
       );
 
@@ -387,7 +388,7 @@ export default function LeavePage() {
     if (error) {
       console.error(error);
 
-      alert(
+      await showAlert(
         "Failed to delete leave record."
       );
 
@@ -396,7 +397,7 @@ export default function LeavePage() {
 
     await loadLeaveRecords();
 
-    alert(
+    await showAlert(
       "Leave record deleted."
     );
   }

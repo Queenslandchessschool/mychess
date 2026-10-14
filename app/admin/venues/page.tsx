@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAppDialog } from "@/components/dialog/DialogProvider";
 import { supabase } from "@/lib/supabase";
 
 import VenueForm from "@/components/venues/VenueForm";
@@ -19,6 +20,7 @@ const emptyForm = {
 };
 
 export default function VenuesPage() {
+  const { showAlert } = useAppDialog();
   const [venues, setVenues] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -48,17 +50,23 @@ export default function VenuesPage() {
 
   async function saveVenue() {
     if (!form.campus_code.trim()) {
-      alert("Please enter the campus code.");
+      await showAlert("Please enter the campus code.", {
+  title: "Campus Validation",
+});
       return;
     }
 
     if (!form.campus_name.trim()) {
-      alert("Please enter the campus name.");
+      await showAlert("Please enter the campus name.", {
+  title: "Campus Validation",
+});
       return;
     }
 
     if (!form.short_name.trim()) {
-      alert("Please enter the short name.");
+      await showAlert("Please enter the short name.", {
+  title: "Campus Validation",
+});
       return;
     }
 
@@ -78,7 +86,9 @@ export default function VenuesPage() {
         .eq("id", editingVenue.id);
 
       if (error) {
-        alert(error.message);
+        await showAlert(error.message, {
+  title: "Operation Failed",
+});
         return;
       }
     } else {
@@ -96,7 +106,9 @@ export default function VenuesPage() {
         });
 
       if (error) {
-        alert(error.message);
+        await showAlert(error.message, {
+  title: "Operation Failed",
+});
         return;
       }
     }
@@ -119,7 +131,9 @@ export default function VenuesPage() {
       .eq("id", venue.id);
 
     if (error) {
-      alert(error.message);
+      await showAlert(error.message, {
+  title: "Operation Failed",
+});
       return;
     }
 

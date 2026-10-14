@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAppDialog } from "@/components/dialog/DialogProvider";
 import { supabase } from "@/lib/supabase";
 
 import StudentForm from "@/components/students/StudentForm";
@@ -23,6 +24,7 @@ const emptyForm = {
 };
 
 export default function StudentsPage() {
+  const { showAlert } = useAppDialog();
   const [students, setStudents] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -56,17 +58,23 @@ export default function StudentsPage() {
     }
 
     if (!form.first_name.trim()) {
-      alert("Please enter the student's first name.");
+      await showAlert("Please enter the student's first name.", {
+  title: "Student Validation",
+});
       return;
     }
 
     if (!form.last_name.trim()) {
-      alert("Please enter the student's last name.");
+      await showAlert("Please enter the student's last name.", {
+  title: "Student Validation",
+});
       return;
     }
 
     if (!form.current_level) {
-      alert("Please select the student's current level.");
+      await showAlert("Please select the student's current level.", {
+  title: "Student Validation",
+});
       return;
     }
 
@@ -93,7 +101,9 @@ export default function StudentsPage() {
       .eq("id", editingStudent.id);
 
     if (error) {
-      alert(error.message);
+      await showAlert(error.message, {
+  title: "Operation Failed",
+});
       return;
     }
 
@@ -113,7 +123,9 @@ export default function StudentsPage() {
       .eq("id", student.id);
 
     if (error) {
-      alert(error.message);
+      await showAlert(error.message, {
+  title: "Operation Failed",
+});
       return;
     }
 

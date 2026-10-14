@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAppDialog } from "@/components/dialog/DialogProvider";
 import { supabase } from "@/lib/supabase";
 
 import AcademicCalendarForm from "@/components/academicCalendar/AcademicCalendarForm";
@@ -46,6 +47,7 @@ type ScheduleSummary = {
 };
 
 export default function AcademicCalendarPage() {
+  const { showAlert, showConfirm } = useAppDialog();
   const [calendars, setCalendars] = useState<
     AcademicCalendarRecord[]
   >([]);
@@ -307,12 +309,16 @@ export default function AcademicCalendarPage() {
 
   async function addCalendar() {
     if (!form.start_date) {
-      alert("Please select Start Date.");
+      await showAlert("Please select Start Date.", {
+        title: "Missing Start Date",
+      });
       return;
     }
 
     if (!form.end_date) {
-      alert("Please select End Date.");
+      await showAlert("Please select End Date.", {
+        title: "Missing End Date",
+      });
       return;
     }
 
@@ -324,8 +330,11 @@ export default function AcademicCalendarPage() {
     );
 
     if (duplicate) {
-      alert(
-        "This Academic Calendar already exists."
+      await showAlert(
+        "This Academic Calendar already exists.",
+        {
+          title: "Duplicate Academic Calendar",
+        }
       );
       return;
     }
@@ -352,7 +361,9 @@ export default function AcademicCalendarPage() {
       ]);
 
     if (error) {
-      alert(error.message);
+      await showAlert(error.message, {
+  title: "Operation Failed",
+});
       return;
     }
 
@@ -385,7 +396,9 @@ export default function AcademicCalendarPage() {
       .eq("id", editingCalendar.id);
 
     if (error) {
-      alert(error.message);
+      await showAlert(error.message, {
+  title: "Operation Failed",
+});
       return;
     }
 
@@ -398,12 +411,16 @@ export default function AcademicCalendarPage() {
 
   async function addEvent() {
     if (!eventForm.event_date) {
-      alert("Please select Event Date.");
+      await showAlert("Please select Event Date.", {
+  title: "Missing Event Date",
+});
       return;
     }
 
     if (!eventForm.event_name.trim()) {
-      alert("Please enter Event Name.");
+      await showAlert("Please enter Event Name.", {
+  title: "Missing Event Name",
+});
       return;
     }
 
@@ -423,7 +440,9 @@ export default function AcademicCalendarPage() {
       ]);
 
     if (error) {
-      alert(error.message);
+      await showAlert(error.message, {
+  title: "Operation Failed",
+});
       return;
     }
 
@@ -450,7 +469,9 @@ export default function AcademicCalendarPage() {
       .eq("id", editingEvent.id);
 
     if (error) {
-      alert(error.message);
+      await showAlert(error.message, {
+  title: "Operation Failed",
+});
       return;
     }
 
@@ -462,11 +483,17 @@ export default function AcademicCalendarPage() {
   }
 
   async function deleteEvent(id: string) {
-    if (
-      !confirm(
-        "Delete this operational event?"
-      )
-    ) {
+    const confirmed = await showConfirm(
+  "Delete this operational event?",
+  {
+    title: "Delete Operational Event",
+    confirmText: "Delete",
+    cancelText: "Cancel",
+    variant: "danger",
+  }
+);
+
+    if (!confirmed) {
       return;
     }
 
@@ -476,7 +503,9 @@ export default function AcademicCalendarPage() {
       .eq("id", id);
 
     if (error) {
-      alert(error.message);
+      await showAlert(error.message, {
+  title: "Operation Failed",
+});
       return;
     }
 

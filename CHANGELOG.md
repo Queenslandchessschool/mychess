@@ -1,3 +1,46 @@
+## 2026-10-14 — UAT-PP-003: Global Dialog Service Migration
+
+### Scope
+- Migrated native browser `alert()` and `confirm()` calls to the shared MyCHESS Dialog Service across the following modules:
+  - Admin Academic Calendar
+  - Admin Class Schedule
+  - Admin Classes
+  - Admin Coaches
+  - Admin Email Templates
+  - Admin Leave Management
+  - Admin Lesson Management
+  - Admin Parents
+  - Admin Students
+  - Admin Venues
+  - Parent Form
+  - Registration Form
+- Integrated the shared Dialog Provider into the application layout.
+- Preserved existing business modals and business rules.
+- Used danger styling for destructive confirmation actions where applicable.
+- Preserved the existing MyCHESS visual baseline and mobile-first approach.
+
+### Verification
+- Native dialog scan across the specified application source directories — PASS.
+- Additional scans of `scripts`, `import` and `public` for the specified JavaScript and TypeScript extensions — PASS.
+- TypeScript checks for the migrated modules — PASS.
+- Production build for the migrated modules — PASS.
+- Runtime acceptance completed for the core flows of the migrated modules.
+- Admin Lesson Management runtime acceptance — PASS, including Lesson Generator reconciliation completion.
+- Admin Leave Management page loading, required Student/Lesson validation, delete confirmation and cancellation, and edit/cancel-edit flows — PASS.
+
+### Outstanding Verification
+- Leave Reason empty-value validation was not independently tested because a default reason is present.
+- Leave save-success/save-failure and delete-success/delete-failure messages remain unverified through runtime operations.
+- Admin Email Templates Authentication Required behaviour was not independently triggered during runtime testing.
+
+### Change Control
+- Existing business rules and unrelated modules were not intentionally redesigned.
+- Pre-migration backup files and unrelated untracked files are retained.
+- No Git commit or push has been performed for this checkpoint.
+
+### Status
+**MIGRATION COMPLETE / UAT PARTIALLY VERIFIED**
+
 ## 2026-10-13 — FIX: Parent Dashboard Upcoming Lessons
 
 ### Changes

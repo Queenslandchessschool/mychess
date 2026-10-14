@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAppDialog } from "@/components/dialog/DialogProvider";
 import { supabase } from "@/lib/supabase";
 
 import ParentForm from "@/components/parents/ParentForm";
@@ -20,6 +21,7 @@ const emptyForm = {
 };
 
 export default function ParentsPage() {
+  const { showAlert } = useAppDialog();
   const [parents, setParents] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -54,12 +56,16 @@ export default function ParentsPage() {
       ]);
 
     if (parentsResult.error) {
-      alert(parentsResult.error.message);
+      await showAlert(parentsResult.error.message, {
+  title: "Operation Failed",
+});
       return;
     }
 
     if (studentsResult.error) {
-      alert(studentsResult.error.message);
+      await showAlert(studentsResult.error.message, {
+  title: "Operation Failed",
+});
       return;
     }
 
@@ -77,7 +83,9 @@ export default function ParentsPage() {
     const familyId = editingParent.family_id;
 
     if (!familyId) {
-      alert("Family ID is missing.");
+      await showAlert("Family ID is missing.", {
+  title: "Missing Information",
+});
       return;
     }
 
@@ -98,13 +106,18 @@ export default function ParentsPage() {
       .select("id, family_id, email");
 
     if (error) {
-      alert(`Failed to update parent: ${error.message}`);
+      await showAlert(`Failed to update parent: ${error.message}`, {
+  title: "Update Failed",
+});
       return;
     }
 
     if (!data || data.length === 0) {
-      alert(
-        "No parent records were updated. Check database permissions and Family ID."
+      await showAlert(
+        "No parent records were updated. Check database permissions and Family ID.",
+        {
+          title: "Update Failed",
+        }
       );
       return;
     }
@@ -114,13 +127,21 @@ export default function ParentsPage() {
     );
 
     if (mismatched.length > 0) {
-      alert(
-        "The saved email does not match the requested email. Please check the database update policy."
+      await showAlert(
+        "The saved email does not match the requested email. Please check the database update policy.",
+        {
+          title: "Update Failed",
+        }
       );
       return;
     }
 
-    alert(`Saved successfully. Updated ${data.length} parent record(s).`);
+    await showAlert(
+  `Saved successfully. Updated ${data.length} parent record(s).`,
+  {
+    title: "Update Successful",
+  }
+);
 
     resetForm();
     await loadData();

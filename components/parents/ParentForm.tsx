@@ -1,5 +1,5 @@
 "use client";
-
+import { useAppDialog } from "@/components/dialog/DialogProvider";
 interface ParentFormProps {
   form: any;
   setForm: (value: any) => void;
@@ -61,35 +61,47 @@ export default function ParentForm({
   editingParent,
   onCancel,
 }: ParentFormProps) {
-  function handleSave() {
+  const { showAlert } = useAppDialog();
+  async function handleSave() {
     const parentName = form.parent1_name?.trim() || "";
     const email = form.email?.trim() || "";
     const mobile = form.mobile?.trim() || "";
 
     if (!parentName) {
-      alert("Parent Name is required.");
+      await showAlert("Parent Name is required.", {
+  title: "Parent Validation",
+});
       return;
     }
 
     if (!email) {
-      alert("Email is required.");
+      await showAlert("Email is required.", {
+  title: "Parent Validation",
+});
       return;
     }
 
     if (!isValidEmail(email)) {
-      alert("Please enter a valid email address.");
+      await showAlert("Please enter a valid email address.", {
+  title: "Parent Validation",
+});
       return;
     }
 
     if (!mobile) {
-      alert("Mobile is required.");
+      await showAlert("Mobile is required.", {
+  title: "Parent Validation",
+});
       return;
     }
 
     if (!isValidAustralianMobile(mobile)) {
-      alert(
-        "Please enter a valid Australian mobile number."
-      );
+      await showAlert(
+  "Please enter a valid Australian mobile number.",
+  {
+    title: "Parent Validation",
+  }
+);
       return;
     }
 

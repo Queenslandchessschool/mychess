@@ -2,6 +2,7 @@
 
 import { supabase } from "@/lib/supabase";
 import { useEffect, useRef, useState } from "react";
+import { useAppDialog } from "@/components/dialog/DialogProvider";
 import { useRouter } from "next/navigation";
 import { RegistrationData } from "@/lib/registration";
 import {
@@ -56,6 +57,7 @@ const initialFormData: RegistrationData = {
 export default function RegistrationForm({
   onSubmit,
 }: Props) {
+  const { showAlert } = useAppDialog();
   const [formData, setFormData] =
     useState<RegistrationData>(initialFormData);
 
@@ -68,12 +70,12 @@ export default function RegistrationForm({
   const [classes, setClasses] = useState<any[]>([]);
 
   const [feePreview, setFeePreview] = useState<{
-  remainingLessons: number;
-  tuitionFee: number;
-} | null>(null);
+    remainingLessons: number;
+    tuitionFee: number;
+  } | null>(null);
 
-const [feePreviewLoading, setFeePreviewLoading] = useState(false);
-const [feePreviewError, setFeePreviewError] = useState("");
+  const [feePreviewLoading, setFeePreviewLoading] = useState(false);
+  const [feePreviewError, setFeePreviewError] = useState("");
 
   const router = useRouter();
 
@@ -164,87 +166,87 @@ const [feePreviewError, setFeePreviewError] = useState("");
     }
   }, [formData.enrollment.campus_id]);
   useEffect(() => {
-  let cancelled = false;
+    let cancelled = false;
 
-  async function loadFeePreview() {
-    const { class_id, academic_year, term, join_date } =
-      formData.enrollment;
+    async function loadFeePreview() {
+      const { class_id, academic_year, term, join_date } =
+        formData.enrollment;
 
-    if (!class_id) {
+      if (!class_id) {
+        setFeePreview(null);
+        setFeePreviewError("");
+        setFeePreviewLoading(false);
+        return;
+      }
+
       setFeePreview(null);
       setFeePreviewError("");
-      setFeePreviewLoading(false);
-      return;
-    }
+      setFeePreviewLoading(true);
 
-    setFeePreview(null);
-    setFeePreviewError("");
-    setFeePreviewLoading(true);
+      try {
+        const { data: sessionData, error: sessionError } =
+          await supabase.auth.getSession();
 
-    try {
-      const { data: sessionData, error: sessionError } =
-        await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
 
-      const accessToken = sessionData.session?.access_token;
+        if (sessionError || !accessToken) {
+          throw new Error("Please sign in again to view the tuition preview.");
+        }
 
-      if (sessionError || !accessToken) {
-        throw new Error("Please sign in again to view the tuition preview.");
-      }
-
-      const response = await fetch("/api/registration/fee-preview", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          classId: class_id,
-          academicYear: academic_year,
-          term,
-          joinDate: join_date,
-        }),
-      });
-
-      const result = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(
-          result.error ?? "Unable to load lesson and tuition preview."
-        );
-      }
-
-      if (!cancelled) {
-        setFeePreview({
-          remainingLessons: result.remainingLessons,
-          tuitionFee: result.tuitionFee,
+        const response = await fetch("/api/registration/fee-preview", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            classId: class_id,
+            academicYear: academic_year,
+            term,
+            joinDate: join_date,
+          }),
         });
-      }
-    } catch (error) {
-      if (!cancelled) {
-        setFeePreviewError(
-          error instanceof Error
-            ? error.message
-            : "Unable to load lesson and tuition preview."
-        );
-      }
-    } finally {
-      if (!cancelled) {
-        setFeePreviewLoading(false);
+
+        const result = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(
+            result.error ?? "Unable to load lesson and tuition preview."
+          );
+        }
+
+        if (!cancelled) {
+          setFeePreview({
+            remainingLessons: result.remainingLessons,
+            tuitionFee: result.tuitionFee,
+          });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setFeePreviewError(
+            error instanceof Error
+              ? error.message
+              : "Unable to load lesson and tuition preview."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setFeePreviewLoading(false);
+        }
       }
     }
-  }
 
-  loadFeePreview();
+    loadFeePreview();
 
-  return () => {
-    cancelled = true;
-  };
-}, [
-  formData.enrollment.class_id,
-  formData.enrollment.academic_year,
-  formData.enrollment.term,
-  formData.enrollment.join_date,
-]);
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    formData.enrollment.class_id,
+    formData.enrollment.academic_year,
+    formData.enrollment.term,
+    formData.enrollment.join_date,
+  ]);
 
   async function loadCampuses() {
     const { data } = await supabase
@@ -278,87 +280,99 @@ const [feePreviewError, setFeePreviewError] = useState("");
   }
 
   async function handleSubmit(e: React.FormEvent) {
-  e.preventDefault();
+    e.preventDefault();
 
-  // Prevent duplicate submissions before React re-renders.
-  if (submitLockRef.current) {
-    return;
+    // Prevent duplicate submissions before React re-renders.
+    if (submitLockRef.current) {
+      return;
+    }
+
+    submitLockRef.current = true;
+    setIsSubmitting(true);
+
+    try {
+
+      // Check for an existing student with the same name
+      // and the same parent email before creating a new record.
+      const normalizedEmail = formData.parent.email.trim().toLowerCase();
+      const normalizedFirstName = formData.student.first_name.trim().toLowerCase();
+      const normalizedLastName = formData.student.last_name.trim().toLowerCase();
+
+      if (!normalizedEmail || !normalizedFirstName || !normalizedLastName) {
+        await showAlert("Student name and parent email are required.", {
+          title: "Registration Validation",
+        });
+        return;
+      }
+
+
+      const { data: sessionData, error: sessionError } =
+        await supabase.auth.getSession();
+
+      const accessToken = sessionData.session?.access_token;
+
+      if (sessionError || !accessToken) {
+        await showAlert("Your session has expired. Please sign in again before registering.", {
+          title: "Session Expired",
+        });
+        return;
+      }
+
+      const duplicateResponse = await fetch("/api/registration/duplicate-check", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          email: normalizedEmail,
+          firstName: formData.student.first_name.trim(),
+          lastName: formData.student.last_name.trim(),
+        }),
+      });
+
+      const duplicateResult = await duplicateResponse.json().catch(() => ({}));
+
+      if (!duplicateResponse.ok) {
+        console.error("Duplicate registration check failed:", duplicateResult);
+        await showAlert(
+          duplicateResult.error ??
+          "Unable to check for duplicate registration. Please try again.",
+          {
+            title: "Registration Check Failed",
+          }
+        );
+        return;
+      }
+      const duplicate = duplicateResult.duplicate;
+
+      if (duplicate) {
+        await showAlert(
+          `This student is already registered.\n\n` +
+          `Student: ${duplicate.first_name} ${duplicate.last_name}\n` +
+          `Student Code: ${duplicate.student_code ?? "Unavailable"}\n\n` +
+          `Duplicate registrations are not allowed. Please check the existing student record.`,
+          {
+            title: "Duplicate Registration",
+          }
+        );
+        return;
+      }
+
+      await onSubmit(formData);
+
+      setFormData(initialFormData);
+      setStep(1);
+    } catch (error) {
+      console.error(error);
+      await showAlert("Registration failed. Please check the error before trying again.", {
+        title: "Registration Failed",
+      });
+    } finally {
+      submitLockRef.current = false;
+      setIsSubmitting(false);
+    }
   }
-
-  submitLockRef.current = true;
-  setIsSubmitting(true);
-
-  try {
-    
-    // Check for an existing student with the same name
-    // and the same parent email before creating a new record.
-    const normalizedEmail = formData.parent.email.trim().toLowerCase();
-    const normalizedFirstName = formData.student.first_name.trim().toLowerCase();
-    const normalizedLastName = formData.student.last_name.trim().toLowerCase();
-
-    if (!normalizedEmail || !normalizedFirstName || !normalizedLastName) {
-      alert("Student name and parent email are required.");
-      return;
-    }
-
-    
-    const { data: sessionData, error: sessionError } =
-      await supabase.auth.getSession();
-
-    const accessToken = sessionData.session?.access_token;
-
-    if (sessionError || !accessToken) {
-      alert("Your session has expired. Please sign in again before registering.");
-      return;
-    }
-
-    const duplicateResponse = await fetch("/api/registration/duplicate-check", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({
-        email: normalizedEmail,
-        firstName: formData.student.first_name.trim(),
-        lastName: formData.student.last_name.trim(),
-      }),
-    });
-
-    const duplicateResult = await duplicateResponse.json().catch(() => ({}));
-
-    if (!duplicateResponse.ok) {
-      console.error("Duplicate registration check failed:", duplicateResult);
-      alert(
-        duplicateResult.error ??
-          "Unable to check for duplicate registration. Please try again."
-      );
-      return;
-    }
-const duplicate = duplicateResult.duplicate;
-
-if (duplicate) {
-  alert(
-    `This student is already registered.\n\n` +
-    `Student: ${duplicate.first_name} ${duplicate.last_name}\n` +
-    `Student Code: ${duplicate.student_code ?? "Unavailable"}\n\n` +
-    `Duplicate registrations are not allowed. Please check the existing student record.`
-  );
-  return;
-}
-
-    await onSubmit(formData);
-
-    setFormData(initialFormData);
-    setStep(1);
-  } catch (error) {
-    console.error(error);
-    alert("Registration failed. Please check the error before trying again.");
-  } finally {
-    submitLockRef.current = false;
-    setIsSubmitting(false);
-  }
-}
 
   const selectedCampus = campuses.find(
     (c) => c.id === formData.enrollment.campus_id
@@ -1216,7 +1230,7 @@ if (duplicate) {
             <button
               type="button"
               className="rounded-xl bg-[#011029] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#102B4D] active:scale-[0.98]"
-              onClick={(e) => {
+              onClick={async (e) => {
                 e.preventDefault();
                 e.stopPropagation();
 
@@ -1226,9 +1240,9 @@ if (duplicate) {
                     !formData.student.last_name.trim() ||
                     !(formData.student.emergency_contact ?? "").trim()
                   ) {
-                    alert(
-                      "Please complete all required fields."
-                    );
+                    await showAlert("Please complete all required fields.", {
+                      title: "Required Information",
+                    });
                     return;
                   }
                 }
@@ -1239,32 +1253,32 @@ if (duplicate) {
                     !(formData.parent.email ?? "").trim() ||
                     !(formData.parent.mobile ?? "").trim()
                   ) {
-                    alert(
-                      "Please complete all required fields."
-                    );
+                    await showAlert("Please complete all required fields.", {
+                      title: "Required Information",
+                    });
                     return;
                   }
 
                   if (!isValidEmail(formData.parent.email)) {
-                    alert(
-                      "Please enter a valid email address."
-                    );
+                    await showAlert("Please enter a valid email address.", {
+                      title: "Invalid Email Address",
+                    });
                     return;
                   }
 
                   if (!isValidMobile(formData.parent.mobile)) {
-                    alert(
-                      "Please enter a valid Australian mobile number."
-                    );
+                    await showAlert("Please enter a valid Australian mobile number.", {
+                      title: "Invalid Mobile Number",
+                    });
                     return;
                   }
                 }
 
                 if (step === 3) {
-                  if (
-                    !(formData.enrollment.class_id ?? "").trim()
-                  ) {
-                    alert("Please select a class.");
+                  if (!(formData.enrollment.class_id ?? "").trim()) {
+                    await showAlert("Please select a class.", {
+                      title: "Class Required",
+                    });
                     return;
                   }
 
@@ -1274,8 +1288,11 @@ if (duplicate) {
                     formData.enrollment.special_request
                       .walk_home
                   ) {
-                    alert(
-                      "Classroom Pickup cannot be combined with Walk Home."
+                    await showAlert(
+                      "Classroom Pickup cannot be combined with Walk Home.",
+                      {
+                        title: "Conflicting Arrangements",
+                      }
                     );
                     return;
                   }
@@ -1286,8 +1303,11 @@ if (duplicate) {
                     formData.enrollment.special_request
                       .walk_home
                   ) {
-                    alert(
-                      "YMCA Drop-off cannot be combined with Walk Home."
+                    await showAlert(
+                      "YMCA Drop-off cannot be combined with Walk Home.",
+                      {
+                        title: "Conflicting Arrangements",
+                      }
                     );
                     return;
                   }
@@ -1305,9 +1325,9 @@ if (duplicate) {
               type="submit"
               disabled={isSubmitting}
               className="rounded-xl bg-[#011029] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#102B4D] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-         >
-  {isSubmitting ? "Submitting..." : "Submit Registration"}
-</button>
+            >
+              {isSubmitting ? "Submitting..." : "Submit Registration"}
+            </button>
           )}
         </div>
       </form>

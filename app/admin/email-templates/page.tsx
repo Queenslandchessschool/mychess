@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAppDialog } from "@/components/dialog/DialogProvider";
 import { supabase } from "@/lib/supabase";
 import { findVariables } from "@/lib/email/variableRenderer";
 
@@ -19,6 +20,7 @@ const emptyForm = {
 };
 
 export default function EmailTemplatesPage() {
+  const { showAlert } = useAppDialog();
   const [templates, setTemplates] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -68,22 +70,30 @@ export default function EmailTemplatesPage() {
 
   async function saveTemplate() {
   if (!form.template_name.trim()) {
-    alert("Please enter the template name.");
+    await showAlert("Please enter the template name.", {
+  title: "Template Validation",
+});
     return;
   }
 
   if (!form.business_event.trim()) {
-    alert("Please enter the business event.");
+    await showAlert("Please enter the business event.", {
+  title: "Template Validation",
+});
     return;
   }
 
   if (!form.subject.trim()) {
-    alert("Please enter the email subject.");
+    await showAlert("Please enter the email subject.", {
+  title: "Template Validation",
+});
     return;
   }
 
   if (!form.body.trim()) {
-    alert("Please enter the email body.");
+    await showAlert("Please enter the email body.", {
+  title: "Template Validation",
+});
     return;
   }
 
@@ -101,7 +111,9 @@ export default function EmailTemplatesPage() {
   } = await supabase.auth.getUser();
 
   if (userError || !user) {
-    alert("Unable to identify the current user. Please log in again.");
+    await showAlert("Unable to identify the current user. Please log in again.", {
+  title: "Authentication Required",
+});
     return;
   }
 
@@ -119,7 +131,9 @@ export default function EmailTemplatesPage() {
       .eq("id", editingTemplate.id);
 
     if (error) {
-      alert(error.message);
+      await showAlert(error.message, {
+  title: "Operation Failed",
+});
       return;
     }
   } else {
@@ -137,7 +151,9 @@ export default function EmailTemplatesPage() {
 })
 
     if (error) {
-      alert(error.message);
+      await showAlert(error.message, {
+  title: "Operation Failed",
+});
       return;
     }
   }

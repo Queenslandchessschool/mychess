@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAppDialog } from "@/components/dialog/DialogProvider";
 import { supabase } from "@/lib/supabase";
 
 import CoachForm from "@/components/coaches/CoachForm";
@@ -22,6 +23,7 @@ const emptyForm = {
 };
 
 export default function CoachesPage() {
+  const { showAlert } = useAppDialog();
   const [coaches, setCoaches] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -51,17 +53,23 @@ export default function CoachesPage() {
 
   async function updateCoach() {
   if (!form.first_name.trim()) {
-    alert("Please enter the coach's first name.");
+    await showAlert("Please enter the coach's first name.", {
+  title: "Coach Validation",
+});
     return;
   }
 
   if (!form.last_name.trim()) {
-    alert("Please enter the coach's last name.");
+    await showAlert("Please enter the coach's last name.", {
+  title: "Coach Validation",
+});
     return;
   }
 
   if (!form.display_name.trim()) {
-    alert("Please enter the coach's display name.");
+    await showAlert("Please enter the coach's display name.", {
+  title: "Coach Validation",
+});
     return;
   }
 
@@ -84,7 +92,9 @@ export default function CoachesPage() {
       .eq("id", editingCoach.id);
 
     if (error) {
-      alert(error.message);
+      await showAlert(error.message, {
+  title: "Operation Failed",
+});
       return;
     }
   } else {
@@ -105,7 +115,9 @@ export default function CoachesPage() {
       });
 
     if (error) {
-      alert(error.message);
+      await showAlert(error.message, {
+  title: "Operation Failed",
+});
       return;
     }
   }
@@ -128,7 +140,9 @@ export default function CoachesPage() {
       .eq("id", coach.id);
 
     if (error) {
-      alert(error.message);
+      await showAlert(error.message, {
+  title: "Operation Failed",
+});
       return;
     }
 

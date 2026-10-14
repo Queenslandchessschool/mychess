@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAppDialog } from "@/components/dialog/DialogProvider";
 import { supabase } from "@/lib/supabase";
 
 import ClassScheduleForm from "@/components/classSchedule/ClassScheduleForm";
@@ -30,6 +31,7 @@ const emptyForm: ClassScheduleFormData = {
 };
 
 export default function ClassSchedulePage() {
+  const { showAlert, showConfirm } = useAppDialog();
   const [schedules, setSchedules] = useState<
     ClassScheduleRecord[]
   >([]);
@@ -203,7 +205,9 @@ created_at: item.created_at,
     const validation = await validateScheduleForm();
 
 if (validation) {
-  alert(validation);
+  await showAlert(validation, {
+  title: "Schedule Validation",
+});
   return;
 }
 
@@ -231,7 +235,9 @@ notes: form.notes,
       ]);
 
     if (error) {
-      alert(error.message);
+      await showAlert(error.message, {
+  title: "Operation Failed",
+});
       return;
     }
 
@@ -244,7 +250,9 @@ notes: form.notes,
 const validation = await validateScheduleForm();
 
 if (validation) {
-  alert(validation);
+  await showAlert(validation, {
+  title: "Schedule Validation",
+});
   return;
 }
     const { error } = await supabase
@@ -266,7 +274,9 @@ if (validation) {
       .eq("id", editingSchedule.id);
 
     if (error) {
-      alert(error.message);
+      await showAlert(error.message, {
+  title: "Operation Failed",
+});
       return;
     }
 
@@ -381,9 +391,12 @@ if (duplicate) {
   return null;
 }
   async function deleteSchedule(id: string) {
-    const confirmed = window.confirm(
-      "Delete this schedule?"
-    );
+    const confirmed = await showConfirm("Delete this schedule?", {
+  title: "Delete Class Schedule",
+  confirmText: "Delete",
+  cancelText: "Cancel",
+  variant: "danger",
+});
 
     if (!confirmed) return;
 
@@ -393,7 +406,9 @@ if (duplicate) {
       .eq("id", id);
 
     if (error) {
-      alert(error.message);
+      await showAlert(error.message, {
+  title: "Operation Failed",
+});
       return;
     }
 

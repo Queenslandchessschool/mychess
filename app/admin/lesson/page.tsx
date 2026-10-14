@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAppDialog } from "@/components/dialog/DialogProvider";
 import { supabase } from "@/lib/supabase";
 
 import LessonGenerator from "@/components/lesson/LessonGenerator";
@@ -11,6 +12,7 @@ import {
 } from "@/components/lesson/types";
 
 export default function LessonPage() {
+  const { showAlert } = useAppDialog();
 
   // ======================================================
   // Lesson Generator State
@@ -95,7 +97,7 @@ const [modal, setModal] = useState<{
       .order("start_time");
 
     if (error) {
-      alert(error.message);
+      await showAlert(error.message);
       return;
     }
 
@@ -115,7 +117,7 @@ const [modal, setModal] = useState<{
       .select("*");
 
     if (error) {
-      alert(error.message);
+      await showAlert(error.message);
       return;
     }
 
@@ -333,17 +335,17 @@ async function generateLessons() {
   // ======================================================
 
   if (!academicYear) {
-    alert("Please select an Academic Year.");
+    await showAlert("Please select an Academic Year.");
     return;
   }
 
   if (scope !== "Academic Year" && !term) {
-    alert("Please select a Term.");
+    await showAlert("Please select a Term.");
     return;
   }
 
   if (scope === "Class" && !classId) {
-    alert("Please select a Class.");
+    await showAlert("Please select a Class.");
     return;
   }
 
@@ -394,13 +396,12 @@ async function generateLessons() {
 
 
     if (schedulesError) {
-      alert(schedulesError.message);
+      await showAlert(schedulesError.message);
       return;
     }
 
-
     if (!schedules || schedules.length === 0) {
-      alert(
+      await showAlert(
         "No Class Schedule found for the selected scope."
       );
       return;
@@ -449,7 +450,7 @@ async function generateLessons() {
 
 
     if (operationalEventsError) {
-      alert(operationalEventsError.message);
+      await showAlert(operationalEventsError.message);
       return;
     }
 
@@ -681,12 +682,10 @@ const {
   `)
   .in("class_schedule_id", scheduleIds);
 
-
 if (existingLessonsError) {
-  alert(existingLessonsError.message);
+  await showAlert(existingLessonsError.message);
   return;
 }
-
 
 // ======================================================
 // 8. Reconciliation Dry Run
@@ -842,15 +841,13 @@ if (lessonsToCreate.length > 0) {
     .from("lessons")
     .insert(lessonsToCreate);
 
-
   if (createError) {
-    alert(
+    await showAlert(
       `Failed to create Lessons: ${createError.message}`
     );
     return;
   }
 }
-
 
 // ------------------------------------------------------
 // UPDATE
@@ -889,15 +886,13 @@ for (const item of lessonsToUpdate) {
     })
     .eq("id", item.id);
 
-
   if (updateError) {
-    alert(
+    await showAlert(
       `Failed to update Lesson: ${updateError.message}`
     );
     return;
   }
 }
-
     // ======================================================
     // 7. Test Results
     // ======================================================
