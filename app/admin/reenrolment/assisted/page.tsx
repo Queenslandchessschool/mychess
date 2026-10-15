@@ -856,6 +856,7 @@ setPendingAdditionalPayment(
           redeem_amount: Number(redeemAmount.toFixed(2)),
           standard_tuition: Number(tuitionConfig.standard_tuition.toFixed(2)),
           amount_payable: Number(amountPayable.toFixed(2)),
+          remaining_lessons: Number(remainingLessons),
           payment_status: "Pending",
           status: "Submitted",
           submitted_at: submittedAt,

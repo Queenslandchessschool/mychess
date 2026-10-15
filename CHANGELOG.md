@@ -1,3 +1,77 @@
+## 2026-10-15 — Parent Portal: Info, Profile & Tuition Updates
+
+### Changes
+- Added the Parent Info page at `app/parent/info/page.tsx`.
+- Added the Parent Profile page at `app/parent/profile/page.tsx`.
+- Updated the Parent Tuition page at `app/parent/tuition/page.tsx`.
+- Retained the existing MyCHESS application structure and business rules outside the approved change scope.
+
+### Change Control
+- Parent Re-enrolment changes currently under development are excluded from this release.
+- Existing Re-enrolment tuition calculation and Make-up Credit rules remain unchanged.
+- The `remaining_lessons` Single Source of Truth fix is documented separately under the 2026-10-14 entry.
+
+### Verification Status
+- Source changes are staged for review.
+- Production build verification for this release: PENDING.
+- Git commit and push: PENDING.
+- Production deployment verification: PENDING.
+
+## 2026-10-14 — FIX: Re-enrolment Remaining Lessons Single Source of Truth
+
+### Changes
+
+- Added `remaining_lessons` integer column to `public.re_enrolment_submissions`, allowing NULL for historical records.
+- Updated Parent Re-enrolment submission to save `remaining_lessons` from the existing `remainingLessons` state.
+- Updated Admin Assisted Re-enrolment submission to save `remaining_lessons` from the existing `remainingLessons` state.
+- Updated `/api/email/reenrolment-confirmation` to retrieve `remaining_lessons` from the saved re-enrolment submission.
+- Removed the email API's independent `chargeableLessons.length` calculation for the Number of Lessons email variable.
+- Added a missing-value guard: if `submission.remaining_lessons` is NULL, the email API throws an error rather than calculating a fallback value.
+- Preserved the existing tuition calculation logic and the Single Source of Truth requirement.
+
+### Verification — Completed
+
+- `npm run build` — PASS.
+- TypeScript compilation — PASS.
+- Production build generated 73 static pages successfully.
+- Parent Re-enrolment write field verified in `app/parent/reenrolment/page.tsx` at line 1665.
+- Admin Assisted Re-enrolment write field verified in `app/admin/reenrolment/assisted/page.tsx` at line 859.
+- Email API field selection verified at line 118.
+- Email API saved-value usage verified at line 252.
+- Email template variable mapping verified at line 373.
+- Admin Assisted Re-enrolment duplicate-submission protection confirmed.
+- Email API invocation confirmed to pass the newly inserted `insertedSubmission.id` as `submissionId`.
+
+### Database Findings
+
+- `remaining_lessons` column exists in Supabase.
+- Current audit: 128 re-enrolment submissions; 0 have a non-NULL `remaining_lessons` value; 128 have NULL.
+- These records are historical records and have not been manually backfilled.
+- No new enrolment or re-enrolment was created for testing.
+- No test email was sent.
+
+### Outstanding Verification — NEXT SESSION
+
+1. Confirm the local environment and production environment use the intended Supabase project and deployment version.
+2. Choose a safe test method that does not create a real enrolment, duplicate a submission, trigger a parent email, or alter historical records.
+3. Verify that a new test submission can persist the exact remaining lesson count shown by the existing re-enrolment page.
+4. Verify that the saved database value is read unchanged by `/api/email/reenrolment-confirmation`.
+5. Verify the missing-value guard and email behaviour safely without sending an unintended email.
+6. Confirm production deployment status before any production verification.
+
+### Constraints
+
+- Do not manually backfill historical `remaining_lessons` values without verifying their correct source.
+- Do not bypass duplicate-submission protection.
+- Do not create real enrolments or trigger parent confirmation emails solely for testing.
+- Do not introduce an independent lesson-count calculation in the email API.
+- Do not modify existing tuition calculation logic.
+- No production deployment or end-to-end runtime verification has been confirmed for this change.
+
+### Status
+
+**BUILD PASS / DATABASE WRITE NOT YET VERIFIED / EMAIL E2E PENDING / PRODUCTION DEPLOYMENT STATUS UNCONFIRMED**
+
 ## 2026-10-14 — Email Layout: 8PM Attendance Reminder Button Rendering Fix
 
 - Updated `lib/email/emailLayout.ts` to replace a standalone login URL paragraph with the shared MyCHESS login button.

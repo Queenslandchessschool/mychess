@@ -199,23 +199,23 @@ export default function ParentTuitionPage() {
       }
 
       const { data: adjustmentRows, error: adjustmentError } = await supabase
-  .from("tuition_adjustments")
-  .select("id, student_id, adjustment_amount, adjustment_type, status")
-  .in("student_id", studentIds)
-  .eq("status", "Pending")
-  .in("adjustment_type", ["Additional Payment", "Tuition Credit"]);
+        .from("tuition_adjustments")
+        .select("id, student_id, adjustment_amount, adjustment_type, status")
+        .in("student_id", studentIds)
+        .eq("status", "Pending")
+        .in("adjustment_type", ["Additional Payment", "Tuition Credit"]);
 
-if (adjustmentError) throw adjustmentError;
-const pendingAdjustmentMap = new Map<string, number>();
+      if (adjustmentError) throw adjustmentError;
+      const pendingAdjustmentMap = new Map<string, number>();
 
-for (const adjustment of adjustmentRows ?? []) {
-  const amount = Number(adjustment.adjustment_amount ?? 0);
+      for (const adjustment of adjustmentRows ?? []) {
+        const amount = Number(adjustment.adjustment_amount ?? 0);
 
-  if (!amount) continue;
+        if (!amount) continue;
 
-  const current = pendingAdjustmentMap.get(adjustment.student_id) ?? 0;
-  pendingAdjustmentMap.set(adjustment.student_id, current + amount);
-}
+        const current = pendingAdjustmentMap.get(adjustment.student_id) ?? 0;
+        pendingAdjustmentMap.set(adjustment.student_id, current + amount);
+      }
 
       const { data: enrolmentRows, error: enrolmentError } = await supabase
         .from("student_enrolments")
@@ -331,11 +331,11 @@ for (const adjustment of adjustmentRows ?? []) {
       const { data: classRows, error: classError } =
         classIds.length > 0
           ? await supabase
-              .from("classes")
-              .select(
-                "id, campus_id, level, class_suffix, day, start_time, end_time"
-              )
-              .in("id", classIds)
+            .from("classes")
+            .select(
+              "id, campus_id, level, class_suffix, day, start_time, end_time"
+            )
+            .in("id", classIds)
           : { data: [], error: null };
 
       if (classError) throw classError;
@@ -352,9 +352,9 @@ for (const adjustment of adjustmentRows ?? []) {
       const { data: campusRows, error: campusError } =
         campusIds.length > 0
           ? await supabase
-              .from("campuses")
-              .select("id, short_name, campus_name")
-              .in("id", campusIds)
+            .from("campuses")
+            .select("id, short_name, campus_name")
+            .in("id", campusIds)
           : { data: [], error: null };
 
       if (campusError) throw campusError;
@@ -501,55 +501,55 @@ for (const adjustment of adjustmentRows ?? []) {
       }
 
       const displayRows = tuitionRows
-  .map((row) => {
-    const student = studentMap.get(row.student_id);
-    if (!student) return null;
+        .map((row) => {
+          const student = studentMap.get(row.student_id);
+          if (!student) return null;
 
-    const classRecord = row.class_id
-      ? classMap.get(row.class_id) ?? null
-      : null;
+          const classRecord = row.class_id
+            ? classMap.get(row.class_id) ?? null
+            : null;
 
-    const campus = classRecord?.campus_id
-      ? campusMap.get(classRecord.campus_id) ?? null
-      : null;
+          const campus = classRecord?.campus_id
+            ? campusMap.get(classRecord.campus_id) ?? null
+            : null;
 
-    const configuredTuition = row.class_id
-      ? tuitionConfigMap.get(
-          tuitionConfigKey(row.academic_year, row.term, row.class_id)
-        )?.standard_tuition ?? null
-      : null;
+          const configuredTuition = row.class_id
+            ? tuitionConfigMap.get(
+              tuitionConfigKey(row.academic_year, row.term, row.class_id)
+            )?.standard_tuition ?? null
+            : null;
 
-    const current = activeFormalByStudent.get(row.student_id);
+          const current = activeFormalByStudent.get(row.student_id);
 
-    const nextAcademicYear = current
-      ? current.term >= 4
-        ? current.academic_year + 1
-        : current.academic_year
-      : null;
+          const nextAcademicYear = current
+            ? current.term >= 4
+              ? current.academic_year + 1
+              : current.academic_year
+            : null;
 
-    const nextTerm = current
-      ? current.term >= 4
-        ? 1
-        : current.term + 1
-      : null;
+          const nextTerm = current
+            ? current.term >= 4
+              ? 1
+              : current.term + 1
+            : null;
 
-    const isNextTerm =
-      nextAcademicYear !== null &&
-      nextTerm !== null &&
-      row.academic_year === nextAcademicYear &&
-      row.term === nextTerm;
+          const isNextTerm =
+            nextAcademicYear !== null &&
+            nextTerm !== null &&
+            row.academic_year === nextAcademicYear &&
+            row.term === nextTerm;
 
-    return {
-      ...row,
-      standard_tuition: row.standard_tuition ?? configuredTuition,
-      transferAdjustment: isNextTerm
-        ? pendingAdjustmentMap.get(row.student_id) ?? 0
-        : 0,
-      student,
-      classRecord,
-      campus,
-    };
-  })
+          return {
+            ...row,
+            standard_tuition: row.standard_tuition ?? configuredTuition,
+            transferAdjustment: isNextTerm
+              ? pendingAdjustmentMap.get(row.student_id) ?? 0
+              : 0,
+            student,
+            classRecord,
+            campus,
+          };
+        })
         .filter(Boolean) as DisplayRecord[];
 
       const upcomingRows: DisplayRecord[] = [];
@@ -599,12 +599,12 @@ for (const adjustment of adjustmentRows ?? []) {
 
         const configuredTuition = submission.selected_class_id
           ? tuitionConfigMap.get(
-              tuitionConfigKey(
-                submission.academic_year,
-                submission.term,
-                submission.selected_class_id
-              )
-            )?.standard_tuition ?? null
+            tuitionConfigKey(
+              submission.academic_year,
+              submission.term,
+              submission.selected_class_id
+            )
+          )?.standard_tuition ?? null
           : null;
 
         upcomingRows.push({
@@ -620,7 +620,7 @@ for (const adjustment of adjustmentRows ?? []) {
           standard_tuition: submission.standard_tuition ?? configuredTuition,
           redeem_amount: submission.redeem_amount,
           amount_payable: Number(submission.amount_payable ?? 0),
-transferAdjustment: pendingAdjustmentMap.get(student.id) ?? 0,
+          transferAdjustment: pendingAdjustmentMap.get(student.id) ?? 0,
           created_at: submission.submitted_at,
           student,
           classRecord: selectedClass,
@@ -640,18 +640,26 @@ transferAdjustment: pendingAdjustmentMap.get(student.id) ?? 0,
         });
       }
 
-      const allRows = [...displayRows, ...upcomingRows].sort((a, b) => {
-        if (a.student_id !== b.student_id) {
-          return studentName(a.student).localeCompare(studentName(b.student));
-        }
-        if (a.isUpcoming !== b.isUpcoming) return a.isUpcoming ? -1 : 1;
-        if (a.academic_year !== b.academic_year) {
-          return b.academic_year - a.academic_year;
-        }
-        return b.term - a.term;
-      });
+
+      const allRows = [...displayRows, ...upcomingRows]
+        .filter(
+          (record) =>
+            record.academic_year > 2026 ||
+            (record.academic_year === 2026 && record.term >= 4)
+        )
+        .sort((a, b) => {
+          if (a.student_id !== b.student_id) {
+            return studentName(a.student).localeCompare(studentName(b.student));
+          }
+          if (a.isUpcoming !== b.isUpcoming) return a.isUpcoming ? -1 : 1;
+          if (a.academic_year !== b.academic_year) {
+            return b.academic_year - a.academic_year;
+          }
+          return b.term - a.term;
+        });
 
       setRecords(allRows);
+
     } catch (error) {
       console.error("PARENT TUITION LOAD ERROR:", error);
       setRecords([]);
@@ -701,6 +709,12 @@ transferAdjustment: pendingAdjustmentMap.get(student.id) ?? 0,
     <main className="tuition-page">
       <style jsx>{`
         .tuition-page { min-height:100%; padding:32px 16px 48px; color:#10213A; overflow-x:hidden; }
+@media (min-width:640px) {
+  .tuition-page { padding-left:24px; padding-right:24px; }
+}
+@media (min-width:1024px) {
+  .tuition-page { padding-left:32px; padding-right:32px; }
+}
         .page-header { margin:0 auto 32px; max-width:1400px; }
         h1 { margin:0; color:#F4F7FB; font-size:30px; font-weight:700; letter-spacing:-0.025em; line-height:1.25; }
         .page-subtitle { margin:8px 0 0; color:rgba(200,210,223,.7); font-size:14px; line-height:1.5; }
@@ -848,81 +862,81 @@ transferAdjustment: pendingAdjustmentMap.get(student.id) ?? 0,
                     <div className="table-scroll">
                       <table>
                         <thead>
-                        <tr>
-                          <th>Term</th>
-                          <th>Class</th>
-                          <th>Standard Tuition</th>
-                          <th>Make-up Credit</th>
-                          <th>Amount Payable</th>
-                          <th>Payment</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {studentRecords.map((record) => {
-                          const paymentStatus = parentPaymentStatus(record.payment_status);
-                          const statusClass = paymentStatusClass(paymentStatus);
+                          <tr>
+                            <th>Term</th>
+                            <th>Class</th>
+                            <th>Standard Tuition</th>
+                            <th>Make-up Credit</th>
+                            <th>Amount Payable</th>
+                            <th>Payment</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {studentRecords.map((record) => {
+                            const paymentStatus = parentPaymentStatus(record.payment_status);
+                            const statusClass = paymentStatusClass(paymentStatus);
 
-                          return (
-                            <tr className={record.isUpcoming ? "upcoming-row" : ""} key={record.id}>
-                              <td className="term">
-                                {record.academic_year} · T{record.term}
-                                {record.isUpcoming && (
-                                  <div className="opening-note">Next term</div>
-                                )}
-                              </td>
-                              <td>
-                                <div className="class-name">
-                                  {classLabel(record.classRecord, record.campus)}
-                                </div>
-                                {classTimeLabel(record.classRecord) && (
-                                  <div className="class-time">{classTimeLabel(record.classRecord)}</div>
-                                )}
-                              </td>
-                              <td className="amount">
-                                {record.standard_tuition !== null
-                                  ? formatMoney(record.standard_tuition)
-                                  : record.isUpcoming && record.tuitionOpeningAt
-                                    ? <><span>Not available yet</span><div className="opening-note">From {formatOpeningDate(record.tuitionOpeningAt)}</div></>
-                                    : "—"}
-                              </td>
-                              <td className="breakdown">
-                                <span className="label">Redeem: </span>
-                                <span className="redeem">
-                                  {record.redeem_amount && record.redeem_amount > 0
-                                    ? `-${formatMoney(record.redeem_amount)}`
-                                    : "$0.00"}
-                                </span>
-                                {record.isUpcoming && record.tuitionOpen && (
-                                  <div className="class-time">
-                                    Available credits: {record.availableCredits ?? 0} · Redeem: {record.redeemCredits ?? 0}
+                            return (
+                              <tr className={record.isUpcoming ? "upcoming-row" : ""} key={record.id}>
+                                <td className="term">
+                                  {record.academic_year} · T{record.term}
+                                  {record.isUpcoming && (
+                                    <div className="opening-note">Next term</div>
+                                  )}
+                                </td>
+                                <td>
+                                  <div className="class-name">
+                                    {classLabel(record.classRecord, record.campus)}
                                   </div>
-                                )}
-                              </td>
-                              <td className="amount">
-  <div>
-    {formatMoney(record.amount_payable)}
-  </div>
+                                  {classTimeLabel(record.classRecord) && (
+                                    <div className="class-time">{classTimeLabel(record.classRecord)}</div>
+                                  )}
+                                </td>
+                                <td className="amount">
+                                  {record.standard_tuition !== null
+                                    ? formatMoney(record.standard_tuition)
+                                    : record.isUpcoming && record.tuitionOpeningAt
+                                      ? <><span>Not available yet</span><div className="opening-note">From {formatOpeningDate(record.tuitionOpeningAt)}</div></>
+                                      : "—"}
+                                </td>
+                                <td className="breakdown">
+                                  <span className="label">Redeem: </span>
+                                  <span className="redeem">
+                                    {record.redeem_amount && record.redeem_amount > 0
+                                      ? `-${formatMoney(record.redeem_amount)}`
+                                      : "$0.00"}
+                                  </span>
+                                  {record.isUpcoming && record.tuitionOpen && (
+                                    <div className="class-time">
+                                      Available credits: {record.availableCredits ?? 0} · Redeem: {record.redeemCredits ?? 0}
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="amount">
+                                  <div>
+                                    {formatMoney(record.amount_payable)}
+                                  </div>
 
-  {record.transferAdjustment !== undefined &&
-    record.transferAdjustment !== 0 && (
-      <div className="transfer-adjustment">
-        Transfer Adjustment:{" "}
-        {record.transferAdjustment > 0 ? "+" : ""}
-        {formatMoney(record.transferAdjustment)}
-      </div>
-    )}
-</td>
-                              <td>
-                                <span className={`pay-status ${statusClass}`}>
-                                  {paymentStatus}
-                                </span>
-                                {record.isUpcoming && record.tuitionOpeningAt && !record.tuitionOpen && (
-                                  <div className="opening-note">Available from {formatOpeningDate(record.tuitionOpeningAt)}</div>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
+                                  {record.transferAdjustment !== undefined &&
+                                    record.transferAdjustment !== 0 && (
+                                      <div className="transfer-adjustment">
+                                        Transfer Adjustment:{" "}
+                                        {record.transferAdjustment > 0 ? "+" : ""}
+                                        {formatMoney(record.transferAdjustment)}
+                                      </div>
+                                    )}
+                                </td>
+                                <td>
+                                  <span className={`pay-status ${statusClass}`}>
+                                    {paymentStatus}
+                                  </span>
+                                  {record.isUpcoming && record.tuitionOpeningAt && !record.tuitionOpen && (
+                                    <div className="opening-note">Available from {formatOpeningDate(record.tuitionOpeningAt)}</div>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -972,21 +986,21 @@ transferAdjustment: pendingAdjustmentMap.get(student.id) ?? 0,
                               <div className="mobile-field-value">{paymentStatus}</div>
                             </div>
                             <div className="mobile-payable">
-  <div className="mobile-field-label">Amount Payable</div>
+                              <div className="mobile-field-label">Amount Payable</div>
 
-  <div className="mobile-field-value">
-    {formatMoney(record.amount_payable)}
-  </div>
+                              <div className="mobile-field-value">
+                                {formatMoney(record.amount_payable)}
+                              </div>
 
-  {record.transferAdjustment !== undefined &&
-    record.transferAdjustment !== 0 && (
-      <div className="transfer-adjustment">
-        Transfer Adjustment:{" "}
-        {record.transferAdjustment > 0 ? "+" : ""}
-        {formatMoney(record.transferAdjustment)}
-      </div>
-    )}
-</div>
+                              {record.transferAdjustment !== undefined &&
+                                record.transferAdjustment !== 0 && (
+                                  <div className="transfer-adjustment">
+                                    Transfer Adjustment:{" "}
+                                    {record.transferAdjustment > 0 ? "+" : ""}
+                                    {formatMoney(record.transferAdjustment)}
+                                  </div>
+                                )}
+                            </div>
                           </div>
                         </article>
                       );

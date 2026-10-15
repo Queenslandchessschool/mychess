@@ -115,7 +115,7 @@ if (!submissionId) {
       await supabaseServer
         .from("re_enrolment_submissions")
         .select(
-          "id, student_id, academic_year, term, submission_source, medical_snapshot, special_request_snapshot"
+          "id, student_id, academic_year, term, submission_source, medical_snapshot, special_request_snapshot, remaining_lessons"
         )
         .eq("id", submissionId)
         .maybeSingle();
@@ -231,13 +231,6 @@ const cancelledLessons = validLessons.filter(
   (lesson) => lesson.status === "Cancelled"
 );
 
-const chargeableLessons = validLessons.filter(
-  (lesson) =>
-    lesson.status !== "Cancelled" &&
-    (!enrollment.join_date ||
-      lesson.lesson_date >= enrollment.join_date)
-);
-
 const firstLessonDate = validLessons[0]?.lesson_date ?? null;
 
 const lastLessonDate =
@@ -250,7 +243,13 @@ const excludedLessonDate =
         .join(", ")
     : "No excluded lessons";
 
-const numberOfLessons = String(chargeableLessons.length);
+if (submission.remaining_lessons == null) {
+  throw new Error(
+    "Remaining lesson count is missing from the re-enrolment submission."
+  );
+}
+
+const numberOfLessons = String(submission.remaining_lessons);
 
     const studentName =
       student.preferred_name ||
