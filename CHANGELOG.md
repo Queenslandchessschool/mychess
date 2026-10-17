@@ -1,3 +1,33 @@
+## 2026-10-18 — Parent Re-enrolment: Withdrawn Enrolment Fix
+
+### Completed Changes
+- Updated two Parent Re-enrolment financial lookup references to use `selectedSourceEnrollment?.class_id`, supporting Withdrawn enrolments when resolving the source class.
+- `npm run build`: PASS.
+- `git diff --check`: no whitespace errors reported; Git reported a line-ending warning for `app/admin/reenrolment/page.tsx`.
+
+### Known Issue — Family Enrolment Status Display
+- A child card displaying `ENROLLED` may display `NOT_OPEN` after switching to another browser window and returning.
+- Root cause remains unconfirmed. The issue is unresolved and deferred due to its lower current priority.
+- Revisit when dedicated investigation time is available.
+
+### Frozen Business Boundaries
+- Preserve existing Re-enrolment submission and formal enrolment creation behaviour.
+- Preserve tuition formulas, payment handling, Make-up Credit rules, and email behaviour.
+- Preserve historical Withdrawn enrolment records.
+- Future-term return must follow the existing-student Re-enrolment workflow.
+
+### Outstanding Validation
+- Verify Withdrawn students' source-class and tuition / Make-up Credit values.
+- Verify the normal Active-enrolment Re-enrolment workflow remains unaffected.
+- Complete Production verification after deployment.
+
+### Status
+- Family-card status refresh issue: DEFERRED — UNRESOLVED.
+- Withdrawn-enrolment class lookup: CODE CHANGE COMPLETE — functional verification pending.
+- Build: PASS.
+- Business regression testing: PENDING.
+- Production deployment: NOT YET VERIFIED.
+
 ## 2026-10-15 — Parent Portal: Info, Profile & Tuition Updates
 
 ### Changes

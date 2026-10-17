@@ -49,6 +49,7 @@ type Enrollment = {
   term: number | string | null;
   status: string | null;
   is_trial: boolean | null;
+  end_date?: string | null;
 };
 
 type ClassInfo = {
@@ -60,25 +61,26 @@ type ClassInfo = {
   level: string | null;
   class_suffix: string | null;
   campuses?:
-    | {
-        campus_code: string | null;
-        short_name: string | null;
-        campus_name: string | null;
-        type: string | null;
-      }
-    | {
-        campus_code: string | null;
-        short_name: string | null;
-        campus_name: string | null;
-        type: string | null;
-      }[]
-    | null;
+  | {
+    campus_code: string | null;
+    short_name: string | null;
+    campus_name: string | null;
+    type: string | null;
+  }
+  | {
+    campus_code: string | null;
+    short_name: string | null;
+    campus_name: string | null;
+    type: string | null;
+  }[]
+  | null;
 };
 
 type FamilyStudent = {
   student: Student;
   enrollment: Enrollment | null;
   classInfo: ClassInfo | null;
+  withdrawnEnrollment: Enrollment | null;
 };
 
 type Recommendation = {
@@ -178,7 +180,7 @@ function getPaymentReference(
       : campusRaw.includes("TOOW")
         ? "TOOW"
         : campusRaw.includes("WRSS") ||
-            campusRaw.includes("WARRIGAL")
+          campusRaw.includes("WARRIGAL")
           ? "WRSS"
           : campusRaw.includes("ONLINE")
             ? "ONLINE"
@@ -390,21 +392,21 @@ export default function ParentReenrolmentPage() {
   const [medicalInformation, setMedicalInformation] = useState("");
 
   const [tuitionConfig, setTuitionConfig] = useState<{
-  id: string;
-  single_lesson_fee: number;
-  total_lessons: number;
-  standard_tuition: number;
-} | null>(null);
+    id: string;
+    single_lesson_fee: number;
+    total_lessons: number;
+    standard_tuition: number;
+  } | null>(null);
   const [currentClassSingleLessonFee, setCurrentClassSingleLessonFee] = useState(0);
   const [availableMakeupCredits, setAvailableMakeupCredits] = useState(0);
   const [availableTuitionCredit, setAvailableTuitionCredit] =
-  useState(0);
+    useState(0);
   const [pendingAdditionalPayment, setPendingAdditionalPayment] = useState(0);
   const [remainingLessons, setRemainingLessons] = useState(0);
-const [attendedLessons, setAttendedLessons] =
-  useState(0);
+  const [attendedLessons, setAttendedLessons] =
+    useState(0);
   const [calculatedTuition, setCalculatedTuition] = useState(0);
-const [standardTuition, setStandardTuition] = useState(0);
+  const [standardTuition, setStandardTuition] = useState(0);
   const [financialLoading, setFinancialLoading] = useState(false);
 
   const [paymentSettings, setPaymentSettings] = useState<PaymentSettings | null>(null);
@@ -429,13 +431,13 @@ const [standardTuition, setStandardTuition] = useState(0);
   const [testClockEnabled, setTestClockEnabled] = useState(false);
   const [testClockValue, setTestClockValue] = useState("");
   useEffect(() => {
-  const enabled = isTestClockEnabled();
-  const value = getTestClockValue();
+    const enabled = isTestClockEnabled();
+    const value = getTestClockValue();
 
-  setTestClockEnabled(enabled);
-  setTestClockValue(value);
-}, []);
-  
+    setTestClockEnabled(enabled);
+    setTestClockValue(value);
+  }, []);
+
   const [familyDisplayStates, setFamilyDisplayStates] = useState<
     Record<string, ReenrolmentDisplayState>
   >({});
@@ -643,6 +645,33 @@ const [standardTuition, setStandardTuition] = useState(0);
       }
 
       const enrollments = (enrollmentData ?? []) as Enrollment[];
+      const {
+        data: withdrawnEnrollmentData,
+        error: withdrawnEnrollmentError,
+      } = await supabase
+        .from("student_enrolments")
+        .select(`
+    id,
+    student_id,
+    class_id,
+    academic_year,
+    term,
+    status,
+    is_trial,
+    end_date
+  `)
+        .in("student_id", studentIds)
+        .eq("status", "Withdrawn")
+        .eq("is_trial", false)
+        .order("end_date", { ascending: false });
+
+      if (withdrawnEnrollmentError) {
+        throw withdrawnEnrollmentError;
+      }
+
+      const withdrawnEnrollments = (
+        withdrawnEnrollmentData ?? []
+      ) as Enrollment[];
 
       /**
        * ------------------------------------------------------
@@ -652,7 +681,7 @@ const [standardTuition, setStandardTuition] = useState(0);
 
       const classIds = Array.from(
         new Set(
-          enrollments
+          [...enrollments, ...withdrawnEnrollments]
             .map((item) => item.class_id)
             .filter(Boolean)
         )
@@ -704,8 +733,27 @@ const [standardTuition, setStandardTuition] = useState(0);
       const result = students.map((student) => {
         const enrollment =
           enrollments.find(
+            (item) =>
+              item.student_id === student.id &&
+              item.academic_year === targetAcademicYear &&
+              item.term === targetTerm
+          ) ??
+          enrollments.find(
             (item) => item.student_id === student.id
-          ) ?? null;
+          ) ??
+          null;
+
+        const withdrawnEnrollment =
+          withdrawnEnrollments.find(
+            (item) =>
+              item.student_id === student.id &&
+              item.academic_year === targetAcademicYear &&
+              item.term === targetTerm
+          ) ??
+          withdrawnEnrollments.find(
+            (item) => item.student_id === student.id
+          ) ??
+          null;
 
         const classInfo =
           enrollment?.class_id
@@ -716,6 +764,7 @@ const [standardTuition, setStandardTuition] = useState(0);
           student,
           enrollment,
           classInfo,
+          withdrawnEnrollment,
         };
       });
 
@@ -733,7 +782,7 @@ const [standardTuition, setStandardTuition] = useState(0);
 
       setError(
         loadError?.message ??
-          "Unable to load Re-enrolment."
+        "Unable to load Re-enrolment."
       );
     } finally {
       setLoading(false);
@@ -741,32 +790,38 @@ const [standardTuition, setStandardTuition] = useState(0);
   }
 
   async function loadReenrolmentSchedules() {
-    if (
-      !selectedStudent?.enrollment?.class_id ||
-      !selectedStudent.enrollment.academic_year ||
-      !selectedStudent.enrollment.term ||
+    if
+      (
+      !selectedSourceEnrollment?.class_id ||
+      !selectedSourceEnrollment.academic_year ||
+      !selectedSourceEnrollment.term ||
       !selectedClassId ||
       !targetAcademicYear ||
       !targetTerm
     ) {
-      setCurrentClassSchedule(null);
-      setTargetClassSchedule(null);
-      return;
+      setCurrentClassSchedule(null
+      );
+      setTargetClassSchedule(null
+      );
+      return
+        ;
     }
 
     setScheduleLoading(true);
 
     try {
+
       const currentClassId =
-        selectedStudent.classInfo?.id ?? selectedStudent.enrollment.class_id;
+        selectedStudent?.classInfo?.id ??
+        selectedSourceEnrollment.class_id;
 
       const [currentResult, targetResult] = await Promise.all([
         supabase
           .from("class_schedule")
           .select("class_id, academic_year, term, first_lesson, final_lesson, status")
           .eq("class_id", currentClassId)
-          .eq("academic_year", Number(selectedStudent.enrollment.academic_year))
-          .eq("term", Number(selectedStudent.enrollment.term))
+          .eq("academic_year", Number(selectedSourceEnrollment.academic_year))
+          .eq("term", Number(selectedSourceEnrollment.term))
           .in("status", ["Active", "Completed"])
           .limit(1)
           .maybeSingle(),
@@ -796,181 +851,198 @@ const [standardTuition, setStandardTuition] = useState(0);
   }
 
   async function loadFamilyDisplayStates() {
-    if (
-      familyStudents.length === 0 ||
-      !targetAcademicYear ||
-      !targetTerm
-    ) {
+    if (familyStudents.length === 0) {
       setFamilyDisplayStates({});
       return;
     }
-
     try {
-      const studentIds = familyStudents.map((item) => item.student.id);
-
-      const { data: targetEnrollments, error: targetEnrollmentError } =
-        await supabase
-          .from("student_enrolments")
-          .select("student_id, academic_year, term, status, is_trial")
-          .in("student_id", studentIds)
-          .eq("academic_year", Number(targetAcademicYear))
-          .eq("term", Number(targetTerm))
-          .eq("status", "Active")
-          .eq("is_trial", false);
-
-      if (targetEnrollmentError) throw targetEnrollmentError;
-
-      const { data: recommendations, error: recommendationError } =
-        await supabase
-          .from("re_enrolment_recommendations")
-          .select("student_id, recommended_class_id")
-          .in("student_id", studentIds)
-          .eq("academic_year", Number(targetAcademicYear))
-          .eq("term", Number(targetTerm));
-
-      if (recommendationError) throw recommendationError;
-
-      const recommendationMap = new Map<string, string>();
-      for (const item of recommendations ?? []) {
-        if (item.student_id && item.recommended_class_id) {
-          recommendationMap.set(item.student_id, item.recommended_class_id);
-        }
-      }
-
-      const currentScheduleKeys = Array.from(
-        new Set(
-          familyStudents
-            .filter((item) => item.enrollment?.class_id)
-            .map(
-              (item) =>
-                `${item.enrollment!.class_id}|${Number(item.enrollment!.academic_year)}|${Number(item.enrollment!.term)}`
-            )
-        )
+      const now = getBrisbaneNowParts(
+        testClockEnabled ? testClockValue : undefined
       );
+      const nextStates: Record<string, ReenrolmentDisplayState> = {};
 
-      const currentScheduleResults = await Promise.all(
-        currentScheduleKeys.map(async (key) => {
-          const [classId, academicYear, term] = key.split("|");
-          const { data, error } = await supabase
-            .from("class_schedule")
-            .select("class_id, academic_year, term, first_lesson, final_lesson, status")
-            .eq("class_id", classId)
-            .eq("academic_year", Number(academicYear))
-            .eq("term", Number(term))
-            .in("status", ["Active", "Completed"])
-            .limit(1)
-            .maybeSingle();
-          if (error) throw error;
-          return data as ClassSchedule | null;
+      await Promise.all(
+        familyStudents.map(async (item) => {
+          const studentId = item.student.id;
+          if (
+            item.enrollment?.status === "Active" &&
+            Number(item.enrollment.academic_year) === targetAcademicYear &&
+            Number(item.enrollment.term) === targetTerm
+          ) {
+            nextStates[studentId] = "ENROLLED";
+            return;
+          }
+          const enrollment =
+            item.enrollment ?? item.withdrawnEnrollment;
+          if (
+            !enrollment ||
+            !enrollment.academic_year ||
+            !enrollment.term
+          ) {
+            nextStates[studentId] = "NOT_OPEN";
+            return;
+          }
+
+          const currentYear = Number(enrollment.academic_year);
+          const currentTerm = Number(enrollment.term);
+
+          if (
+            !Number.isFinite(currentYear) ||
+            !Number.isFinite(currentTerm) ||
+            currentTerm < 1 ||
+            currentTerm > 4
+          ) {
+            nextStates[studentId] = "NOT_OPEN";
+            return;
+          }
+
+          const targetYear =
+            currentTerm >= 4 ? currentYear + 1 : currentYear;
+
+          const nextTerm =
+            currentTerm >= 4 ? 1 : currentTerm + 1;
+
+          const submission = reenrolmentSubmissions.find(
+            (entry) =>
+              entry.student_id === studentId &&
+              entry.academic_year === targetYear &&
+              entry.term === nextTerm &&
+              entry.status !== "Cancelled"
+          );
+
+          const isTargetTermWithdrawn =
+            Number(item.withdrawnEnrollment?.academic_year) === targetYear &&
+            Number(item.withdrawnEnrollment?.term) === nextTerm;
+
+          const [
+            targetEnrollmentResult,
+            recommendationResult,
+            currentScheduleResult,
+          ] = await Promise.all([
+            supabase
+              .from("student_enrolments")
+              .select("id")
+              .eq("student_id", studentId)
+              .eq("academic_year", targetYear)
+              .eq("term", nextTerm)
+              .eq("status", "Active")
+              .eq("is_trial", false)
+              .limit(1)
+              .maybeSingle(),
+
+            supabase
+              .from("re_enrolment_recommendations")
+              .select("recommended_class_id")
+              .eq("student_id", studentId)
+              .eq("academic_year", targetYear)
+              .eq("term", nextTerm)
+              .limit(1)
+              .maybeSingle(),
+
+            supabase
+              .from("class_schedule")
+              .select(
+                "class_id, academic_year, term, first_lesson, final_lesson, status"
+              )
+              .eq("class_id", enrollment.class_id)
+              .eq("academic_year", currentYear)
+              .eq("term", currentTerm)
+              .in("status", ["Active", "Completed"])
+              .limit(1)
+              .maybeSingle(),
+          ]);
+
+          if (targetEnrollmentResult.error) {
+            throw targetEnrollmentResult.error;
+          }
+
+          if (recommendationResult.error) {
+            throw recommendationResult.error;
+          }
+
+          if (currentScheduleResult.error) {
+            throw currentScheduleResult.error;
+          }
+
+          const hasTargetTermActiveEnrollment = Boolean(targetEnrollmentResult.data);
+
+          if (hasTargetTermActiveEnrollment) {
+            nextStates[studentId] = "ENROLLED";
+            return;
+          }
+
+          if (isTargetTermWithdrawn) {
+            nextStates[studentId] =
+              submission?.status === "Submitted" ? "SUBMITTED" : "OPEN";
+            return;
+          }
+
+          if (submission?.status === "Completed") {
+            nextStates[studentId] = "ENROLLED";
+            return;
+          }
+
+          if (submission?.status === "Submitted") {
+            nextStates[studentId] = "SUBMITTED";
+            return;
+          }
+
+          if (
+            !isTargetTermWithdrawn &&
+            !isOpeningReached(
+              currentScheduleResult.data?.final_lesson ?? null,
+              now
+            )
+          ) {
+            nextStates[studentId] = "NOT_OPEN";
+            return;
+          }
+
+          const targetClassId =
+            recommendationResult.data?.recommended_class_id ??
+            enrollment.class_id;
+
+          let targetFirstLesson: string | null = null;
+
+          if (targetClassId) {
+            const {
+              data: targetSchedule,
+              error: targetScheduleError,
+            } = await supabase
+              .from("class_schedule")
+              .select("first_lesson")
+              .eq("class_id", targetClassId)
+              .eq("academic_year", targetYear)
+              .eq("term", nextTerm)
+              .eq("status", "Active")
+              .limit(1)
+              .maybeSingle();
+
+            if (targetScheduleError) {
+              throw targetScheduleError;
+            }
+
+            targetFirstLesson = targetSchedule?.first_lesson ?? null;
+          }
+
+          nextStates[studentId] = isFirstLessonPendingPeriod(
+            targetFirstLesson,
+            now.dateKey
+          )
+            ? "PENDING"
+            : "OPEN";
         })
       );
 
-      const currentScheduleMap = new Map<string, ClassSchedule>();
-      for (const schedule of currentScheduleResults) {
-        if (schedule) {
-          currentScheduleMap.set(
-            `${schedule.class_id}|${schedule.academic_year}|${schedule.term}`,
-            schedule
-          );
-        }
-      }
-
-      const targetClassIds = Array.from(
-        new Set(
-          familyStudents
-            .map((item) =>
-              recommendationMap.get(item.student.id) ?? item.enrollment?.class_id ?? ""
-            )
-            .filter(Boolean)
-        )
-      );
-
-      const { data: targetSchedules, error: targetScheduleError } =
-        targetClassIds.length > 0
-          ? await supabase
-              .from("class_schedule")
-              .select("class_id, academic_year, term, first_lesson, final_lesson, status")
-              .in("class_id", targetClassIds)
-              .eq("academic_year", Number(targetAcademicYear))
-              .eq("term", Number(targetTerm))
-              .eq("status", "Active")
-          : { data: [], error: null };
-
-      if (targetScheduleError) throw targetScheduleError;
-
-      const targetScheduleMap = new Map<string, ClassSchedule>();
-      for (const schedule of targetSchedules ?? []) {
-        targetScheduleMap.set(schedule.class_id, schedule as ClassSchedule);
-      }
-
-      const now = getBrisbaneNowParts(testClockEnabled ? testClockValue : undefined);
-      const nextStates: Record<string, ReenrolmentDisplayState> = {};
-
-      for (const item of familyStudents) {
-        const studentId = item.student.id;
-        const submission = reenrolmentSubmissions.find(
-          (entry) =>
-            entry.student_id === studentId &&
-            entry.academic_year === Number(targetAcademicYear) &&
-            entry.term === Number(targetTerm) &&
-            entry.status !== "Cancelled"
-        );
-
-        const targetEnrollment = (targetEnrollments ?? []).find(
-          (entry) => entry.student_id === studentId
-        );
-
-        if (!item.enrollment) {
-          nextStates[studentId] = "NOT_OPEN";
-          continue;
-        }
-
-        if (submission?.status === "Completed") {
-  nextStates[studentId] = "ENROLLED";
-  continue;
-}
-
-if (submission?.status === "Submitted") {
-  nextStates[studentId] = "SUBMITTED";
-  continue;
-}
-
-if (targetEnrollment) {
-  nextStates[studentId] = "ENROLLED";
-  continue;
-}
-
-        const currentClassId = item.enrollment.class_id;
-        const currentSchedule = currentClassId
-          ? currentScheduleMap.get(
-              `${currentClassId}|${Number(item.enrollment.academic_year)}|${Number(item.enrollment.term)}`
-            )
-          : null;
-
-        if (!isOpeningReached(currentSchedule?.final_lesson ?? null, now)) {
-          nextStates[studentId] = "NOT_OPEN";
-          continue;
-        }
-
-        const targetClassId =
-          recommendationMap.get(studentId) ?? currentClassId ?? "";
-        const targetSchedule = targetScheduleMap.get(targetClassId) ?? null;
-
-        nextStates[studentId] = isFirstLessonPendingPeriod(
-  targetSchedule?.first_lesson ?? null,
-  now.dateKey
-)
-  ? "PENDING"
-  : "OPEN";
-      }
-
       setFamilyDisplayStates(nextStates);
     } catch (stateError) {
-      console.error("RE-ENROLMENT FAMILY STATUS LOAD ERROR:", stateError);
+      console.error(
+        "RE-ENROLMENT FAMILY STATUS LOAD ERROR:",
+        stateError
+      );
       setFamilyDisplayStates({});
     }
   }
-
   async function loadRecommendation() {
     if (!selectedStudentId || !targetAcademicYear || !targetTerm) {
       setRecommendation(null);
@@ -1037,8 +1109,8 @@ if (targetEnrollment) {
         classData ? (classData as unknown as ClassInfo) : null
       );
       if (classData) {
-  setSelectedClassId(nextRecommendation.recommended_class_id);
-}
+        setSelectedClassId(nextRecommendation.recommended_class_id);
+      }
     } catch (recommendationError: any) {
       console.error(
         "RE-ENROLMENT RECOMMENDATION LOAD ERROR:",
@@ -1052,372 +1124,372 @@ if (targetEnrollment) {
   }
 
   async function loadReenrolmentFinancials() {
-  if (
-    !selectedStudentId ||
-    !targetAcademicYear ||
-    !targetTerm ||
-    !selectedClassId
-  ) {
-    setTuitionConfig(null);
-    setCurrentClassSingleLessonFee(0);
-    setAvailableMakeupCredits(0);
-    setAttendedLessons(0);
-    setRemainingLessons(0);
-    setCalculatedTuition(0);
-    setStandardTuition(0);
-    return;
-  }
+    if (
+      !selectedStudentId ||
+      !targetAcademicYear ||
+      !targetTerm ||
+      !selectedClassId
+    ) {
+      setTuitionConfig(null);
+      setCurrentClassSingleLessonFee(0);
+      setAvailableMakeupCredits(0);
+      setAttendedLessons(0);
+      setRemainingLessons(0);
+      setCalculatedTuition(0);
+      setStandardTuition(0);
+      return;
+    }
 
-  setFinancialLoading(true);
+    setFinancialLoading(true);
 
-  try {
-    /*
-     * Tuition pricing source:
-     * Recommended / selected target class.
-     *
-     * For a term that has already started, tuition is based on
-     * the remaining chargeable Lessons in the Lesson SSOT.
-     * For a future term, the configured full-term Standard Tuition
-     * remains the default.
-     */
-    const { data: tuitionData, error: tuitionError } =
-      await supabase
-        .from("tuition_configurations")
-        .select(`
+    try {
+      /*
+       * Tuition pricing source:
+       * Recommended / selected target class.
+       *
+       * For a term that has already started, tuition is based on
+       * the remaining chargeable Lessons in the Lesson SSOT.
+       * For a future term, the configured full-term Standard Tuition
+       * remains the default.
+       */
+      const { data: tuitionData, error: tuitionError } =
+        await supabase
+          .from("tuition_configurations")
+          .select(`
           id,
           class_id,
           single_lesson_fee,
           total_lessons,
           standard_tuition
         `)
-        .eq("academic_year", targetAcademicYear)
-        .eq("term", targetTerm)
-        .in(
-          "class_id",
-          Array.from(
-            new Set(
-              [
-                selectedClassId,
-                selectedStudent?.classInfo?.id ??
-                  selectedStudent?.enrollment?.class_id ??
+          .eq("academic_year", targetAcademicYear)
+          .eq("term", targetTerm)
+          .in(
+            "class_id",
+            Array.from(
+              new Set(
+                [
+                  selectedClassId,
+                  selectedStudent?.classInfo?.id ??
+                  selectedSourceEnrollment?.class_id ??
                   "",
-              ].filter(Boolean)
+                ].filter(Boolean)
+              )
             )
           )
-        )
-        .eq("status", "Active");
+          .eq("status", "Active");
 
-    if (tuitionError) {
-      throw tuitionError;
-    }
+      if (tuitionError) {
+        throw tuitionError;
+      }
 
-    const selectedTuitionData =
-      (tuitionData ?? []).find(
-        (row) => row.class_id === selectedClassId
-      ) ?? null;
+      const selectedTuitionData =
+        (tuitionData ?? []).find(
+          (row) => row.class_id === selectedClassId
+        ) ?? null;
 
-    const currentClassId =
-      selectedStudent?.classInfo?.id ??
-      selectedStudent?.enrollment?.class_id ??
-      "";
+      const currentClassId =
+        selectedStudent?.classInfo?.id ??
+        selectedSourceEnrollment?.class_id ??
+        "";
 
-    const currentTuitionData =
-      (tuitionData ?? []).find(
-        (row) => row.class_id === currentClassId
-      ) ?? null;
+      const currentTuitionData =
+        (tuitionData ?? []).find(
+          (row) => row.class_id === currentClassId
+        ) ?? null;
 
-    if (!selectedTuitionData) {
-      setTuitionConfig(null);
-      setCurrentClassSingleLessonFee(
-        Number(currentTuitionData?.single_lesson_fee ?? 0)
-      );
-      setRemainingLessons(0);
-      setCalculatedTuition(0);
-      setStandardTuition(0);
-    } else {
-      const singleLessonFee = Number(
-        selectedTuitionData.single_lesson_fee ?? 0
-      );
+      if (!selectedTuitionData) {
+        setTuitionConfig(null);
+        setCurrentClassSingleLessonFee(
+          Number(currentTuitionData?.single_lesson_fee ?? 0)
+        );
+        setRemainingLessons(0);
+        setCalculatedTuition(0);
+        setStandardTuition(0);
+      } else {
+        const singleLessonFee = Number(
+          selectedTuitionData.single_lesson_fee ?? 0
+        );
 
-      const configuredTotalLessons = Number(
-        selectedTuitionData.total_lessons ?? 0
-      );
+        const configuredTotalLessons = Number(
+          selectedTuitionData.total_lessons ?? 0
+        );
 
-      const configuredStandardTuition = Number(
-        selectedTuitionData.standard_tuition ?? 0
-      );
+        const configuredStandardTuition = Number(
+          selectedTuitionData.standard_tuition ?? 0
+        );
 
-      /*
-       * Use the MyCHESS Business Time Engine so the calculation
-       * follows the existing Brisbane test clock in development
-       * and Brisbane business date in production.
-       */
-      const businessDate = getBusinessTime().dateKey;
+        /*
+         * Use the MyCHESS Business Time Engine so the calculation
+         * follows the existing Brisbane test clock in development
+         * and Brisbane business date in production.
+         */
+        const businessDate = getBusinessTime().dateKey;
 
-      const { data: lessonData, error: lessonError } =
-        await supabase
-          .from("lessons")
-          .select(`
+        const { data: lessonData, error: lessonError } =
+          await supabase
+            .from("lessons")
+            .select(`
             id,
             lesson_date,
             status,
             chargeable
           `)
-          .eq("class_id", selectedClassId)
-          .eq("academic_year", targetAcademicYear)
-          .eq("term", targetTerm)
-          .eq("chargeable", true)
-          .order("lesson_date", {
-            ascending: true,
-          });
+            .eq("class_id", selectedClassId)
+            .eq("academic_year", targetAcademicYear)
+            .eq("term", targetTerm)
+            .eq("chargeable", true)
+            .order("lesson_date", {
+              ascending: true,
+            });
 
-      if (lessonError) {
-        throw lessonError;
+        if (lessonError) {
+          throw lessonError;
+        }
+
+        const chargeableLessons = lessonData ?? [];
+
+        const remainingChargeableLessons =
+          chargeableLessons.filter(
+            (lesson) =>
+              lesson.lesson_date >= businessDate
+          ).length;
+
+        /*
+         * Late Re-enrolment:
+         * Include chargeable lessons already attended before today.
+         *
+         * Only Regular attendance with Present/Late status is counted.
+         * Make-up and Trial attendance are excluded from normal term tuition.
+         */
+        const pastChargeableLessonIds =
+          chargeableLessons
+            .filter(
+              (lesson) =>
+                lesson.lesson_date < businessDate
+            )
+            .map((lesson) => lesson.id);
+
+        const { data: attendedPastLessons, error: attendanceError } =
+          pastChargeableLessonIds.length > 0
+            ? await supabase
+              .from("attendance")
+              .select(
+                "lesson_id, attendance_status, attendance_type"
+              )
+              .eq("student_id", selectedStudentId)
+              .in(
+                "lesson_id",
+                pastChargeableLessonIds
+              )
+              .in(
+                "attendance_status",
+                ["Present", "Late"]
+              )
+              .eq("attendance_type", "Regular")
+            : { data: [], error: null };
+
+        if (attendanceError) {
+          throw attendanceError;
+        }
+
+        const attendedPastLessonIds =
+          new Set(
+            (attendedPastLessons ?? []).map(
+              (row) => row.lesson_id
+            )
+          );
+
+        const attendedPastLessonCount =
+          attendedPastLessonIds.size;
+
+        /*
+         * If Lessons have not yet been generated for a future term,
+         * retain the configured total lesson count rather than
+         * inventing lesson dates in the Parent UI.
+         */
+        const hasGeneratedLessons =
+          chargeableLessons.length > 0;
+
+        const effectiveRemainingLessons =
+          hasGeneratedLessons
+            ? remainingChargeableLessons
+            : configuredTotalLessons;
+
+        const isMidTerm =
+          hasGeneratedLessons &&
+          remainingChargeableLessons < configuredTotalLessons;
+
+        /*
+         * Late Re-enrolment tuition =
+         * attended chargeable lessons + remaining chargeable lessons.
+         */
+        const dynamicCalculatedTuition =
+          hasGeneratedLessons
+            ? (attendedPastLessonCount +
+              effectiveRemainingLessons) *
+            singleLessonFee
+            : effectiveRemainingLessons *
+            singleLessonFee;
+
+        /*
+         * Future/full-term enrolment keeps the configured Standard
+         * Tuition, including any Admin-configured adjustment.
+         *
+         * Mid-term uses the calculated remaining-lesson tuition
+         * as the default Standard Tuition.
+         */
+        const effectiveStandardTuition = isMidTerm
+          ? dynamicCalculatedTuition
+          : configuredStandardTuition;
+
+        setTuitionConfig({
+          id: selectedTuitionData.id,
+          single_lesson_fee: singleLessonFee,
+          total_lessons: configuredTotalLessons,
+          standard_tuition: effectiveStandardTuition,
+        });
+
+        setCurrentClassSingleLessonFee(
+          Number(currentTuitionData?.single_lesson_fee ?? 0)
+        );
+
+        setRemainingLessons(
+          effectiveRemainingLessons
+        );
+
+        setAttendedLessons(
+          attendedPastLessonCount
+        );
+
+        setCalculatedTuition(
+          dynamicCalculatedTuition
+        );
+
+        setStandardTuition(
+          effectiveStandardTuition
+        );
       }
 
-      const chargeableLessons = lessonData ?? [];
+      const { data: creditData, error: creditError } =
+        await supabase
+          .from("makeup_credits")
+          .select("credits")
+          .eq("student_id", selectedStudentId)
+          .eq("status", "Available")
+          .gt("credits", 0);
 
-      const remainingChargeableLessons =
-  chargeableLessons.filter(
-    (lesson) =>
-      lesson.lesson_date >= businessDate
-  ).length;
+      if (creditError) {
+        throw creditError;
+      }
 
-/*
- * Late Re-enrolment:
- * Include chargeable lessons already attended before today.
- *
- * Only Regular attendance with Present/Late status is counted.
- * Make-up and Trial attendance are excluded from normal term tuition.
- */
-const pastChargeableLessonIds =
-  chargeableLessons
-    .filter(
-      (lesson) =>
-        lesson.lesson_date < businessDate
-    )
-    .map((lesson) => lesson.id);
+      const totalCredits =
+        (creditData ?? []).reduce(
+          (sum, row) =>
+            sum + Number(row.credits ?? 0),
+          0
+        );
 
-const { data: attendedPastLessons, error: attendanceError } =
-  pastChargeableLessonIds.length > 0
-    ? await supabase
-        .from("attendance")
-        .select(
-          "lesson_id, attendance_status, attendance_type"
-        )
-        .eq("student_id", selectedStudentId)
-        .in(
-          "lesson_id",
-          pastChargeableLessonIds
-        )
-        .in(
-          "attendance_status",
-          ["Present", "Late"]
-        )
-        .eq("attendance_type", "Regular")
-    : { data: [], error: null };
-
-if (attendanceError) {
-  throw attendanceError;
-}
-
-const attendedPastLessonIds =
-  new Set(
-    (attendedPastLessons ?? []).map(
-      (row) => row.lesson_id
-    )
-  );
-
-const attendedPastLessonCount =
-  attendedPastLessonIds.size;
-
-/*
- * If Lessons have not yet been generated for a future term,
- * retain the configured total lesson count rather than
- * inventing lesson dates in the Parent UI.
- */
-const hasGeneratedLessons =
-  chargeableLessons.length > 0;
-
-const effectiveRemainingLessons =
-  hasGeneratedLessons
-    ? remainingChargeableLessons
-    : configuredTotalLessons;
-
-const isMidTerm =
-  hasGeneratedLessons &&
-  remainingChargeableLessons < configuredTotalLessons;
-
-/*
- * Late Re-enrolment tuition =
- * attended chargeable lessons + remaining chargeable lessons.
- */
-const dynamicCalculatedTuition =
-  hasGeneratedLessons
-    ? (attendedPastLessonCount +
-        effectiveRemainingLessons) *
-      singleLessonFee
-    : effectiveRemainingLessons *
-      singleLessonFee;
+      setAvailableMakeupCredits(totalCredits);
 
       /*
-       * Future/full-term enrolment keeps the configured Standard
-       * Tuition, including any Admin-configured adjustment.
+       * Transfer Tuition Credit
        *
-       * Mid-term uses the calculated remaining-lesson tuition
-       * as the default Standard Tuition.
+       * Tuition Credit is separate from Make-up Credits.
+       * Only Pending Tuition Credit may be applied.
        */
-      const effectiveStandardTuition = isMidTerm
-        ? dynamicCalculatedTuition
-        : configuredStandardTuition;
+      const { data: tuitionCreditData, error: tuitionCreditError } =
+        await supabase
+          .from("tuition_adjustments")
+          .select("id, adjustment_amount")
+          .eq("student_id", selectedStudentId)
+          .eq("adjustment_type", "Tuition Credit")
+          .eq("status", "Pending")
+          .lt("adjustment_amount", 0)
+          .order("created_at", { ascending: true });
 
-      setTuitionConfig({
-        id: selectedTuitionData.id,
-        single_lesson_fee: singleLessonFee,
-        total_lessons: configuredTotalLessons,
-        standard_tuition: effectiveStandardTuition,
-      });
+      if (tuitionCreditError) {
+        throw tuitionCreditError;
+      }
 
-      setCurrentClassSingleLessonFee(
-        Number(currentTuitionData?.single_lesson_fee ?? 0)
+      const totalTuitionCredit =
+        (tuitionCreditData ?? []).reduce(
+          (sum, row) =>
+            sum + Math.abs(Number(row.adjustment_amount ?? 0)),
+          0
+        );
+
+      setAvailableTuitionCredit(totalTuitionCredit);
+      const { data: additionalPaymentData, error: additionalPaymentError } =
+        await supabase
+          .from("tuition_adjustments")
+          .select("id, adjustment_amount")
+          .eq("student_id", selectedStudentId)
+          .eq("adjustment_type", "Additional Payment")
+          .eq("status", "Pending")
+          .gt("adjustment_amount", 0)
+          .order("created_at", { ascending: true });
+
+      if (additionalPaymentError) {
+        throw additionalPaymentError;
+      }
+
+      const totalAdditionalPayment =
+        (additionalPaymentData ?? []).reduce(
+          (sum, row) =>
+            sum + Number(row.adjustment_amount ?? 0),
+          0
+        );
+
+      setPendingAdditionalPayment(totalAdditionalPayment);
+    } catch (financialError: any) {
+      console.error(
+        "RE-ENROLMENT FINANCIAL LOAD ERROR:",
+        financialError
       );
 
-      setRemainingLessons(
-        effectiveRemainingLessons
-      );
-
-      setAttendedLessons(
-  attendedPastLessonCount
-);
-
-      setCalculatedTuition(
-        dynamicCalculatedTuition
-      );
-
-      setStandardTuition(
-        effectiveStandardTuition
-      );
+      setTuitionConfig(null);
+      setCurrentClassSingleLessonFee(0);
+      setAvailableMakeupCredits(0);
+      setAvailableTuitionCredit(0);
+      setRemainingLessons(0);
+      setCalculatedTuition(0);
+      setStandardTuition(0);
+    } finally {
+      setFinancialLoading(false);
     }
+  }
 
-    const { data: creditData, error: creditError } =
-      await supabase
-        .from("makeup_credits")
-        .select("credits")
-        .eq("student_id", selectedStudentId)
-        .eq("status", "Available")
-        .gt("credits", 0);
-
-    if (creditError) {
-      throw creditError;
-    }
-
-    const totalCredits =
-      (creditData ?? []).reduce(
-        (sum, row) =>
-          sum + Number(row.credits ?? 0),
-        0
-      );
-
-        setAvailableMakeupCredits(totalCredits);
-
-    /*
-     * Transfer Tuition Credit
-     *
-     * Tuition Credit is separate from Make-up Credits.
-     * Only Pending Tuition Credit may be applied.
-     */
-    const { data: tuitionCreditData, error: tuitionCreditError } =
-      await supabase
-        .from("tuition_adjustments")
-        .select("id, adjustment_amount")
-        .eq("student_id", selectedStudentId)
-        .eq("adjustment_type", "Tuition Credit")
-        .eq("status", "Pending")
-        .lt("adjustment_amount", 0)
-        .order("created_at", { ascending: true });
-
-    if (tuitionCreditError) {
-      throw tuitionCreditError;
-    }
-
-    const totalTuitionCredit =
-      (tuitionCreditData ?? []).reduce(
-        (sum, row) =>
-          sum + Math.abs(Number(row.adjustment_amount ?? 0)),
-        0
-      );
-
-    setAvailableTuitionCredit(totalTuitionCredit);
-    const { data: additionalPaymentData, error: additionalPaymentError } =
-  await supabase
-    .from("tuition_adjustments")
-    .select("id, adjustment_amount")
-    .eq("student_id", selectedStudentId)
-    .eq("adjustment_type", "Additional Payment")
-    .eq("status", "Pending")
-    .gt("adjustment_amount", 0)
-    .order("created_at", { ascending: true });
-
-if (additionalPaymentError) {
-  throw additionalPaymentError;
-}
-
-const totalAdditionalPayment =
-  (additionalPaymentData ?? []).reduce(
-    (sum, row) =>
-      sum + Number(row.adjustment_amount ?? 0),
-    0
+  const redeemCreditsAvailable = Math.min(
+    availableMakeupCredits,
+    2
   );
 
-setPendingAdditionalPayment(totalAdditionalPayment);
-  } catch (financialError: any) {
-    console.error(
-      "RE-ENROLMENT FINANCIAL LOAD ERROR:",
-      financialError
-    );
+  const redeemAmount =
+    redeemCreditsAvailable *
+    currentClassSingleLessonFee;
 
-    setTuitionConfig(null);
-    setCurrentClassSingleLessonFee(0);
-    setAvailableMakeupCredits(0);
-    setAvailableTuitionCredit(0);
-    setRemainingLessons(0);
-    setCalculatedTuition(0);
-    setStandardTuition(0);
-  } finally {
-    setFinancialLoading(false);
-  }
-}
-
- const redeemCreditsAvailable = Math.min(
-  availableMakeupCredits,
-  2
-);
-
-const redeemAmount =
-  redeemCreditsAvailable *
-  currentClassSingleLessonFee;
-
-/*
- * Transfer Tuition Credit is separate from Make-up Credit.
- */
-const tuitionCreditApplied = tuitionConfig
-  ? Math.min(
+  /*
+   * Transfer Tuition Credit is separate from Make-up Credit.
+   */
+  const tuitionCreditApplied = tuitionConfig
+    ? Math.min(
       availableTuitionCredit,
       Math.max(0, standardTuition - redeemAmount)
     )
-  : 0;
+    : 0;
 
-const amountPayable = tuitionConfig
-  ? Math.max(
+  const amountPayable = tuitionConfig
+    ? Math.max(
       0,
       standardTuition -
-        redeemAmount -
-        tuitionCreditApplied +
-        pendingAdditionalPayment
+      redeemAmount -
+      tuitionCreditApplied +
+      pendingAdditionalPayment
     )
-  : 0;
+    : 0;
 
-    async function handleSubmit() {
+  async function handleSubmit() {
     setError(null);
 
     const {
@@ -1497,6 +1569,11 @@ const amountPayable = tuitionConfig
        * ----------------------------------------------------------
        */
 
+      const isTargetTermWithdrawn =
+        Number(selectedStudent.withdrawnEnrollment?.academic_year) ===
+        targetAcademicYear &&
+        Number(selectedStudent.withdrawnEnrollment?.term) === targetTerm;
+
       const {
         data: existingSubmission,
         error: existingError,
@@ -1506,7 +1583,12 @@ const amountPayable = tuitionConfig
         .eq("student_id", selectedStudent.student.id)
         .eq("academic_year", targetAcademicYear)
         .eq("term", targetTerm)
-        .in("status", ["Draft", "Submitted", "Completed"])
+        .in(
+          "status",
+          isTargetTermWithdrawn
+            ? ["Draft", "Submitted"]
+            : ["Draft", "Submitted", "Completed"]
+        )
         .limit(1)
         .maybeSingle();
 
@@ -1531,14 +1613,14 @@ const amountPayable = tuitionConfig
         recommendation?.recommended_class_id ?? currentClassId;
 
       const specialRequestSnapshot = {
-  classroom_pickup: isSchoolProgram
-    ? specialRequest.classroom_pickup
-    : false,
-  ymca_dropoff: isSchoolProgram
-    ? specialRequest.ymca_dropoff
-    : false,
-  walk_home: specialRequest.walk_home,
-  school_year:
+        classroom_pickup: isSchoolProgram
+          ? specialRequest.classroom_pickup
+          : false,
+        ymca_dropoff: isSchoolProgram
+          ? specialRequest.ymca_dropoff
+          : false,
+        walk_home: specialRequest.walk_home,
+        school_year:
           isSchoolProgram && targetTerm === 1
             ? schoolYear.trim()
             : null,
@@ -1568,6 +1650,7 @@ const amountPayable = tuitionConfig
         .eq("term", targetTerm)
         .eq("class_id", selectedClassId)
         .eq("is_trial", false)
+        .eq("status", "Active")
         .maybeSingle();
 
       if (existingEnrollmentError) {
@@ -1662,6 +1745,7 @@ const amountPayable = tuitionConfig
             tuitionConfig.standard_tuition.toFixed(2)
           ),
           amount_payable: Number(amountPayable.toFixed(2)),
+          remaining_lessons: Number(remainingLessons),
           payment_status: "Pending",
           status: "Submitted",
           submitted_at: submittedAt,
@@ -1691,11 +1775,11 @@ const amountPayable = tuitionConfig
         throw submissionError;
       }
 
-        /*
-       * ----------------------------------------------------------
-       * 7. Synchronise Student Stage
-       * ----------------------------------------------------------
-       */
+      /*
+     * ----------------------------------------------------------
+     * 7. Synchronise Student Stage
+     * ----------------------------------------------------------
+     */
 
       await synchroniseStudentStage(
         selectedStudent.student.id,
@@ -1703,7 +1787,7 @@ const amountPayable = tuitionConfig
         targetTerm
       );
 
-            // Synchronise Student Master class snapshot
+      // Synchronise Student Master class snapshot
       if (selectedClassInfo) {
         const campus = Array.isArray(selectedClassInfo.campuses)
           ? selectedClassInfo.campuses[0]
@@ -1767,26 +1851,26 @@ const amountPayable = tuitionConfig
       ]);
 
       const emailResponse = await fetch(
-  "/api/email/reenrolment-confirmation",
-  {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      enrollmentId: createdEnrollmentId,
-      submissionId: insertedSubmission.id,
-    }),
-  }
-);
+        "/api/email/reenrolment-confirmation",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            enrollmentId: createdEnrollmentId,
+            submissionId: insertedSubmission.id,
+          }),
+        }
+      );
 
-if (!emailResponse.ok) {
-  const emailError = await emailResponse.json().catch(() => ({}));
+      if (!emailResponse.ok) {
+        const emailError = await emailResponse.json().catch(() => ({}));
 
-  throw new Error(
-    emailError.error ?? "Re-enrolment confirmation email failed."
-  );
-}
+        throw new Error(
+          emailError.error ?? "Re-enrolment confirmation email failed."
+        );
+      }
 
       setSubmissionId(insertedSubmission.id);
       setSubmitted(true);
@@ -1798,7 +1882,7 @@ if (!emailResponse.ok) {
 
       setError(
         submitError?.message ??
-          "Unable to submit Re-enrolment."
+        "Unable to submit Re-enrolment."
       );
     } finally {
       setSubmitting(false);
@@ -1846,48 +1930,81 @@ if (!emailResponse.ok) {
     [familyStudents, selectedStudentId]
   );
 
+  const selectedSourceEnrollment =
+    selectedStudent?.enrollment ??
+    selectedStudent?.withdrawnEnrollment ??
+    null;
+
   const currentSubmission = useMemo(
-    () =>
-      reenrolmentSubmissions.find(
-        (item) =>
-          item.student_id === selectedStudentId &&
-          item.academic_year === targetAcademicYear &&
-          item.term === targetTerm
-      ) ?? null,
+    () => {
+      const isTargetTermWithdrawn =
+        selectedStudent?.withdrawnEnrollment?.academic_year ===
+        targetAcademicYear &&
+        selectedStudent?.withdrawnEnrollment?.term === targetTerm;
+
+      return (
+        reenrolmentSubmissions.find(
+          (item) =>
+            item.student_id === selectedStudentId &&
+            item.academic_year === targetAcademicYear &&
+            item.term === targetTerm &&
+            !(
+              isTargetTermWithdrawn &&
+              item.status === "Completed"
+            )
+        ) ?? null
+      );
+    },
     [
       reenrolmentSubmissions,
       selectedStudentId,
+      selectedStudent,
       targetAcademicYear,
       targetTerm,
     ]
   );
 
   const reenrolmentDisplayState = useMemo((): ReenrolmentDisplayState => {
-    if (!selectedStudent?.enrollment) return "NOT_OPEN";
+    if (!selectedSourceEnrollment) return "NOT_OPEN";
+
+    const isWithdrawn =
+      Number(selectedStudent?.withdrawnEnrollment?.academic_year) ===
+      targetAcademicYear &&
+      Number(selectedStudent?.withdrawnEnrollment?.term) === targetTerm;
+
+    if (currentSubmission?.status === "Submitted") return "SUBMITTED";
+
+    if (isWithdrawn && currentSubmission?.status !== "Completed") return "OPEN";
 
     if (currentSubmission?.status === "Completed") return "ENROLLED";
-    if (currentSubmission?.status === "Submitted") return "SUBMITTED";
 
     if (scheduleLoading) return "NOT_OPEN";
 
     const now = getBrisbaneNowParts(testClockEnabled ? testClockValue : undefined);
-    const openingReached = isOpeningReached(
-      currentClassSchedule?.final_lesson ?? null,
-      now
-    );
+    const isWithdrawnStudent =
+      !!selectedStudent &&
+      !selectedStudent.enrollment &&
+      !!selectedStudent.withdrawnEnrollment;
+
+    const openingReached = isWithdrawnStudent
+      ? true
+      : isOpeningReached(
+        currentClassSchedule?.final_lesson ?? null,
+        now
+      );
 
     if (!openingReached) return "NOT_OPEN";
 
     if (
-  isFirstLessonPendingPeriod(
-    targetClassSchedule?.first_lesson ?? null,
-    now.dateKey
-  )
-) {
-  return "PENDING";
-}
+      isFirstLessonPendingPeriod(
+        targetClassSchedule?.first_lesson ?? null,
+        now.dateKey
+      )
+    ) {
+      return "PENDING";
+    }
 
-return "OPEN";
+    return "OPEN";
   }, [
     selectedStudent,
     currentSubmission,
@@ -1907,7 +2024,7 @@ return "OPEN";
 
     const currentClassId =
       selectedStudent.classInfo?.id ??
-      selectedStudent.enrollment?.class_id ??
+      selectedSourceEnrollment?.class_id ??
       "";
 
     if (
@@ -2004,8 +2121,8 @@ return "OPEN";
     setSchoolClass(selectedStudent?.student.school_class ?? "");
     setMedicalInformation(selectedStudent?.student.medical_information ?? "");
 
-    const currentYear = Number(selectedStudent?.enrollment?.academic_year);
-    const currentTerm = Number(selectedStudent?.enrollment?.term);
+    const currentYear = Number(selectedSourceEnrollment?.academic_year);
+    const currentTerm = Number(selectedSourceEnrollment?.term);
 
     if (
       Number.isFinite(currentYear) &&
@@ -2029,28 +2146,26 @@ return "OPEN";
       }));
     }
   }, [isClassroomPickupEligible, specialRequest.classroom_pickup]);
-useEffect(() => {
-  if (!isSchoolProgram) {
-    setSpecialRequest((previous) => {
-      if (!previous.classroom_pickup && !previous.ymca_dropoff) {
-        return previous;
-      }
+  useEffect(() => {
+    if (!isSchoolProgram) {
+      setSpecialRequest((previous) => {
+        if (!previous.classroom_pickup && !previous.ymca_dropoff) {
+          return previous;
+        }
 
-      return {
-        ...previous,
-        classroom_pickup: false,
-        ymca_dropoff: false,
-      };
-    });
-  }
-}, [isSchoolProgram]);
+        return {
+          ...previous,
+          classroom_pickup: false,
+          ymca_dropoff: false,
+        };
+      });
+    }
+  }, [isSchoolProgram]);
   useEffect(() => {
     loadFamilyDisplayStates();
   }, [
     familyStudents,
     reenrolmentSubmissions,
-    targetAcademicYear,
-    targetTerm,
     statusTick,
     testClockEnabled,
     testClockValue,
@@ -2073,15 +2188,15 @@ useEffect(() => {
   }, []);
 
   useEffect(() => {
-  loadReenrolmentFinancials();
-}, [
-  selectedStudentId,
-  targetAcademicYear,
-  targetTerm,
-  selectedClassId,
-  testClockEnabled,
-  testClockValue,
-]);
+    loadReenrolmentFinancials();
+  }, [
+    selectedStudentId,
+    targetAcademicYear,
+    targetTerm,
+    selectedClassId,
+    testClockEnabled,
+    testClockValue,
+  ]);
 
   if (loading) {
     return <main className="min-h-screen" />;
@@ -2090,1021 +2205,1042 @@ useEffect(() => {
   return (
     <>
       <main className="min-h-screen text-[#10213A]">
-      <div className="mx-auto w-full max-w-[1500px] px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-[1500px] px-4 py-8 sm:px-6 lg:px-8">
 
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight text-[#F4F7FB] sm:text-4xl">
-            Re-enrolment
-          </h1>
+          {/* Header */}
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold tracking-tight text-[#F4F7FB] sm:text-4xl">
+              Re-enrolment
+            </h1>
 
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-[#C8D2DF]/70 sm:text-base">
-  Continue your{" "}
-  {familyStudents.length === 1 ? "child’s" : "children’s"}{" "}
-  enrolment for the next term.
-</p>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-[#C8D2DF]/70 sm:text-base">
+              Continue your{" "}
+              {familyStudents.length === 1 ? "child’s" : "children’s"}{" "}
+              enrolment for the next term.
+            </p>
 
-          {process.env.NODE_ENV !== "production" && (
-            <div className="mt-4 rounded-xl border border-amber-300/30 bg-amber-100/10 p-4 text-xs text-amber-50">
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="font-semibold uppercase tracking-[0.14em] text-amber-200">
-                  🧪 Re-enrolment Test Clock
-                </span>
+            {process.env.NODE_ENV !== "production" && (
+              <div className="mt-4 rounded-xl border border-amber-300/30 bg-amber-100/10 p-4 text-xs text-amber-50">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="font-semibold uppercase tracking-[0.14em] text-amber-200">
+                    🧪 Re-enrolment Test Clock
+                  </span>
 
-                <label className="inline-flex items-center gap-2">
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={testClockEnabled}
+                      onChange={(event) => {
+                        const enabled = event.target.checked;
+
+                        setTestClockEnabled(enabled);
+
+                        if (!enabled) {
+                          clearTestClock();
+                          return;
+                        }
+
+                        if (testClockValue) {
+                          setTestClock(testClockValue);
+                        }
+                      }}
+                      className="h-4 w-4 rounded border-slate-300"
+                    />
+                    Simulate Brisbane time
+                  </label>
+
                   <input
-  type="checkbox"
-  checked={testClockEnabled}
-  onChange={(event) => {
-    const enabled = event.target.checked;
+                    type="datetime-local"
+                    value={testClockValue}
+                    onChange={(event) => {
+                      const value = event.target.value;
 
-    setTestClockEnabled(enabled);
+                      setTestClockValue(value);
 
-    if (!enabled) {
-      clearTestClock();
-      return;
-    }
+                      if (testClockEnabled && value) {
+                        setTestClock(value);
+                      }
+                    }}
+                    disabled={!testClockEnabled}
+                    className="rounded-lg border border-amber-200/40 bg-white px-3 py-2 text-xs text-[#10213A] disabled:cursor-not-allowed disabled:opacity-50"
+                  />
 
-    if (testClockValue) {
-      setTestClock(testClockValue);
-    }
-  }}
-  className="h-4 w-4 rounded border-slate-300"
-/>
-                  Simulate Brisbane time
-                </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTestClockEnabled(false);
+                      setTestClockValue("");
+                      clearTestClock();
+                    }}
+                    className="rounded-lg border border-amber-200/40 px-3 py-2 font-semibold text-amber-100 hover:bg-amber-100/10"
+                  >
+                    Use Live Time
+                  </button>
+                </div>
 
-                <input
-                  type="datetime-local"
-                  value={testClockValue}
-                  onChange={(event) => {
-  const value = event.target.value;
-
-  setTestClockValue(value);
-
-  if (testClockEnabled && value) {
-    setTestClock(value);
-  }
-}}
-                  disabled={!testClockEnabled}
-                  className="rounded-lg border border-amber-200/40 bg-white px-3 py-2 text-xs text-[#10213A] disabled:cursor-not-allowed disabled:opacity-50"
-                />
-
-                <button
-                  type="button"
-                  onClick={() => {
-  setTestClockEnabled(false);
-  setTestClockValue("");
-  clearTestClock();
-}}
-                  className="rounded-lg border border-amber-200/40 px-3 py-2 font-semibold text-amber-100 hover:bg-amber-100/10"
-                >
-                  Use Live Time
-                </button>
+                {testClockEnabled && (
+                  <p className="mt-2 text-amber-100/80">
+                    Status calculations use the simulated Brisbane wall-clock time. This control is development-only and does not change the database or Class Schedule.
+                  </p>
+                )}
               </div>
+            )}
+          </div>
 
-              {testClockEnabled && (
-                <p className="mt-2 text-amber-100/80">
-                  Status calculations use the simulated Brisbane wall-clock time. This control is development-only and does not change the database or Class Schedule.
-                </p>
-              )}
+          {/* Error */}
+          {error && (
+            <div className="mb-6 rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-4 text-sm text-red-200">
+              {error}
             </div>
           )}
-        </div>
 
-        {/* Error */}
-        {error && (
-          <div className="mb-6 rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-4 text-sm text-red-200">
-            {error}
-          </div>
-        )}
-
-        {/* No Children */}
-        {familyStudents.length === 0 && (
-          <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] text-[#10213A] shadow-2xl shadow-black/20">
-            <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
-
-            <div className="p-8">
-              <h2 className="text-xl font-semibold">
-                No children found
-              </h2>
-
-              <p className="mt-2 text-sm text-[#64748B]">
-                No students are currently linked to this Family.
-              </p>
-            </div>
-          </section>
-        )}
-
-        {familyStudents.length > 0 && (
-          <div className="space-y-6">
-
-            {/* Child Selection */}
-            <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
+          {/* No Children */}
+          {familyStudents.length === 0 && (
+            <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] text-[#10213A] shadow-2xl shadow-black/20">
               <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
 
-              <div className="p-5 sm:p-7">
-                <div className="mb-5">
-                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A78312]">
-                    Step 1
-                  </div>
+              <div className="p-8">
+                <h2 className="text-xl font-semibold">
+                  No children found
+                </h2>
 
-                  <h2 className="mt-2 text-2xl font-semibold text-[#10213A]">
-                    Select Child
-                  </h2>
-
-                  <p className="mt-2 text-sm leading-6 text-[#64748B]">
-                    Select the child you would like to re-enrol.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {familyStudents.map((item, index) => {
-                    const isSelected =
-                      item.student.id === selectedStudentId;
-
-                    return (
-                      <button
-                        key={item.student.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedStudentId(item.student.id);
-                          window.scrollTo({ top: 0, behavior: "smooth" });
-                        }}
-                        className={`
-                          rounded-xl border px-4 py-4 text-left transition
-                          ${
-                            isSelected
-                              ? "border-[#D4AF37] bg-[#FFF8DC] shadow-sm"
-                              : "border-[#D9E3ED] bg-[#F5F9FD] hover:border-[#D4AF37]/60"
-                          }
-                        `}
-                      >
-                        <div className="flex items-center justify-between gap-4">
-                          <div className="flex min-w-0 items-center gap-4">
-                            <div className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#A78312]">
-                              {familyStudents.length === 1
-                                ? "CHILD"
-                                : `CHILD ${index + 1}`}
-                            </div>
-
-                            <div className="min-w-0 text-base font-semibold text-[#10213A]">
-                              {getStudentDisplayName(item.student) || "Student"}
-                            </div>
-                          </div>
-
-                          {(() => {
-                            const itemSubmission = reenrolmentSubmissions.find(
-                              (submission) =>
-                                submission.student_id === item.student.id &&
-                                submission.academic_year === targetAcademicYear &&
-                                submission.term === targetTerm &&
-                                submission.status !== "Cancelled"
-                            );
-
-                            const itemState: ReenrolmentDisplayState | null =
-                              isSelected
-                                ? reenrolmentDisplayState
-                                : familyDisplayStates[item.student.id] ??
-                                  (itemSubmission?.status === "Completed"
-                                    ? "ENROLLED"
-                                    : itemSubmission?.status === "Submitted"
-                                      ? "SUBMITTED"
-                                      : null);
-
-                            if (!itemState) return null;
-
-                            const stateClass =
-                              itemState === "ENROLLED"
-                                ? "text-emerald-700"
-                                : itemState === "SUBMITTED"
-                                  ? "text-emerald-700"
-                                  : itemState === "PENDING"
-                                    ? "text-amber-700"
-                                    : itemState === "OPEN"
-                                      ? "text-blue-700"
-                                      : "text-slate-500";
-
-                            const stateLabel =
-                              itemState === "NOT_OPEN"
-                                ? "Not Open"
-                                : itemState.charAt(0) + itemState.slice(1).toLowerCase();
-
-                            return (
-                              <span className={`shrink-0 text-xs font-semibold ${stateClass}`}>
-                                {stateLabel}
-                              </span>
-                            );
-                          })()}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+                <p className="mt-2 text-sm text-[#64748B]">
+                  No students are currently linked to this Family.
+                </p>
               </div>
             </section>
+          )}
 
-            {/* Current Enrolment */}
-            {selectedStudent && (
+          {familyStudents.length > 0 && (
+            <div className="space-y-6">
+
+              {/* Child Selection */}
               <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
                 <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
 
                 <div className="p-5 sm:p-7">
-                  <div className="mb-6">
+                  <div className="mb-5">
                     <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A78312]">
-                      Current Enrolment
+                      Step 1
                     </div>
 
                     <h2 className="mt-2 text-2xl font-semibold text-[#10213A]">
-                      {getStudentDisplayName(
-                        selectedStudent.student
-                      ) || "Student"}
-                    </h2>
-                  </div>
-
-                  {selectedStudent.enrollment ? (
-                    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-
-                      <InfoField
-                        label="Academic Year"
-                        value={String(
-                          selectedStudent.enrollment
-                            .academic_year ?? "—"
-                        )}
-                      />
-
-                      <InfoField
-                        label="Term"
-                        value={String(
-                          selectedStudent.enrollment.term ??
-                            "—"
-                        )}
-                      />
-
-                      <InfoField
-                        label="Chess Campus"
-                        value={getCampusDisplayName(
-                          selectedStudent.classInfo
-                        )}
-                      />
-
-                      <InfoField
-                        label="Current Class"
-                        value={getClassDisplayName(
-                          selectedStudent.classInfo
-                        )}
-                      />
-
-                      <InfoField
-                        label="Class Day"
-                        value={
-                          selectedStudent.classInfo?.day ??
-                          "—"
-                        }
-                      />
-
-                      <InfoField
-                        label="Class Time"
-                        value={
-                          selectedStudent.classInfo
-                            ?.start_time
-                            ? `${selectedStudent.classInfo.start_time.slice(
-                                0,
-                                5
-                              )}${
-                                selectedStudent.classInfo
-                                  .end_time
-                                  ? ` – ${selectedStudent.classInfo.end_time.slice(
-                                      0,
-                                      5
-                                    )}`
-                                  : ""
-                              }`
-                            : "—"
-                        }
-                      />
-
-                      <InfoField
-                        label="Program"
-                        value={
-                          getCampusType(
-                            selectedStudent.classInfo
-                          ) === "School Program"
-                            ? "School Program"
-                            : "Chess Program"
-                        }
-                      />
-
-                      <InfoField
-                        label="Enrolment Status"
-                        value={
-                          selectedStudent.enrollment.status ??
-                          "—"
-                        }
-                      />
-                    </div>
-                  ) : (
-                    <div className="rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] px-4 py-5">
-                      <p className="text-sm font-medium text-[#10213A]">
-                        No active formal enrolment was found for this child.
-                      </p>
-
-                      <p className="mt-1 text-sm text-[#64748B]">
-                        Re-enrolment is available for existing formal enrolments only.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </section>
-            )}
-
-            {/* Re-enrolment Status */}
-            {selectedStudent?.enrollment && (
-              <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
-                <div
-                  className={`h-[6px] ${
-                    reenrolmentDisplayState === "ENROLLED" || reenrolmentDisplayState === "SUBMITTED"
-                      ? "bg-gradient-to-r from-emerald-300 via-emerald-400/70 to-transparent"
-                      : "bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent"
-                  }`}
-                />
-                <div className="p-6 sm:p-8">
-                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A78312]">
-                    Re-enrolment Status
-                  </div>
-
-                  <h2 className="mt-2 text-2xl font-semibold text-[#10213A]">
-                    {reenrolmentDisplayState === "NOT_OPEN"
-                      ? "Not Open Yet"
-                      : reenrolmentDisplayState === "OPEN"
-                        ? "OPEN"
-                        : reenrolmentDisplayState === "PENDING"
-                          ? "PENDING"
-                          : reenrolmentDisplayState === "SUBMITTED"
-                            ? "SUBMITTED"
-                            : "ENROLLED"}
-                  </h2>
-
-                  <p className="mt-2 text-sm leading-6 text-[#64748B]">
-                    {reenrolmentDisplayState === "NOT_OPEN"
-                      ? currentClassSchedule?.final_lesson
-                        ? `Re-enrolment opens at 8:00 AM the day after the Final Lesson (${currentClassSchedule.final_lesson.slice(0, 10)}).`
-                        : "Re-enrolment opening is being prepared from the class schedule."
-                      : reenrolmentDisplayState === "OPEN"
-                        ? "Re-enrolment is now open. Please complete the form below before the new term begins."
-                        : reenrolmentDisplayState === "PENDING"
-                          ? "This child’s Re-enrolment has not yet been submitted. Please complete it before the first lesson."
-                          : reenrolmentDisplayState === "SUBMITTED"
-                            ? "This child’s Re-enrolment has been submitted and is now pending payment verification."
-                            : "This child’s Re-enrolment has been completed and is now enrolled for the target term."}
-                  </p>
-
-                  <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <InfoField
-                      label="Student"
-                      value={getStudentDisplayName(selectedStudent.student)}
-                    />
-                    <InfoField
-                      label="Target Term"
-                      value={`${targetAcademicYear} Term ${targetTerm}`}
-                    />
-                    <InfoField
-                      label="Payment Status"
-                      value={currentSubmission?.payment_status ?? (reenrolmentDisplayState === "ENROLLED" ? "Paid" : "—")}
-                    />
-                    <InfoField
-                      label="First Lesson"
-                      value={targetClassSchedule?.first_lesson?.slice(0, 10) ?? "—"}
-                    />
-                  </div>
-
-                  {(currentSubmission?.id || submissionId) && (
-                    <p className="mt-5 text-xs text-[#64748B]">
-                      Submission ID: {currentSubmission?.id ?? submissionId}
-                    </p>
-                  )}
-
-                  {reenrolmentDisplayState === "NOT_OPEN" && (
-                    <div className="mt-6 rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] px-4 py-4 text-sm text-[#31445B]">
-                      Re-enrolment will become available automatically according to the current class schedule.
-                    </div>
-                  )}
-
-                  {reenrolmentDisplayState === "PENDING" && (
-  <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
-    {(() => {
-      const now = getBrisbaneNowParts(
-        testClockEnabled ? testClockValue : undefined
-      );
-
-      const firstLessonDate =
-        targetClassSchedule?.first_lesson?.slice(0, 10) ?? null;
-
-      if (firstLessonDate === now.dateKey) {
-        return "Reminder: the first lesson is today. The Re-enrolment link remains active so you can complete the submission.";
-      }
-
-      if (addOneCalendarDay(now.dateKey) === firstLessonDate) {
-        return "Reminder: the first lesson is tomorrow. The Re-enrolment link remains active so you can complete the submission.";
-      }
-
-      return "The first lesson has started. The Re-enrolment link remains active, please complete the reenrollment as soon as possible.";
-    })()}
-  </div>
-)}
-
-                  {(reenrolmentDisplayState === "SUBMITTED" || reenrolmentDisplayState === "ENROLLED") && (
-                    <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-900">
-                      {reenrolmentDisplayState === "SUBMITTED"
-                        ? "Please select another child above if they still need to complete Re-enrolment."
-                        : "This Re-enrolment is complete. The enrolled term is now locked by the formal enrolment record."}
-                    </div>
-                  )}
-                </div>
-              </section>
-            )}
-
-            {/* Target Term */}
-            {selectedStudent?.enrollment && !currentSubmission && !submitted && canStartReenrolment && (
-              <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
-                <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
-
-                <div className="p-5 sm:p-7">
-                  <div className="mb-6">
-                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A78312]">
-                      Re-enrolment Term
-                    </div>
-
-                    <h2 className="mt-2 text-2xl font-semibold text-[#10213A]">
-                      Select Target Term
+                      Select Child
                     </h2>
 
                     <p className="mt-2 text-sm leading-6 text-[#64748B]">
-                      The next term is selected by default.
+                      Select the child you would like to re-enrol.
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                    <label className="block">
-                      <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748B]">
-                        Academic Year
-                      </span>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {familyStudents.map((item, index) => {
+                      const isSelected =
+                        item.student.id === selectedStudentId;
 
-                      <select
-                        value={targetAcademicYear}
-                        onChange={(event) =>
-                          setTargetAcademicYear(
-                            Number(event.target.value)
-                          )
-                        }
-                        className="mt-2 w-full rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] px-4 py-3 text-sm text-[#10213A] outline-none transition focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/30"
-                      >
-                        {[targetAcademicYear - 1, targetAcademicYear, targetAcademicYear + 1].map(
-                          (year) => (
-                            <option key={year} value={year}>
-                              {year}
-                            </option>
-                          )
-                        )}
-                      </select>
-                    </label>
-
-                    <label className="block">
-                      <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748B]">
-                        Term
-                      </span>
-
-                      <select
-                        value={targetTerm}
-                        onChange={(event) =>
-                          setTargetTerm(
-                            Number(event.target.value)
-                          )
-                        }
-                        className="mt-2 w-full rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] px-4 py-3 text-sm text-[#10213A] outline-none transition focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/30"
-                      >
-                        <option value={1}>Term 1</option>
-                        <option value={2}>Term 2</option>
-                        <option value={3}>Term 3</option>
-                        <option value={4}>Term 4</option>
-                      </select>
-                    </label>
-                  </div>
-
-                  <div className="mt-6 rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] px-4 py-4">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748B]">
-                      Target Re-enrolment
-                    </div>
-
-                    <div className="mt-1 text-lg font-semibold text-[#10213A]">
-                      {targetAcademicYear} · Term {targetTerm}
-                    </div>
-
-                    <p className="mt-2 text-sm text-[#64748B]">
-                      No submission has been created yet.
-                    </p>
-                  </div>
-                </div>
-              </section>
-            )}
-
-            {/* Class Selection */}
-            {selectedStudent?.enrollment && !currentSubmission && !submitted && canStartReenrolment && (
-              <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
-                <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
-
-                <div className="p-5 sm:p-7">
-                  <div className="mb-6">
-                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A78312]">
-                      Step 2
-                    </div>
-
-                    <h2 className="mt-2 text-2xl font-semibold text-[#10213A]">
-                      Class Selection
-                    </h2>
-
-                    <p className="mt-2 text-sm leading-6 text-[#64748B]">
-                      {recommendation && recommendedClassInfo
-                        ? "Choose whether to continue with your current class or select the recommended class."
-                        : "Current class is recommended for the next term. Our coach continuously assesses each student’s progress and will recommend a higher-level class when they are ready."}
-                    </p>
-                  </div>
-
-                  {recommendationLoading ? (
-                    <div className="rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] px-4 py-5 text-sm text-[#64748B]">
-                      Checking recommended class...
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setSelectedClassId(
-                            selectedStudent.classInfo?.id ??
-                              selectedStudent.enrollment?.class_id ??
-                              ""
-                          )
-                        }
-                        className={`rounded-xl border p-5 text-left transition ${
-                          selectedClassId ===
-                          (selectedStudent.classInfo?.id ??
-                            selectedStudent.enrollment?.class_id ??
-                            "")
-                            ? "border-[#D4AF37] bg-[#FFF8DC] shadow-sm"
-                            : "border-[#D9E3ED] bg-[#F5F9FD] hover:border-[#D4AF37]/60"
-                        }`}
-                      >
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#A78312]">
-                          Current Class
-                        </div>
-                        <div className="mt-2 text-lg font-semibold text-[#10213A]">
-                          {getClassDisplayName(selectedStudent.classInfo)}
-                        </div>
-                        <div className="mt-2 text-sm text-[#64748B]">
-                          {getCampusDisplayName(selectedStudent.classInfo)}
-                          {selectedStudent.classInfo?.day
-                            ? ` · ${selectedStudent.classInfo.day}`
-                            : ""}
-                          {selectedStudent.classInfo?.start_time
-                            ? ` · ${selectedStudent.classInfo.start_time.slice(0, 5)}`
-                            : ""}
-                          {selectedStudent.classInfo?.end_time
-                            ? ` – ${selectedStudent.classInfo.end_time.slice(0, 5)}`
-                            : ""}
-                        </div>
-                        <div className="mt-4 text-sm font-semibold text-[#A78312]">
-                          Continue Current Class
-                        </div>
-                      </button>
-
-                      {recommendation &&
-                      recommendedClassInfo &&
-                      recommendation.recommended_class_id !==
-                        (selectedStudent.classInfo?.id ??
-                          selectedStudent.enrollment?.class_id ??
-                          "") ? (
+                      return (
                         <button
+                          key={item.student.id}
                           type="button"
-                          onClick={() =>
-                            setSelectedClassId(
-                              recommendation.recommended_class_id
-                            )
-                          }
-                          className={`rounded-xl border p-5 text-left transition ${
-                            selectedClassId ===
-                            recommendation.recommended_class_id
+                          onClick={() => {
+                            setSelectedStudentId(item.student.id);
+                            window.scrollTo({ top: 0, behavior: "smooth" });
+                          }}
+                          className={`
+                          rounded-xl border px-4 py-4 text-left transition
+                          ${isSelected
                               ? "border-[#D4AF37] bg-[#FFF8DC] shadow-sm"
                               : "border-[#D9E3ED] bg-[#F5F9FD] hover:border-[#D4AF37]/60"
-                          }`}
+                            }
+                        `}
+                        >
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex min-w-0 items-center gap-4">
+                              <div className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#A78312]">
+                                {familyStudents.length === 1
+                                  ? "CHILD"
+                                  : `CHILD ${index + 1}`}
+                              </div>
+
+                              <div className="min-w-0 text-base font-semibold text-[#10213A]">
+                                {getStudentDisplayName(item.student) || "Student"}
+                              </div>
+                            </div>
+
+                            {(() => {
+                              const itemSourceEnrollment =
+                                item.enrollment ?? item.withdrawnEnrollment;
+
+                              const itemCurrentYear = Number(
+                                itemSourceEnrollment?.academic_year
+                              );
+                              const itemCurrentTerm = Number(
+                                itemSourceEnrollment?.term
+                              );
+
+                              const itemTargetYear =
+                                itemCurrentTerm >= 4
+                                  ? itemCurrentYear + 1
+                                  : itemCurrentYear;
+
+                              const itemTargetTerm =
+                                itemCurrentTerm >= 4
+                                  ? 1
+                                  : itemCurrentTerm + 1;
+
+                              const isWithdrawn =
+                                Number(item.withdrawnEnrollment?.academic_year) ===
+                                itemTargetYear &&
+                                Number(item.withdrawnEnrollment?.term) ===
+                                itemTargetTerm;
+
+                              const itemState: ReenrolmentDisplayState | "WITHDRAW" | null =
+                                familyDisplayStates[item.student.id] === "SUBMITTED" ||
+                                  familyDisplayStates[item.student.id] === "ENROLLED"
+                                  ? familyDisplayStates[item.student.id]
+                                  : isWithdrawn
+                                    ? "WITHDRAW"
+                                    : familyDisplayStates[item.student.id] ?? null;
+
+                              if (!itemState) return null;
+
+                              const stateClass =
+                                itemState === "WITHDRAW"
+                                  ? "text-red-700"
+                                  : itemState === "ENROLLED"
+                                    ? "text-emerald-700"
+                                    : itemState === "SUBMITTED"
+                                      ? "text-emerald-700"
+                                      : itemState === "PENDING"
+                                        ? "text-amber-700"
+                                        : itemState === "OPEN"
+                                          ? "text-blue-700"
+                                          : "text-slate-500";
+
+                              const stateLabel =
+                                itemState === "WITHDRAW"
+                                  ? "Withdraw"
+                                  : itemState === "NOT_OPEN"
+                                    ? "Not Open"
+                                    : itemState.charAt(0) + itemState.slice(1).toLowerCase();
+
+                              return (
+                                <span className={`shrink-0 text-xs font-semibold ${stateClass}`}>
+                                  {stateLabel}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </section>
+
+              {/* Current Enrolment */}
+              {selectedStudent && (
+                <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
+                  <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
+
+                  <div className="p-5 sm:p-7">
+                    <div className="mb-6">
+                      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A78312]">
+                        Current Enrolment
+                      </div>
+
+                      <h2 className="mt-2 text-2xl font-semibold text-[#10213A]">
+                        {getStudentDisplayName(
+                          selectedStudent.student
+                        ) || "Student"}
+                      </h2>
+                    </div>
+
+                    {selectedStudent.enrollment ? (
+                      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+
+                        <InfoField
+                          label="Academic Year"
+                          value={String(
+                            selectedStudent.enrollment
+                              .academic_year ?? "—"
+                          )}
+                        />
+
+                        <InfoField
+                          label="Term"
+                          value={String(
+                            selectedStudent.enrollment.term ??
+                            "—"
+                          )}
+                        />
+
+                        <InfoField
+                          label="Chess Campus"
+                          value={getCampusDisplayName(
+                            selectedStudent.classInfo
+                          )}
+                        />
+
+                        <InfoField
+                          label="Current Class"
+                          value={getClassDisplayName(
+                            selectedStudent.classInfo
+                          )}
+                        />
+
+                        <InfoField
+                          label="Class Day"
+                          value={
+                            selectedStudent.classInfo?.day ??
+                            "—"
+                          }
+                        />
+
+                        <InfoField
+                          label="Class Time"
+                          value={
+                            selectedStudent.classInfo
+                              ?.start_time
+                              ? `${selectedStudent.classInfo.start_time.slice(
+                                0,
+                                5
+                              )}${selectedStudent.classInfo
+                                .end_time
+                                ? ` – ${selectedStudent.classInfo.end_time.slice(
+                                  0,
+                                  5
+                                )}`
+                                : ""
+                              }`
+                              : "—"
+                          }
+                        />
+
+                        <InfoField
+                          label="Program"
+                          value={
+                            getCampusType(
+                              selectedStudent.classInfo
+                            ) === "School Program"
+                              ? "School Program"
+                              : "Chess Program"
+                          }
+                        />
+
+                        <InfoField
+                          label="Enrolment Status"
+                          value={
+                            selectedStudent.enrollment.status ??
+                            "—"
+                          }
+                        />
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] px-4 py-5">
+                        <p className="text-sm font-medium text-[#10213A]">
+                          No active formal enrolment was found for this child.
+                        </p>
+
+                        <p className="mt-1 text-sm text-[#64748B]">
+                          Re-enrolment is available for existing formal enrolments only.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </section>
+              )}
+
+              {/* Re-enrolment Status */}
+              {selectedStudent?.enrollment && (
+                <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
+                  <div
+                    className={`h-[6px] ${reenrolmentDisplayState === "ENROLLED" || reenrolmentDisplayState === "SUBMITTED"
+                      ? "bg-gradient-to-r from-emerald-300 via-emerald-400/70 to-transparent"
+                      : "bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent"
+                      }`}
+                  />
+                  <div className="p-6 sm:p-8">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A78312]">
+                      Re-enrolment Status
+                    </div>
+
+                    <h2 className="mt-2 text-2xl font-semibold text-[#10213A]">
+                      {reenrolmentDisplayState === "NOT_OPEN"
+                        ? "Not Open Yet"
+                        : reenrolmentDisplayState === "OPEN"
+                          ? "OPEN"
+                          : reenrolmentDisplayState === "PENDING"
+                            ? "PENDING"
+                            : reenrolmentDisplayState === "SUBMITTED"
+                              ? "SUBMITTED"
+                              : "ENROLLED"}
+                    </h2>
+
+                    <p className="mt-2 text-sm leading-6 text-[#64748B]">
+                      {reenrolmentDisplayState === "NOT_OPEN"
+                        ? currentClassSchedule?.final_lesson
+                          ? `Re-enrolment opens at 8:00 AM the day after the Final Lesson (${currentClassSchedule.final_lesson.slice(0, 10)}).`
+                          : "Re-enrolment opening is being prepared from the class schedule."
+                        : reenrolmentDisplayState === "OPEN"
+                          ? "Re-enrolment is now open. Please complete the form below before the new term begins."
+                          : reenrolmentDisplayState === "PENDING"
+                            ? "This child’s Re-enrolment has not yet been submitted. Please complete it before the first lesson."
+                            : reenrolmentDisplayState === "SUBMITTED"
+                              ? "This child’s Re-enrolment has been submitted and is now pending payment verification."
+                              : "This child’s Re-enrolment has been completed and is now enrolled for the target term."}
+                    </p>
+
+                    <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                      <InfoField
+                        label="Student"
+                        value={getStudentDisplayName(selectedStudent.student)}
+                      />
+                      <InfoField
+                        label="Target Term"
+                        value={`${targetAcademicYear} Term ${targetTerm}`}
+                      />
+                      <InfoField
+                        label="Payment Status"
+                        value={currentSubmission?.payment_status ?? (reenrolmentDisplayState === "ENROLLED" ? "Paid" : "—")}
+                      />
+                      <InfoField
+                        label="First Lesson"
+                        value={targetClassSchedule?.first_lesson?.slice(0, 10) ?? "—"}
+                      />
+                    </div>
+
+                    {(currentSubmission?.id || submissionId) && (
+                      <p className="mt-5 text-xs text-[#64748B]">
+                        Submission ID: {currentSubmission?.id ?? submissionId}
+                      </p>
+                    )}
+
+                    {reenrolmentDisplayState === "NOT_OPEN" && (
+                      <div className="mt-6 rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] px-4 py-4 text-sm text-[#31445B]">
+                        Re-enrolment will become available automatically according to the current class schedule.
+                      </div>
+                    )}
+
+                    {reenrolmentDisplayState === "PENDING" && (
+                      <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
+                        {(() => {
+                          const now = getBrisbaneNowParts(
+                            testClockEnabled ? testClockValue : undefined
+                          );
+
+                          const firstLessonDate =
+                            targetClassSchedule?.first_lesson?.slice(0, 10) ?? null;
+
+                          if (firstLessonDate === now.dateKey) {
+                            return "Reminder: the first lesson is today. The Re-enrolment link remains active so you can complete the submission.";
+                          }
+
+                          if (addOneCalendarDay(now.dateKey) === firstLessonDate) {
+                            return "Reminder: the first lesson is tomorrow. The Re-enrolment link remains active so you can complete the submission.";
+                          }
+
+                          return "The first lesson has started. The Re-enrolment link remains active, please complete the reenrollment as soon as possible.";
+                        })()}
+                      </div>
+                    )}
+
+                    {(reenrolmentDisplayState === "SUBMITTED" || reenrolmentDisplayState === "ENROLLED") && (
+                      <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-900">
+                        {reenrolmentDisplayState === "SUBMITTED"
+                          ? "Please select another child above if they still need to complete Re-enrolment."
+                          : "This Re-enrolment is complete. The enrolled term is now locked by the formal enrolment record."}
+                      </div>
+                    )}
+                  </div>
+                </section>
+              )}
+
+              {/* Target Term */}
+              {selectedSourceEnrollment && !currentSubmission && !submitted && canStartReenrolment && (
+                <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
+                  <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
+
+                  <div className="p-5 sm:p-7">
+                    <div className="mb-6">
+                      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A78312]">
+                        Re-enrolment Term
+                      </div>
+
+                      <h2 className="mt-2 text-2xl font-semibold text-[#10213A]">
+                        Select Target Term
+                      </h2>
+
+                      <p className="mt-2 text-sm leading-6 text-[#64748B]">
+                        The next term is selected by default.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                      <label className="block">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748B]">
+                          Academic Year
+                        </span>
+
+                        <select
+                          value={targetAcademicYear}
+                          onChange={(event) =>
+                            setTargetAcademicYear(
+                              Number(event.target.value)
+                            )
+                          }
+                          className="mt-2 w-full rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] px-4 py-3 text-sm text-[#10213A] outline-none transition focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/30"
+                        >
+                          {[targetAcademicYear - 1, targetAcademicYear, targetAcademicYear + 1].map(
+                            (year) => (
+                              <option key={year} value={year}>
+                                {year}
+                              </option>
+                            )
+                          )}
+                        </select>
+                      </label>
+
+                      <label className="block">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748B]">
+                          Term
+                        </span>
+
+                        <select
+                          value={targetTerm}
+                          onChange={(event) =>
+                            setTargetTerm(
+                              Number(event.target.value)
+                            )
+                          }
+                          className="mt-2 w-full rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] px-4 py-3 text-sm text-[#10213A] outline-none transition focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/30"
+                        >
+                          <option value={1}>Term 1</option>
+                          <option value={2}>Term 2</option>
+                          <option value={3}>Term 3</option>
+                          <option value={4}>Term 4</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <div className="mt-6 rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] px-4 py-4">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748B]">
+                        Target Re-enrolment
+                      </div>
+
+                      <div className="mt-1 text-lg font-semibold text-[#10213A]">
+                        {targetAcademicYear} · Term {targetTerm}
+                      </div>
+
+                      <p className="mt-2 text-sm text-[#64748B]">
+                        No submission has been created yet.
+                      </p>
+                    </div>
+                  </div>
+                </section>
+              )}
+
+              {/* Class Selection */}
+              {selectedSourceEnrollment && !currentSubmission && !submitted && canStartReenrolment && (
+                <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
+                  <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
+
+                  <div className="p-5 sm:p-7">
+                    <div className="mb-6">
+                      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A78312]">
+                        Step 2
+                      </div>
+
+                      <h2 className="mt-2 text-2xl font-semibold text-[#10213A]">
+                        Class Selection
+                      </h2>
+
+                      <p className="mt-2 text-sm leading-6 text-[#64748B]">
+                        {recommendation && recommendedClassInfo
+                          ? "Choose whether to continue with your current class or select the recommended class."
+                          : "Current class is recommended for the next term. Our coach continuously assesses each student’s progress and will recommend a higher-level class when they are ready."}
+                      </p>
+                    </div>
+
+                    {recommendationLoading ? (
+                      <div className="rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] px-4 py-5 text-sm text-[#64748B]">
+                        Checking recommended class...
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                        <button
+                          type="button"
+
+                          onClick={() =>
+                            setSelectedClassId(
+                              selectedStudent?.classInfo?.id ??
+                              selectedSourceEnrollment?.class_id ??
+                              ""
+                            )
+                          }
+
+                          className={`rounded-xl border p-5 text-left transition ${selectedClassId ===
+
+                            (selectedStudent?.classInfo?.id ??
+                              selectedSourceEnrollment?.class_id ??
+                              "")
+
+                            ? "border-[#D4AF37] bg-[#FFF8DC] shadow-sm"
+                            : "border-[#D9E3ED] bg-[#F5F9FD] hover:border-[#D4AF37]/60"
+                            }`}
                         >
                           <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#A78312]">
-                            ⭐ Recommended Class
+                            Current Class
                           </div>
                           <div className="mt-2 text-lg font-semibold text-[#10213A]">
-                            {getClassDisplayName(recommendedClassInfo)}
+                            {getClassDisplayName(selectedStudent?.classInfo ?? null)}
                           </div>
                           <div className="mt-2 text-sm text-[#64748B]">
-                            {getCampusDisplayName(recommendedClassInfo)}
-                            {recommendedClassInfo.day
-                              ? ` · ${recommendedClassInfo.day}`
+                            {getCampusDisplayName(selectedStudent?.classInfo ?? null)}
+                            {selectedStudent?.classInfo?.day
+                              ? ` · ${selectedStudent.classInfo.day}`
                               : ""}
-                            {recommendedClassInfo.start_time
-                              ? ` · ${recommendedClassInfo.start_time.slice(0, 5)}`
+                            {selectedStudent?.classInfo?.start_time
+                              ? ` · ${selectedStudent.classInfo.start_time.slice(0, 5)}`
                               : ""}
-                            {recommendedClassInfo.end_time
-                              ? ` – ${recommendedClassInfo.end_time.slice(0, 5)}`
+                            {selectedStudent?.classInfo?.end_time
+                              ? ` – ${selectedStudent.classInfo.end_time.slice(0, 5)}`
                               : ""}
                           </div>
                           <div className="mt-4 text-sm font-semibold text-[#A78312]">
-                            Select Recommended Class
+                            Continue Current Class
                           </div>
                         </button>
-                      ) : null}
-                    </div>
-                  )}
 
-                </div>
-              </section>
-            )}
+                        {recommendation &&
+                          recommendedClassInfo &&
+                          recommendation.recommended_class_id !==
+                          (selectedStudent?.classInfo?.id ??
+                            selectedSourceEnrollment?.class_id ??
+                            "") ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSelectedClassId(
+                                recommendation.recommended_class_id
+                              )
+                            }
+                            className={`rounded-xl border p-5 text-left transition ${selectedClassId ===
+                              recommendation.recommended_class_id
+                              ? "border-[#D4AF37] bg-[#FFF8DC] shadow-sm"
+                              : "border-[#D9E3ED] bg-[#F5F9FD] hover:border-[#D4AF37]/60"
+                              }`}
+                          >
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#A78312]">
+                              ⭐ Recommended Class
+                            </div>
+                            <div className="mt-2 text-lg font-semibold text-[#10213A]">
+                              {getClassDisplayName(recommendedClassInfo)}
+                            </div>
+                            <div className="mt-2 text-sm text-[#64748B]">
+                              {getCampusDisplayName(recommendedClassInfo)}
+                              {recommendedClassInfo.day
+                                ? ` · ${recommendedClassInfo.day}`
+                                : ""}
+                              {recommendedClassInfo.start_time
+                                ? ` · ${recommendedClassInfo.start_time.slice(0, 5)}`
+                                : ""}
+                              {recommendedClassInfo.end_time
+                                ? ` – ${recommendedClassInfo.end_time.slice(0, 5)}`
+                                : ""}
+                            </div>
+                            <div className="mt-4 text-sm font-semibold text-[#A78312]">
+                              Select Recommended Class
+                            </div>
+                          </button>
+                        ) : null}
+                      </div>
+                    )}
 
-
-            {/* Special Request */}
-            {selectedStudent?.enrollment && !currentSubmission && !submitted && canStartReenrolment && (
-              <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
-                <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
-
-                <div className="p-5 sm:p-7">
-                  <div className="mb-6">
-                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A78312]">
-                      Step 3
-                    </div>
-
-                    <h2 className="mt-2 text-2xl font-semibold text-[#10213A]">
-                      Special Request
-                    </h2>
-
-                    <p className="mt-2 text-sm leading-6 text-[#64748B]">
-                      Select any applicable arrangements.
-                    </p>
                   </div>
+                </section>
+              )}
 
-                  {isSchoolProgram && targetTerm === 1 && (
-                    <div className="mb-6 border-b border-[#D4AF37]/20 pb-6">
-                      <h3 className="text-sm font-semibold text-[#10213A]">
-                        School Information
-                      </h3>
 
-                      <p className="mt-1 mb-4 text-xs text-[#61778F]">
-                        Please provide the school year and school class for the new school year.
+              {/* Special Request */}
+              {selectedSourceEnrollment && !currentSubmission && !submitted && canStartReenrolment && (
+                <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
+                  <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
+
+                  <div className="p-5 sm:p-7">
+                    <div className="mb-6">
+                      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A78312]">
+                        Step 3
+                      </div>
+
+                      <h2 className="mt-2 text-2xl font-semibold text-[#10213A]">
+                        Special Request
+                      </h2>
+
+                      <p className="mt-2 text-sm leading-6 text-[#64748B]">
+                        Select any applicable arrangements.
                       </p>
+                    </div>
 
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <div>
-                          <label className="mb-1.5 block text-sm font-medium text-[#31445B]">
-                            School Year
-                          </label>
-                          <input
-                            type="text"
-                            value={schoolYear}
-                            onChange={(event) =>
-                              setSchoolYear(event.target.value)
-                            }
-                            placeholder="e.g. Year 3"
-                            className="h-11 w-full rounded-xl border border-[#D3E0EC] bg-white px-3.5 text-sm text-[#10213A] outline-none transition focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/15"
-                          />
-                        </div>
+                    {isSchoolProgram && targetTerm === 1 && (
+                      <div className="mb-6 border-b border-[#D4AF37]/20 pb-6">
+                        <h3 className="text-sm font-semibold text-[#10213A]">
+                          School Information
+                        </h3>
 
-                        <div>
-                          <label className="mb-1.5 block text-sm font-medium text-[#31445B]">
-                            School Class
-                          </label>
-                          <input
-                            type="text"
-                            value={schoolClass}
-                            onChange={(event) =>
-                              setSchoolClass(event.target.value)
-                            }
-                            placeholder="e.g. 3A"
-                            className="h-11 w-full rounded-xl border border-[#D3E0EC] bg-white px-3.5 text-sm text-[#10213A] outline-none transition focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/15"
-                          />
+                        <p className="mt-1 mb-4 text-xs text-[#61778F]">
+                          Please provide the school year and school class for the new school year.
+                        </p>
+
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div>
+                            <label className="mb-1.5 block text-sm font-medium text-[#31445B]">
+                              School Year
+                            </label>
+                            <input
+                              type="text"
+                              value={schoolYear}
+                              onChange={(event) =>
+                                setSchoolYear(event.target.value)
+                              }
+                              placeholder="e.g. Year 3"
+                              className="h-11 w-full rounded-xl border border-[#D3E0EC] bg-white px-3.5 text-sm text-[#10213A] outline-none transition focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/15"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="mb-1.5 block text-sm font-medium text-[#31445B]">
+                              School Class
+                            </label>
+                            <input
+                              type="text"
+                              value={schoolClass}
+                              onChange={(event) =>
+                                setSchoolClass(event.target.value)
+                              }
+                              placeholder="e.g. 3A"
+                              className="h-11 w-full rounded-xl border border-[#D3E0EC] bg-white px-3.5 text-sm text-[#10213A] outline-none transition focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/15"
+                            />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  <div className="space-y-2">
-                    {isSchoolProgram && (
-                      <>
-                        <label className="flex min-h-10 items-center rounded-xl border border-[#D3E0EC] bg-[#EEF5FB] px-3.5 text-sm text-[#31445B] transition hover:border-[#D4AF37]/60 hover:bg-[#F7FBFF]">
-                          <input
-                            type="checkbox"
-                            checked={
-                              !specialRequest.classroom_pickup &&
-                              !specialRequest.ymca_dropoff &&
-                              !specialRequest.walk_home
-                            }
-                            onChange={(event) => {
-                              if (event.target.checked) {
-                                setSpecialRequest({
-                                  classroom_pickup: false,
-                                  ymca_dropoff: false,
-                                  walk_home: false,
-                                });
+                    <div className="space-y-2">
+                      {isSchoolProgram && (
+                        <>
+                          <label className="flex min-h-10 items-center rounded-xl border border-[#D3E0EC] bg-[#EEF5FB] px-3.5 text-sm text-[#31445B] transition hover:border-[#D4AF37]/60 hover:bg-[#F7FBFF]">
+                            <input
+                              type="checkbox"
+                              checked={
+                                !specialRequest.classroom_pickup &&
+                                !specialRequest.ymca_dropoff &&
+                                !specialRequest.walk_home
                               }
-                            }}
-                            className="mr-3 h-4 w-4 rounded border-slate-300"
-                          />
-                          None of them
-                        </label>
+                              onChange={(event) => {
+                                if (event.target.checked) {
+                                  setSpecialRequest({
+                                    classroom_pickup: false,
+                                    ymca_dropoff: false,
+                                    walk_home: false,
+                                  });
+                                }
+                              }}
+                              className="mr-3 h-4 w-4 rounded border-slate-300"
+                            />
+                            None of them
+                          </label>
 
-                        <label
-                          className={`flex min-h-10 items-center rounded-xl border px-3.5 text-sm transition ${
-                            isClassroomPickupEligible
+                          <label
+                            className={`flex min-h-10 items-center rounded-xl border px-3.5 text-sm transition ${isClassroomPickupEligible
                               ? "border-[#D3E0EC] bg-[#EEF5FB] text-[#31445B] hover:border-[#D4AF37]/60 hover:bg-[#F7FBFF]"
                               : "cursor-not-allowed border-[#D9E3ED] bg-[#F1F4F7] text-[#94A3B8]"
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={
-                              isClassroomPickupEligible &&
-                              specialRequest.classroom_pickup
-                            }
-                            disabled={!isClassroomPickupEligible}
-                            onChange={(event) =>
-                              updateSpecialRequest(
-                                "classroom_pickup",
-                                event.target.checked
-                              )
-                            }
-                            className="mr-3 h-4 w-4 rounded border-slate-300 accent-[#D4AF37]"
-                          />
-                          Classroom Pick-up (Prep or Year 1 ONLY)
-                        </label>
+                              }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={
+                                isClassroomPickupEligible &&
+                                specialRequest.classroom_pickup
+                              }
+                              disabled={!isClassroomPickupEligible}
+                              onChange={(event) =>
+                                updateSpecialRequest(
+                                  "classroom_pickup",
+                                  event.target.checked
+                                )
+                              }
+                              className="mr-3 h-4 w-4 rounded border-slate-300 accent-[#D4AF37]"
+                            />
+                            Classroom Pick-up (Prep or Year 1 ONLY)
+                          </label>
 
-                        <label className="flex min-h-10 items-center rounded-xl border border-[#D3E0EC] bg-[#EEF5FB] px-3.5 text-sm text-[#31445B] transition hover:border-[#D4AF37]/60 hover:bg-[#F7FBFF]">
-                          <input
-                            type="checkbox"
-                            checked={specialRequest.ymca_dropoff}
-                            onChange={(event) =>
-                              updateSpecialRequest(
-                                "ymca_dropoff",
-                                event.target.checked
-                              )
-                            }
-                            className="mr-3 h-4 w-4 rounded border-slate-300"
-                          />
-                          YMCA Drop-off
-                        </label>
-                      </>
-                    )}
+                          <label className="flex min-h-10 items-center rounded-xl border border-[#D3E0EC] bg-[#EEF5FB] px-3.5 text-sm text-[#31445B] transition hover:border-[#D4AF37]/60 hover:bg-[#F7FBFF]">
+                            <input
+                              type="checkbox"
+                              checked={specialRequest.ymca_dropoff}
+                              onChange={(event) =>
+                                updateSpecialRequest(
+                                  "ymca_dropoff",
+                                  event.target.checked
+                                )
+                              }
+                              className="mr-3 h-4 w-4 rounded border-slate-300"
+                            />
+                            YMCA Drop-off
+                          </label>
+                        </>
+                      )}
 
-                    <label className="flex min-h-10 items-center rounded-xl border border-[#D3E0EC] bg-[#EEF5FB] px-3.5 text-sm text-[#31445B] transition hover:border-[#D4AF37]/60 hover:bg-[#F7FBFF]">
-                      <input
-                        type="checkbox"
-                        checked={specialRequest.walk_home}
-                        onChange={(event) =>
-                          updateSpecialRequest(
-                            "walk_home",
-                            event.target.checked
-                          )
-                        }
-                        className="mr-3 h-4 w-4 rounded border-slate-300"
-                      />
-                      Walk Home
-                    </label>
+                      <label className="flex min-h-10 items-center rounded-xl border border-[#D3E0EC] bg-[#EEF5FB] px-3.5 text-sm text-[#31445B] transition hover:border-[#D4AF37]/60 hover:bg-[#F7FBFF]">
+                        <input
+                          type="checkbox"
+                          checked={specialRequest.walk_home}
+                          onChange={(event) =>
+                            updateSpecialRequest(
+                              "walk_home",
+                              event.target.checked
+                            )
+                          }
+                          className="mr-3 h-4 w-4 rounded border-slate-300"
+                        />
+                        Walk Home
+                      </label>
+                    </div>
+
+                    <div className="mt-5 rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] px-4 py-4">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748B]">
+                        Selected Request
+                      </div>
+
+                      <div className="mt-1 text-sm font-semibold text-[#10213A]">
+                        {[
+                          specialRequest.classroom_pickup
+                            ? "Classroom Pick-up"
+                            : null,
+                          specialRequest.ymca_dropoff
+                            ? "YMCA Drop-off"
+                            : null,
+                          specialRequest.walk_home
+                            ? "Walk Home"
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" + ") || "None of them"}
+                      </div>
+
+                      <p className="mt-2 text-sm text-[#64748B]">
+                        Your selection will be saved with the Re-enrolment submission.
+                      </p>
+                    </div>
                   </div>
+                </section>
+              )}
 
-                  <div className="mt-5 rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] px-4 py-4">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748B]">
-                      Selected Request
+              {/* Step 4 — Medical Snapshot */}
+              {selectedSourceEnrollment && !currentSubmission && !submitted && canStartReenrolment && (
+                <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
+                  <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
+                  <div className="p-6 sm:p-8">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A78312]">
+                      Step 4
                     </div>
-
-                    <div className="mt-1 text-sm font-semibold text-[#10213A]">
-                      {[
-                        specialRequest.classroom_pickup
-                          ? "Classroom Pick-up"
-                          : null,
-                        specialRequest.ymca_dropoff
-                          ? "YMCA Drop-off"
-                          : null,
-                        specialRequest.walk_home
-                          ? "Walk Home"
-                          : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" + ") || "None of them"}
+                    <h2 className="mt-2 text-2xl font-semibold text-[#10213A]">
+                      Medical Information
+                    </h2>
+                    <div className="mt-6">
+                      <textarea
+                        value={medicalInformation}
+                        onChange={(event) => setMedicalInformation(event.target.value)}
+                        rows={5}
+                        placeholder="Optional"
+                        className="w-full rounded-xl border border-[#D3E0EC] bg-white px-3.5 py-3 text-sm leading-6 text-[#10213A] outline-none transition focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/15"
+                      />
                     </div>
+                  </div>
+                </section>
+              )}
 
-                    <p className="mt-2 text-sm text-[#64748B]">
-                      Your selection will be saved with the Re-enrolment submission.
+              {/* Step 5 — Tuition & Make-up Credit */}
+              {selectedSourceEnrollment && !currentSubmission && !submitted && canStartReenrolment && (
+                <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
+                  <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
+                  <div className="p-6 sm:p-8">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A78312]">
+                      Step 5
+                    </div>
+                    <h2 className="mt-2 text-2xl font-semibold text-[#10213A]">
+                      Tuition & Make-up Credit
+                    </h2>
+                    <p className="mt-2 text-sm leading-6 text-[#64748B]">
+                      {attendedLessons > 0
+                        ? "Tuition is calculated from the selected Class pricing configuration. For a term already in progress, tuition includes eligible lessons already attended plus the remaining chargeable Lessons. Up to two available Make-up Credits may be redeemed toward the tuition."
+                        : "Tuition is calculated from the selected Class pricing configuration. For a term already in progress, tuition is based on the remaining chargeable Lessons. Up to two available Make-up Credits may be redeemed toward the tuition."}
                     </p>
-                  </div>
-                </div>
-              </section>
-            )}
 
-            {/* Step 4 — Medical Snapshot */}
-            {selectedStudent?.enrollment && !currentSubmission && !submitted && canStartReenrolment && (
-              <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
-                <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
-                <div className="p-6 sm:p-8">
-                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A78312]">
-                    Step 4
-                  </div>
-                  <h2 className="mt-2 text-2xl font-semibold text-[#10213A]">
-                    Medical Information
-                  </h2>
-                  <div className="mt-6">
-                    <textarea
-                      value={medicalInformation}
-                      onChange={(event) => setMedicalInformation(event.target.value)}
-                      rows={5}
-                      placeholder="Optional"
-                      className="w-full rounded-xl border border-[#D3E0EC] bg-white px-3.5 py-3 text-sm leading-6 text-[#10213A] outline-none transition focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/15"
-                    />
-                  </div>
-                </div>
-              </section>
-            )}
+                    {financialLoading ? (
+                      <div className="mt-6 rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] px-4 py-5 text-sm text-[#64748B]">
+                        Loading tuition and Make-up Credit information…
+                      </div>
+                    ) : tuitionConfig ? (
+                      <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                        <InfoField
+                          label="Selected Class"
+                          value={getClassDisplayName(selectedClassInfo)}
+                        />
 
-            {/* Step 5 — Tuition & Make-up Credit */}
-            {selectedStudent?.enrollment && !currentSubmission && !submitted && canStartReenrolment && (
-              <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
-                <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
-                <div className="p-6 sm:p-8">
-                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A78312]">
-                    Step 5
-                  </div>
-                  <h2 className="mt-2 text-2xl font-semibold text-[#10213A]">
-                    Tuition & Make-up Credit
-                  </h2>
-                  <p className="mt-2 text-sm leading-6 text-[#64748B]">
-  {attendedLessons > 0
-    ? "Tuition is calculated from the selected Class pricing configuration. For a term already in progress, tuition includes eligible lessons already attended plus the remaining chargeable Lessons. Up to two available Make-up Credits may be redeemed toward the tuition."
-    : "Tuition is calculated from the selected Class pricing configuration. For a term already in progress, tuition is based on the remaining chargeable Lessons. Up to two available Make-up Credits may be redeemed toward the tuition."}
-</p>
+                        {attendedLessons > 0 && (
+                          <InfoField
+                            label="Attended Lessons"
+                            value={String(attendedLessons)}
+                          />
+                        )}
 
-                  {financialLoading ? (
-                    <div className="mt-6 rounded-xl border border-[#D9E3ED] bg-[#F5F9FD] px-4 py-5 text-sm text-[#64748B]">
-                      Loading tuition and Make-up Credit information…
-                    </div>
-                  ) : tuitionConfig ? (
-                    <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                      <InfoField
-  label="Selected Class"
-  value={getClassDisplayName(selectedClassInfo)}
-/>
+                        <InfoField
+                          label="Remaining Lessons"
+                          value={String(remainingLessons)}
+                        />
 
-{attendedLessons > 0 && (
-  <InfoField
-    label="Attended Lessons"
-    value={String(attendedLessons)}
-  />
-)}
+                        {attendedLessons > 0 && (
+                          <InfoField
+                            label="Chargeable Lessons"
+                            value={String(attendedLessons + remainingLessons)}
+                          />
+                        )}
 
-<InfoField
-  label="Remaining Lessons"
-  value={String(remainingLessons)}
-/>
+                        <InfoField
+                          label="Standard Tuition (incl. GST)"
+                          value={`$${standardTuition.toFixed(2)}`}
+                        />
 
-{attendedLessons > 0 && (
-  <InfoField
-    label="Chargeable Lessons"
-    value={String(attendedLessons + remainingLessons)}
-  />
-)}
+                        {redeemAmount > 0 && (
+                          <InfoField
+                            label="Make-up Credit"
+                            value={`-$${redeemAmount.toFixed(2)}`}
+                          />
+                        )}
 
-<InfoField
-  label="Standard Tuition (incl. GST)"
-  value={`$${standardTuition.toFixed(2)}`}
-/>
+                        {tuitionCreditApplied > 0 && (
+                          <InfoField
+                            label="Tuition Credit"
+                            value={`-$${tuitionCreditApplied.toFixed(2)}`}
+                          />
+                        )}
 
-{redeemAmount > 0 && (
-  <InfoField
-    label="Make-up Credit"
-    value={`-$${redeemAmount.toFixed(2)}`}
-  />
-)}
+                        {pendingAdditionalPayment > 0 && (
+                          <InfoField
+                            label="Transfer Adjustment"
+                            value={`+$${pendingAdditionalPayment.toFixed(2)}`}
+                          />
+                        )}
 
-{tuitionCreditApplied > 0 && (
-  <InfoField
-    label="Tuition Credit"
-    value={`-$${tuitionCreditApplied.toFixed(2)}`}
-  />
-)}
-
-{pendingAdditionalPayment > 0 && (
-  <InfoField
-    label="Transfer Adjustment"
-    value={`+$${pendingAdditionalPayment.toFixed(2)}`}
-  />
-)}
-
-<InfoField
-  label="Amount Payable (incl. GST)"
-  value={`$${amountPayable.toFixed(2)}`}
-/>
-                    </div>
-                  ) : (
-                    <div className="mt-6 rounded-xl border border-[#D4AF37]/40 bg-[#FFF8DC] px-4 py-5 text-sm text-[#64748B]">
-                      Tuition configuration is not available for the selected class and term.
-                    </div>
-                  )}
-                </div>
-              </section>
-            )}
-
-            {/* Step 6 — Review & Declaration */}
-            {selectedStudent?.enrollment && !currentSubmission && !submitted && canStartReenrolment && (
-              <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
-                <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
-                <div className="p-6 sm:p-8">
-                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A78312]">
-                    Step 6
-                  </div>
-                  <h2 className="mt-2 text-2xl font-semibold text-[#10213A]">
-                    Review & Declaration
-                  </h2>
-                  <p className="mt-2 text-sm leading-6 text-[#64748B]">
-                    Please review your selections before submitting the Re-enrolment.
-                  </p>
-
-                  <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                    <InfoField label="Student" value={getStudentDisplayName(selectedStudent.student)} />
-                    <InfoField label="Target Term" value={`${targetAcademicYear} Term ${targetTerm}`} />
-                    <InfoField label="Selected Class" value={getClassDisplayName(selectedClassInfo)} />
-                    <InfoField
-                      label="Special Request"
-                      value={[
-                        specialRequest.classroom_pickup ? "Classroom Pick-up" : null,
-                        specialRequest.ymca_dropoff ? "YMCA Drop-off" : null,
-                        specialRequest.walk_home ? "Walk Home" : null,
-                      ].filter(Boolean).join(" + ") || "None of them"}
-                    />
-                    {isSchoolProgram && targetTerm === 1 && (
-                      <>
-                        <InfoField label="School Year" value={schoolYear.trim() || "—"} />
-                        <InfoField label="School Class" value={schoolClass.trim() || "—"} />
-                      </>
+                        <InfoField
+                          label="Amount Payable (incl. GST)"
+                          value={`$${amountPayable.toFixed(2)}`}
+                        />
+                      </div>
+                    ) : (
+                      <div className="mt-6 rounded-xl border border-[#D4AF37]/40 bg-[#FFF8DC] px-4 py-5 text-sm text-[#64748B]">
+                        Tuition configuration is not available for the selected class and term.
+                      </div>
                     )}
-                    <InfoField label="Amount Payable (incl. GST)" value={tuitionConfig ? `$${amountPayable.toFixed(2)}` : "—"} />
                   </div>
+                </section>
+              )}
 
-                  <div className="mt-6 space-y-3">
-                    <label className="flex items-start gap-3 rounded-xl border border-[#D3E0EC] bg-[#EEF5FB] px-4 py-4 text-sm text-[#31445B]">
-                      <input
-                        type="checkbox"
-                        checked={declarationConfirmed}
-                        onChange={(event) => setDeclarationConfirmed(event.target.checked)}
-                        className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-[#D4AF37]"
+              {/* Step 6 — Review & Declaration */}
+              {selectedSourceEnrollment && !currentSubmission && !submitted && canStartReenrolment && (
+                <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
+                  <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
+                  <div className="p-6 sm:p-8">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A78312]">
+                      Step 6
+                    </div>
+                    <h2 className="mt-2 text-2xl font-semibold text-[#10213A]">
+                      Review & Declaration
+                    </h2>
+                    <p className="mt-2 text-sm leading-6 text-[#64748B]">
+                      Please review your selections before submitting the Re-enrolment.
+                    </p>
+
+                    <div className="mt-6 grid gap-4 sm:grid-cols-2">
+
+                      <InfoField
+                        label="Student"
+                        value={selectedStudent ? getStudentDisplayName(selectedStudent.student) : ""}
                       />
-                      <span>I confirm that the above information is correct.</span>
-                    </label>
-
-                    <label className="flex items-start gap-3 rounded-xl border border-[#D3E0EC] bg-[#EEF5FB] px-4 py-4 text-sm text-[#31445B]">
-                      <input
-                        type="checkbox"
-                        checked={termsPoliciesConfirmed}
-                        onChange={(event) => setTermsPoliciesConfirmed(event.target.checked)}
-                        className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-[#D4AF37]"
+                      <InfoField label="Selected Class" value={getClassDisplayName(selectedClassInfo)} />
+                      <InfoField
+                        label="Special Request"
+                        value={[
+                          specialRequest.classroom_pickup ? "Classroom Pick-up" : null,
+                          specialRequest.ymca_dropoff ? "YMCA Drop-off" : null,
+                          specialRequest.walk_home ? "Walk Home" : null,
+                        ].filter(Boolean).join(" + ") || "None of them"}
                       />
-                      <span className="leading-6">
-                        I have read and agree to comply with the Queensland Chess School{" "}
-                        <button
-                          type="button"
-                          onClick={() => setLegalModal("terms")}
-                          className="font-semibold text-[#8A6A0A] underline underline-offset-2 hover:text-[#10213A]"
-                        >
-                          Terms of Use
-                        </button>{" "}
-                        and{" "}
-                        <button
-                          type="button"
-                          onClick={() => setLegalModal("policies")}
-                          className="font-semibold text-[#8A6A0A] underline underline-offset-2 hover:text-[#10213A]"
-                        >
-                          Policies
-                        </button>
-                        .
-                      </span>
-                    </label>
-                  </div>
-                </div>
-              </section>
-            )}
+                      {isSchoolProgram && targetTerm === 1 && (
+                        <>
+                          <InfoField label="School Year" value={schoolYear.trim() || "—"} />
+                          <InfoField label="School Class" value={schoolClass.trim() || "—"} />
+                        </>
+                      )}
+                      <InfoField label="Amount Payable (incl. GST)" value={tuitionConfig ? `$${amountPayable.toFixed(2)}` : "—"} />
+                    </div>
 
-            {/* Step 7 — Submission */}
-            {selectedStudent?.enrollment && !currentSubmission && !submitted && canStartReenrolment && (
-              <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
-                <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
-                <div className="p-6 sm:p-8">
-                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A78312]">
-                    Step 7
+                    <div className="mt-6 space-y-3">
+                      <label className="flex items-start gap-3 rounded-xl border border-[#D3E0EC] bg-[#EEF5FB] px-4 py-4 text-sm text-[#31445B]">
+                        <input
+                          type="checkbox"
+                          checked={declarationConfirmed}
+                          onChange={(event) => setDeclarationConfirmed(event.target.checked)}
+                          className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-[#D4AF37]"
+                        />
+                        <span>I confirm that the above information is correct.</span>
+                      </label>
+
+                      <label className="flex items-start gap-3 rounded-xl border border-[#D3E0EC] bg-[#EEF5FB] px-4 py-4 text-sm text-[#31445B]">
+                        <input
+                          type="checkbox"
+                          checked={termsPoliciesConfirmed}
+                          onChange={(event) => setTermsPoliciesConfirmed(event.target.checked)}
+                          className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-[#D4AF37]"
+                        />
+                        <span className="leading-6">
+                          I have read and agree to comply with the Queensland Chess School{" "}
+                          <button
+                            type="button"
+                            onClick={() => setLegalModal("terms")}
+                            className="font-semibold text-[#8A6A0A] underline underline-offset-2 hover:text-[#10213A]"
+                          >
+                            Terms of Use
+                          </button>{" "}
+                          and{" "}
+                          <button
+                            type="button"
+                            onClick={() => setLegalModal("policies")}
+                            className="font-semibold text-[#8A6A0A] underline underline-offset-2 hover:text-[#10213A]"
+                          >
+                            Policies
+                          </button>
+                          .
+                        </span>
+                      </label>
+                    </div>
                   </div>
-                  <h2 className="mt-2 text-2xl font-semibold text-[#10213A]">
-                    Payment & Enrolment
-                  </h2>
+                </section>
+              )}
+
+              {/* Step 7 — Submission */}
+              {selectedSourceEnrollment && !currentSubmission && !submitted && canStartReenrolment && (
+                <section className="overflow-hidden rounded-2xl border border-[#D9E3ED] bg-[#FFFDF8] shadow-2xl shadow-black/20">
+                  <div className="h-[6px] bg-gradient-to-r from-[#F7D968] via-[#D4AF37]/75 to-transparent" />
+                  <div className="p-6 sm:p-8">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A78312]">
+                      Step 7
+                    </div>
+                    <h2 className="mt-2 text-2xl font-semibold text-[#10213A]">
+                      Payment & Enrolment
+                    </h2>
 
                     <>
                       <p className="mt-2 text-sm leading-6 text-[#64748B]">
@@ -3160,19 +3296,19 @@ useEffect(() => {
                         </button>
                       </div>
                     </>
-                </div>
-              </section>
-            )}
+                  </div>
+                </section>
+              )}
 
-          </div>
-        )}
-      </div>
-    </main>
+            </div>
+          )}
+        </div>
+      </main>
 
-    {submitted && (
-  <>
-    <div
-      className="
+      {submitted && (
+        <>
+          <div
+            className="
         fixed
         inset-0
         z-50
@@ -3183,12 +3319,12 @@ useEffect(() => {
         px-4
         backdrop-blur-[2px]
       "
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="reenrolment-success-title"
-    >
-      <div
-        className="
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reenrolment-success-title"
+          >
+            <div
+              className="
           relative
           w-full
           max-w-md
@@ -3200,10 +3336,10 @@ useEffect(() => {
           text-[#10213A]
           shadow-2xl
         "
-      >
-        <div
-          aria-hidden="true"
-          className="
+            >
+              <div
+                aria-hidden="true"
+                className="
             pointer-events-none
             absolute
             left-0
@@ -3215,53 +3351,53 @@ useEffect(() => {
             via-[#D4AF37]/75
             to-transparent
           "
-          style={{
-            clipPath:
-              "polygon(0 0, 100% 42%, 100% 58%, 0 100%)",
-          }}
-        />
+                style={{
+                  clipPath:
+                    "polygon(0 0, 100% 42%, 100% 58%, 0 100%)",
+                }}
+              />
 
-        <div className="p-6 sm:p-7">
-          <p
-            className="
+              <div className="p-6 sm:p-7">
+                <p
+                  className="
               text-[11px]
               font-semibold
               uppercase
               tracking-[0.2em]
               text-[#B28A22]
             "
-          >
-            RE-ENROLMENT
-          </p>
+                >
+                  RE-ENROLMENT
+                </p>
 
-          <h2
-            id="reenrolment-success-title"
-            className="
+                <h2
+                  id="reenrolment-success-title"
+                  className="
               mt-2
               text-2xl
               font-semibold
               text-[#10213A]
             "
-          >
-            Re-enrolment Submitted
-          </h2>
+                >
+                  Re-enrolment Submitted
+                </h2>
 
-          <p className="mt-4 text-sm leading-6 text-[#64748B]">
-            Thank you for your support. We have received your
-            re-enrolment information.
-          </p>
+                <p className="mt-4 text-sm leading-6 text-[#64748B]">
+                  Thank you for your support. We have received your
+                  re-enrolment information.
+                </p>
 
-          <p className="mt-3 text-sm leading-6 text-[#64748B]">
-            A confirmation email containing your re-enrolment
-            details, class information, tuition fee and payment
-            instructions has been sent to your email address.
-            Please check your inbox.
-          </p>
-          <div className="mt-6 flex justify-end">
-            <button
-              type="button"
-              onClick={() => setSubmitted(false)}
-              className="
+                <p className="mt-3 text-sm leading-6 text-[#64748B]">
+                  A confirmation email containing your re-enrolment
+                  details, class information, tuition fee and payment
+                  instructions has been sent to your email address.
+                  Please check your inbox.
+                </p>
+                <div className="mt-6 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setSubmitted(false)}
+                    className="
                 inline-flex
                 min-h-[44px]
                 items-center
@@ -3284,15 +3420,15 @@ useEffect(() => {
                 focus:ring-2
                 focus:ring-[#D4AF37]/30
               "
-            >
-              OK
-            </button>
+                  >
+                    OK
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
-    </div>
-  </>
-  )}
+        </>
+      )}
 
       {legalModal && (
         <div

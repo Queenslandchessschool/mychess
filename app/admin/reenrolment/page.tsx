@@ -1126,6 +1126,7 @@ const redeemAmount =
     let enrollmentUpdated = false;
     let submissionUpdated = false;
     let originalPaymentAmount: number | null = null;
+    let targetEnrollmentId: string | null = null;
 
     try {
       /*
@@ -1144,6 +1145,7 @@ const redeemAmount =
           .eq("term", submission.term)
           .eq("class_id", submission.selected_class_id)
           .eq("is_trial", false)
+          .eq("status", "Active")
           .maybeSingle();
 
       if (enrollmentLoadError) {
@@ -1155,6 +1157,7 @@ const redeemAmount =
           "The formal Enrollment created by Parent Submit could not be found."
         );
       }
+      targetEnrollmentId = existingEnrollment.id;
 
       originalPaymentAmount =
   existingEnrollment.payment_amount === null
@@ -1450,11 +1453,7 @@ if (tuitionCreditAppliedAmount > 0) {
             payment_amount: originalPaymentAmount,
             updated_at: new Date().toISOString(),
           })
-          .eq("student_id", submission.student_id)
-          .eq("academic_year", submission.academic_year)
-          .eq("term", submission.term)
-          .eq("class_id", submission.selected_class_id)
-          .eq("is_trial", false);
+          .eq("id", targetEnrollmentId!);
         
         if (enrollmentRollbackError) {
           console.error(
