@@ -1,3 +1,13 @@
+### 19 October 2026 ### Fixed — Make-up Booking Credit Eligibility
+
+- **Parent Make-up Booking:** Updated available Make-up Credit queries to exclude records where `credits` is zero or less.
+- **Backend validation:** Updated `createMakeupBooking()` to reject credits that are not in `Available` status, are not integers, or have a value less than or equal to zero.
+- **Purpose:** Prevent zero-value or invalid Make-up Credit records from being used to create make-up bookings.
+- **Files changed:**
+  - `app/parent/make-up-booking/page.tsx`
+  - `lib/makeupBooking.ts`
+- **Validation status:** `git diff --check` passed. TypeScript checks, production build, and functional tests pending.
+
 ### 19 October 2026 MyCHESS — Re-enrolment Payment Received Transaction Refactor
 
 **Changes**

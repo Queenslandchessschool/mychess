@@ -472,12 +472,14 @@ export async function createMakeupBooking({
    */
 
   if (
-    credit.status !== "Available"
-  ) {
-    throw new Error(
-      "This make-up credit is no longer available."
-    );
-  }
+  credit.status !== "Available" ||
+  !Number.isInteger(credit.credits) ||
+  credit.credits <= 0
+) {
+  throw new Error(
+    "This make-up credit is no longer available."
+  );
+}
 
   /*
    * ------------------------------------------------------------

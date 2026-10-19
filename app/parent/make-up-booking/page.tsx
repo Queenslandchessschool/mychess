@@ -172,6 +172,7 @@ const [confirmCancel, setConfirmCancel] =
         "status",
         "Available"
       )
+      .gt("credits", 0)
       .order(
         "created_at",
         {
