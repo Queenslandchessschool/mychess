@@ -1,28 +1,114 @@
+
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { getRenderedEmailTemplate } from "@/lib/email/templateService";
 import { sendEmail } from "@/lib/email/emailService";
 import { logEmailAudit } from "@/lib/email/emailAudit";
 
+export const dynamic = "force-dynamic";
+
 const BUSINESS_EVENT = "PAYMENT_RECEIVED_PLACE_CONFIRMED";
+
+const authClient = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  }
+);
+
 function formatTime(value: string | null | undefined): string {
   if (!value) return "";
-
   return String(value).slice(0, 5);
 }
+
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    // 1. Authenticate the request.
+    const authorization = request.headers.get("authorization");
+    const token = authorization?.startsWith("Bearer ")
+      ? authorization.slice(7).trim()
+      : "";
 
-    const enrollmentId = String(body.enrollmentId ?? "").trim();
-
-    if (!enrollmentId) {
+    if (!token) {
       return NextResponse.json(
-        { error: "enrollmentId is required." },
+        { error: "Authentication required." },
+        { status: 401 }
+      );
+    }
+
+    const {
+      data: { user },
+      error: authError,
+    } = await authClient.auth.getUser(token);
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: "Invalid or expired session." },
+        { status: 401 }
+      );
+    }
+
+    // 2. Verify administrator role.
+    const { data: roleRecord, error: roleError } =
+      await supabaseServer
+        .from("user_roles")
+        .select("role")
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
+
+    if (roleError) {
+      console.error(
+        "Payment confirmation email role lookup failed:",
+        roleError
+      );
+
+      return NextResponse.json(
+        { error: "Unable to verify administrator access." },
+        { status: 500 }
+      );
+    }
+
+    if (roleRecord?.role !== "admin") {
+      return NextResponse.json(
+        { error: "Administrator access required." },
+        { status: 403 }
+      );
+    }
+
+    // 3. Read and validate the request body.
+    let body: { enrollmentId?: unknown };
+
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: "A valid JSON request body is required." },
         { status: 400 }
       );
     }
 
+    const enrollmentId =
+      typeof body.enrollmentId === "string"
+        ? body.enrollmentId.trim()
+        : "";
+
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        enrollmentId
+      )
+    ) {
+      return NextResponse.json(
+        { error: "A valid enrollmentId is required." },
+        { status: 400 }
+      );
+    }
+
+    // 4. Load the existing enrollment.
     const { data: enrollment, error: enrollmentError } =
       await supabaseServer
         .from("student_enrolments")
@@ -116,6 +202,7 @@ export async function POST(request: Request) {
       );
     }
 
+    // 5. Load the parent recipient.
     const { data: parent, error: parentError } =
       await supabaseServer
         .from("parents")
@@ -167,6 +254,7 @@ export async function POST(request: Request) {
       "Tuition Fee": tuitionFee,
     };
 
+    // 6. Render the existing email template.
     let email;
 
     try {
@@ -193,6 +281,7 @@ export async function POST(request: Request) {
       );
     }
 
+    // 7. Send the email and record the audit result.
     const result = await sendEmail({
       to: String(parent.email),
       subject: email.subject,

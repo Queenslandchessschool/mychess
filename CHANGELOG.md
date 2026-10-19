@@ -1,3 +1,27 @@
+### 19 October 2026 MyCHESS — Re-enrolment Payment Received Transaction Refactor
+
+**Changes**
+- Added Admin-only API route: `/api/admin/reenrolment/payment-received`.
+- Added server-side authentication and administrator-role verification to the payment confirmation email API.
+- Replaced the Re-enrolment Payment Received frontend handler with a single transaction API request.
+- Delegated payment processing, existing-enrolment updates, Make-up Credit redemption, Tuition Credit application, student-stage synchronisation and Term Reset processing to the PostgreSQL transaction function `admin_complete_reenrolment_payment`.
+- Kept confirmation email delivery after the database transaction; email failure must not roll back a successfully committed payment transaction.
+- Removed frontend multi-step database updates and manual rollback from `handleCompleteSubmission`.
+- Created a backup of the previous Re-enrolment page handler.
+
+**Validation**
+- `npx tsc --noEmit` — PASS.
+- `npm run build` — PASS.
+- `git diff --check` — no whitespace errors; LF/CRLF warning only.
+- End-to-end transaction, credit handling, email delivery and failure-path tests — PENDING.
+
+**Deployment Status:** Not yet deployed as part of this change.
+
+**Notes**
+- Existing Parent Submit behaviour is unchanged; Payment Received updates the existing formal enrolment and must not create a duplicate enrolment.
+- Existing frozen SRS rules remain authoritative.
+
+
 ## 2026-10-18 — Parent Re-enrolment: Withdrawn Enrolment Fix
 
 ### Completed Changes

@@ -156,23 +156,23 @@ export default function ReenrolmentPage() {
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [submissions, setSubmissions] = useState<ReEnrolmentSubmission[]>([]);
   const [enrollmentRows, setEnrollmentRows] =
-  useState<EnrollmentRow[]>([]);
+    useState<EnrollmentRow[]>([]);
   const [submissionSearchTerm, setSubmissionSearchTerm] = useState("");
   const [submissionActionLoading, setSubmissionActionLoading] = useState<string | null>(null);
 
   const [editingSpecialRequest, setEditingSpecialRequest] =
-  useState<EnrollmentRow | null>(null);
+    useState<EnrollmentRow | null>(null);
 
-const [specialRequestForm, setSpecialRequestForm] = useState({
-  classroom_pickup: false,
-  ymca_dropoff: false,
-  walk_home: false,
-  school_year: "",
-  school_class: "",
-});
+  const [specialRequestForm, setSpecialRequestForm] = useState({
+    classroom_pickup: false,
+    ymca_dropoff: false,
+    walk_home: false,
+    school_year: "",
+    school_class: "",
+  });
 
-const [specialRequestReason, setSpecialRequestReason] = useState("");
-const [specialRequestSaving, setSpecialRequestSaving] = useState(false);
+  const [specialRequestReason, setSpecialRequestReason] = useState("");
+  const [specialRequestSaving, setSpecialRequestSaving] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editingRecommendation, setEditingRecommendation] =
     useState<Recommendation | null>(null);
@@ -332,11 +332,11 @@ students:student_id (
       console.error(
         "RE-ENROLMENT LOAD ERROR:",
         calendarResult.error ??
-          campusResult.error ??
-          classResult.error ??
-          enrolmentResult.error ??
-          recommendationResult.error ??
-          submissionResult.error
+        campusResult.error ??
+        classResult.error ??
+        enrolmentResult.error ??
+        recommendationResult.error ??
+        submissionResult.error
       );
       setErrorMessage("Unable to load Re-enrolment data.");
       setLoading(false);
@@ -357,40 +357,39 @@ students:student_id (
     const loadedEnrolments: StudentEnrolment[] = (enrolmentResult.data ?? [])
       .filter((item: any) => item.status === "Active" && item.is_trial === false)
       .map((item: any) => ({
-       id: item.id,
-student_id: item.student_id,
-academic_year: item.academic_year,
-term: item.term,
-class_id: item.class_id,
-status: item.status,
-is_trial: item.is_trial,
+        id: item.id,
+        student_id: item.student_id,
+        academic_year: item.academic_year,
+        term: item.term,
+        class_id: item.class_id,
+        status: item.status,
+        is_trial: item.is_trial,
 
-payment_status: item.payment_status ?? null,
-standard_tuition:
-  item.standard_tuition == null
-    ? null
-    : Number(item.standard_tuition),
-redeem_amount:
-  item.redeem_amount == null
-    ? null
-    : Number(item.redeem_amount),
-amount_payable:
-  item.amount_payable == null
-    ? null
-    : Number(item.amount_payable),
-    special_request_snapshot: item.special_request_snapshot ?? null,
+        payment_status: item.payment_status ?? null,
+        standard_tuition:
+          item.standard_tuition == null
+            ? null
+            : Number(item.standard_tuition),
+        redeem_amount:
+          item.redeem_amount == null
+            ? null
+            : Number(item.redeem_amount),
+        amount_payable:
+          item.amount_payable == null
+            ? null
+            : Number(item.amount_payable),
+        special_request_snapshot: item.special_request_snapshot ?? null,
 
-student_name:
-          `${item.students?.first_name ?? ""} ${
-            item.students?.last_name ?? ""
-          }`.trim() || "Student",
+        student_name:
+          `${item.students?.first_name ?? ""} ${item.students?.last_name ?? ""
+            }`.trim() || "Student",
         class_name: buildClassName(item.classes, campusMapLocal),
       }));
 
     const tuitionConfigRowsResult =
-  await supabase
-    .from("tuition_configurations")
-    .select(`
+      await supabase
+        .from("tuition_configurations")
+        .select(`
       academic_year,
       term,
       class_id,
@@ -398,46 +397,46 @@ student_name:
       single_lesson_fee,
       total_lessons
     `)
-    .in(
-      "class_id",
-      Array.from(
-        new Set(
-          loadedEnrolments.map(
-            (item) => item.class_id
+        .in(
+          "class_id",
+          Array.from(
+            new Set(
+              loadedEnrolments.map(
+                (item) => item.class_id
+              )
+            )
           )
-        )
-      )
-    );
+        );
 
-if (tuitionConfigRowsResult.error) {
-  throw tuitionConfigRowsResult.error;
-}
-
-const tuitionConfigMap = new Map<
-  string,
-  {
-    standard_tuition: number;
-    single_lesson_fee: number;
-    total_lessons: number;
-  }
->();
-
-for (
-  const config of
-  tuitionConfigRowsResult.data ?? []
-) {
-  tuitionConfigMap.set(
-    `${config.academic_year}-${config.term}-${config.class_id}`,
-    {
-      standard_tuition:
-        Number(config.standard_tuition ?? 0),
-      single_lesson_fee:
-        Number(config.single_lesson_fee ?? 0),
-      total_lessons:
-        Number(config.total_lessons ?? 0),
+    if (tuitionConfigRowsResult.error) {
+      throw tuitionConfigRowsResult.error;
     }
-  );
-}
+
+    const tuitionConfigMap = new Map<
+      string,
+      {
+        standard_tuition: number;
+        single_lesson_fee: number;
+        total_lessons: number;
+      }
+    >();
+
+    for (
+      const config of
+      tuitionConfigRowsResult.data ?? []
+    ) {
+      tuitionConfigMap.set(
+        `${config.academic_year}-${config.term}-${config.class_id}`,
+        {
+          standard_tuition:
+            Number(config.standard_tuition ?? 0),
+          single_lesson_fee:
+            Number(config.single_lesson_fee ?? 0),
+          total_lessons:
+            Number(config.total_lessons ?? 0),
+        }
+      );
+    }
 
     const currentEnrolmentMap = new Map<string, StudentEnrolment>();
 
@@ -469,9 +468,8 @@ for (
           term: item.term,
           recommended_class_id: item.recommended_class_id,
           student_name:
-            `${item.students?.first_name ?? ""} ${
-              item.students?.last_name ?? ""
-            }`.trim() || "Student",
+            `${item.students?.first_name ?? ""} ${item.students?.last_name ?? ""
+              }`.trim() || "Student",
           current_class_name: current?.class_name ?? "—",
           recommended_class_name: buildClassName(
             recommendedClass,
@@ -484,17 +482,17 @@ for (
       submissionResult.data ?? []
     ).map((item: any) => {
       const previousTerm = item.term === 1 ? 4 : item.term - 1;
-const previousAcademicYear =
-  item.term === 1 ? item.academic_year - 1 : item.academic_year;
+      const previousAcademicYear =
+        item.term === 1 ? item.academic_year - 1 : item.academic_year;
 
-const current = loadedEnrolments.find(
-  (enrolment) =>
-    enrolment.student_id === item.student_id &&
-    enrolment.academic_year === previousAcademicYear &&
-    enrolment.term === previousTerm
-);
+      const current = loadedEnrolments.find(
+        (enrolment) =>
+          enrolment.student_id === item.student_id &&
+          enrolment.academic_year === previousAcademicYear &&
+          enrolment.term === previousTerm
+      );
 
-const selectedClass = classMapLocal.get(item.selected_class_id);
+      const selectedClass = classMapLocal.get(item.selected_class_id);
 
       return {
         id: item.id,
@@ -521,9 +519,8 @@ const selectedClass = classMapLocal.get(item.selected_class_id);
         special_request_snapshot: item.special_request_snapshot ?? null,
         submitted_at: item.submitted_at ?? null,
         student_name:
-          `${item.students?.first_name ?? ""} ${
-            item.students?.last_name ?? ""
-          }`.trim() || "Student",
+          `${item.students?.first_name ?? ""} ${item.students?.last_name ?? ""
+            }`.trim() || "Student",
         selected_class_name: buildClassName(
           selectedClass,
           campusMapLocal
@@ -534,7 +531,7 @@ const selectedClass = classMapLocal.get(item.selected_class_id);
 
     const businessDate = getBusinessTime().dateKey;
 
-          const remainingLessonCountMap = new Map<
+    const remainingLessonCountMap = new Map<
       string,
       number
     >();
@@ -576,98 +573,98 @@ const selectedClass = classMapLocal.get(item.selected_class_id);
       }
     }
 
-const loadedEnrollmentRows: EnrollmentRow[] =
-  loadedEnrolments.map((enrolment) => {
-    const previousTerm =
-      enrolment.term === 1 ? 4 : enrolment.term - 1;
+    const loadedEnrollmentRows: EnrollmentRow[] =
+      loadedEnrolments.map((enrolment) => {
+        const previousTerm =
+          enrolment.term === 1 ? 4 : enrolment.term - 1;
 
-    const previousAcademicYear =
-      enrolment.term === 1
-        ? enrolment.academic_year - 1
-        : enrolment.academic_year;
+        const previousAcademicYear =
+          enrolment.term === 1
+            ? enrolment.academic_year - 1
+            : enrolment.academic_year;
 
-    const previousEnrolment =
-      loadedEnrolments.find(
-        (item) =>
-          item.student_id === enrolment.student_id &&
-          item.academic_year === previousAcademicYear &&
-          item.term === previousTerm
-      );
+        const previousEnrolment =
+          loadedEnrolments.find(
+            (item) =>
+              item.student_id === enrolment.student_id &&
+              item.academic_year === previousAcademicYear &&
+              item.term === previousTerm
+          );
 
-    const submission =
-      (submissionResult.data ?? []).find(
-        (item: any) =>
-          item.student_id === enrolment.student_id &&
-          Number(item.academic_year) === Number(enrolment.academic_year) &&
-          Number(item.term) === Number(enrolment.term) &&
-          item.selected_class_id === enrolment.class_id &&
-          item.status !== "Cancelled"
-      );
+        const submission =
+          (submissionResult.data ?? []).find(
+            (item: any) =>
+              item.student_id === enrolment.student_id &&
+              Number(item.academic_year) === Number(enrolment.academic_year) &&
+              Number(item.term) === Number(enrolment.term) &&
+              item.selected_class_id === enrolment.class_id &&
+              item.status !== "Cancelled"
+          );
 
-    const currentClass =
-      classMapLocal.get(enrolment.class_id);
+        const currentClass =
+          classMapLocal.get(enrolment.class_id);
 
-    const tuitionConfig =
-  tuitionConfigMap.get(
-    `${enrolment.academic_year}-${enrolment.term}-${enrolment.class_id}`
-  );
+        const tuitionConfig =
+          tuitionConfigMap.get(
+            `${enrolment.academic_year}-${enrolment.term}-${enrolment.class_id}`
+          );
 
-const standardTuition =
-  enrolment.standard_tuition == null
-    ? tuitionConfig?.standard_tuition ?? null
-    : Number(enrolment.standard_tuition);
+        const standardTuition =
+          enrolment.standard_tuition == null
+            ? tuitionConfig?.standard_tuition ?? null
+            : Number(enrolment.standard_tuition);
 
-const redeemAmount =
-  enrolment.redeem_amount == null
-    ? 0
-    : Number(enrolment.redeem_amount);
+        const redeemAmount =
+          enrolment.redeem_amount == null
+            ? 0
+            : Number(enrolment.redeem_amount);
 
-    const tuitionKey =
-      `${enrolment.academic_year}-${enrolment.term}-${enrolment.class_id}`;
+        const tuitionKey =
+          `${enrolment.academic_year}-${enrolment.term}-${enrolment.class_id}`;
 
-    const remainingLessons =
-      remainingLessonCountMap.get(tuitionKey) ??
-      tuitionConfig?.total_lessons ??
-      0;
+        const remainingLessons =
+          remainingLessonCountMap.get(tuitionKey) ??
+          tuitionConfig?.total_lessons ??
+          0;
 
-    const calculatedAmountPayable =
-      Number(
-        remainingLessons *
-        Number(tuitionConfig?.single_lesson_fee ?? 0)
-      );
+        const calculatedAmountPayable =
+          Number(
+            remainingLessons *
+            Number(tuitionConfig?.single_lesson_fee ?? 0)
+          );
 
-    const amountPayable =
-      enrolment.amount_payable == null
-        ? calculatedAmountPayable
-        : Number(enrolment.amount_payable);
+        const amountPayable =
+          enrolment.amount_payable == null
+            ? calculatedAmountPayable
+            : Number(enrolment.amount_payable);
 
-    return {
-      id: enrolment.id,
-      student_id: enrolment.student_id,
-      academic_year: Number(enrolment.academic_year),
-      term: Number(enrolment.term),
-      class_id: enrolment.class_id,
-      status: enrolment.status,
+        return {
+          id: enrolment.id,
+          student_id: enrolment.student_id,
+          academic_year: Number(enrolment.academic_year),
+          term: Number(enrolment.term),
+          class_id: enrolment.class_id,
+          status: enrolment.status,
 
-      payment_status: enrolment.payment_status ?? "Pending",
-      standard_tuition: standardTuition,
-      redeem_amount: redeemAmount,
-      amount_payable: amountPayable,
-      special_request_snapshot:
-  enrolment.special_request_snapshot ?? null,
-      student_name: enrolment.student_name,
-      last_term_class_name:
-        previousEnrolment?.class_name ?? "—",
-      current_term_class_name:
-        buildClassName(
-          currentClass,
-          campusMapLocal
-        ),
-      is_reenrolment: !!submission,
-      submission_id: submission?.id ?? null,
-      submission_status: submission?.status ?? null,
-    };
-  });
+          payment_status: enrolment.payment_status ?? "Pending",
+          standard_tuition: standardTuition,
+          redeem_amount: redeemAmount,
+          amount_payable: amountPayable,
+          special_request_snapshot:
+            enrolment.special_request_snapshot ?? null,
+          student_name: enrolment.student_name,
+          last_term_class_name:
+            previousEnrolment?.class_name ?? "—",
+          current_term_class_name:
+            buildClassName(
+              currentClass,
+              campusMapLocal
+            ),
+          is_reenrolment: !!submission,
+          submission_id: submission?.id ?? null,
+          submission_status: submission?.status ?? null,
+        };
+      });
 
     setCalendars(loadedCalendars);
     setCampuses(loadedCampuses);
@@ -819,34 +816,34 @@ const redeemAmount =
   }, [submissions, submissionSearchTerm]);
 
   const filteredEnrollmentRows = useMemo(() => {
-  const query = submissionSearchTerm.trim().toLowerCase();
+    const query = submissionSearchTerm.trim().toLowerCase();
 
-  return enrollmentRows
-    .filter((item) => {
-      if (!query) return true;
+    return enrollmentRows
+      .filter((item) => {
+        if (!query) return true;
 
-      return (
-        item.student_name.toLowerCase().includes(query) ||
-        item.last_term_class_name.toLowerCase().includes(query) ||
-        item.current_term_class_name.toLowerCase().includes(query) ||
-        String(item.academic_year).includes(query) ||
-        `term ${item.term}`.includes(query) ||
-        item.payment_status.toLowerCase().includes(query) ||
-        item.status.toLowerCase().includes(query)
-      );
-    })
-    .sort((a, b) => {
-      if (a.academic_year !== b.academic_year) {
-        return b.academic_year - a.academic_year;
-      }
+        return (
+          item.student_name.toLowerCase().includes(query) ||
+          item.last_term_class_name.toLowerCase().includes(query) ||
+          item.current_term_class_name.toLowerCase().includes(query) ||
+          String(item.academic_year).includes(query) ||
+          `term ${item.term}`.includes(query) ||
+          item.payment_status.toLowerCase().includes(query) ||
+          item.status.toLowerCase().includes(query)
+        );
+      })
+      .sort((a, b) => {
+        if (a.academic_year !== b.academic_year) {
+          return b.academic_year - a.academic_year;
+        }
 
-      if (a.term !== b.term) {
-        return b.term - a.term;
-      }
+        if (a.term !== b.term) {
+          return b.term - a.term;
+        }
 
-      return a.student_name.localeCompare(b.student_name);
-    });
-}, [enrollmentRows, submissionSearchTerm]);
+        return a.student_name.localeCompare(b.student_name);
+      });
+  }, [enrollmentRows, submissionSearchTerm]);
 
   function formatSubmissionDate(value: string | null) {
     if (!value) return "—";
@@ -883,7 +880,7 @@ const redeemAmount =
     return labels.join(" + ") || "No special request";
   }
 
-    async function handlePaymentStatus(
+  async function handlePaymentStatus(
     submission: ReEnrolmentSubmission,
     paymentStatus: "Pending" | "Paid"
   ) {
@@ -900,50 +897,50 @@ const redeemAmount =
 
     try {
       if (paymentStatus === "Pending") {
-  const enrollment = enrollmentRows.find(
-    (item) =>
-      item.student_id === submission.student_id &&
-      Number(item.academic_year) === Number(submission.academic_year) &&
-      Number(item.term) === Number(submission.term) &&
-      item.class_id === submission.selected_class_id
-  );
+        const enrollment = enrollmentRows.find(
+          (item) =>
+            item.student_id === submission.student_id &&
+            Number(item.academic_year) === Number(submission.academic_year) &&
+            Number(item.term) === Number(submission.term) &&
+            item.class_id === submission.selected_class_id
+        );
 
-  if (!enrollment?.id) {
-    throw new Error(
-      "The formal Enrollment for this Re-enrolment could not be found."
-    );
-  }
+        if (!enrollment?.id) {
+          throw new Error(
+            "The formal Enrollment for this Re-enrolment could not be found."
+          );
+        }
 
-  const response = await fetch(
-    "/api/email/pending-payment",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        enrollmentId: enrollment.id,
-      }),
-    }
-  );
+        const response = await fetch(
+          "/api/email/pending-payment",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              enrollmentId: enrollment.id,
+            }),
+          }
+        );
 
-  const result = await response.json();
+        const result = await response.json();
 
-  if (!response.ok) {
-    throw new Error(
-      result?.error ??
-        "Unable to send the payment reminder email."
-    );
-  }
+        if (!response.ok) {
+          throw new Error(
+            result?.error ??
+            "Unable to send the payment reminder email."
+          );
+        }
 
-  showPopup(
-    "Payment Reminder Sent",
-    "The payment reminder email has been sent. No payment or enrolment status has been changed.",
-    "success"
-  );
+        showPopup(
+          "Payment Reminder Sent",
+          "The payment reminder email has been sent. No payment or enrolment status has been changed.",
+          "success"
+        );
 
-  return;
-}
+        return;
+      }
 
       // Payment Received will be implemented separately.
       // Parent Submit already creates the formal Enrollment, so this action
@@ -966,7 +963,7 @@ const redeemAmount =
     }
   }
 
-    async function handleNewEnrollmentPayment(
+  async function handleNewEnrollmentPayment(
     enrollment: EnrollmentRow
   ) {
     if (submissionActionLoading) return;
@@ -1007,15 +1004,15 @@ const redeemAmount =
       const { error } = await supabase
         .from("student_enrolments")
         .update({
-  payment_status: "Paid",
-  payment_amount: Number(
-    amountPayable.toFixed(2)
-  ),
-  amount_payable: Number(
-    amountPayable.toFixed(2)
-  ),
-  updated_at: new Date().toISOString(),
-})
+          payment_status: "Paid",
+          payment_amount: Number(
+            amountPayable.toFixed(2)
+          ),
+          amount_payable: Number(
+            amountPayable.toFixed(2)
+          ),
+          updated_at: new Date().toISOString(),
+        })
         .eq("id", enrollment.id)
         .eq("payment_status", "Pending");
 
@@ -1070,7 +1067,7 @@ const redeemAmount =
       showPopup(
         "Payment Action Failed",
         error?.message ??
-          "Unable to process the payment action.",
+        "Unable to process the payment action.",
         "error"
       );
     } finally {
@@ -1121,284 +1118,52 @@ const redeemAmount =
 
     setSubmissionActionLoading(submission.id);
 
-    let usedCreditIds: string[] = [];
-    let appliedTuitionCreditIds: string[] = [];
-    let enrollmentUpdated = false;
-    let submissionUpdated = false;
-    let originalPaymentAmount: number | null = null;
-    let targetEnrollmentId: string | null = null;
-
     try {
-      /*
-       * Parent Submit already created the formal Enrollment.
-       * Payment Received must update that existing Enrollment.
-       */
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
 
-      const { data: existingEnrollment, error: enrollmentLoadError } =
-        await supabase
-          .from("student_enrolments")
-          .select(
-            "id, payment_status, payment_amount, standard_tuition, redeem_amount, amount_payable"
-          )
-          .eq("student_id", submission.student_id)
-          .eq("academic_year", submission.academic_year)
-          .eq("term", submission.term)
-          .eq("class_id", submission.selected_class_id)
-          .eq("is_trial", false)
-          .eq("status", "Active")
-          .maybeSingle();
-
-      if (enrollmentLoadError) {
-        throw enrollmentLoadError;
-      }
-
-      if (!existingEnrollment?.id) {
+      if (sessionError || !session?.access_token) {
         throw new Error(
-          "The formal Enrollment created by Parent Submit could not be found."
-        );
-      }
-      targetEnrollmentId = existingEnrollment.id;
-
-      originalPaymentAmount =
-  existingEnrollment.payment_amount === null
-    ? null
-    : Number(existingEnrollment.payment_amount);
-
-      if (existingEnrollment.payment_status !== "Pending") {
-        throw new Error(
-          "The existing Enrollment payment status is no longer Pending."
+          "Your session has expired. Please sign in again."
         );
       }
 
-      /*
-       * Payment Received is the point at which Make-up Credits
-       * are actually consumed.
-       */
-      const redeemCredits = Math.min(
-        2,
-        Math.max(0, getRedeemCredits(submission))
+      const response = await fetch(
+        "/api/admin/reenrolment/payment-received",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            submissionId: submission.id,
+          }),
+          cache: "no-store",
+        }
       );
 
-      if (redeemCredits > 0) {
-        const { data: creditsToUse, error: creditLoadError } =
-          await supabase
-            .from("makeup_credits")
-            .select("id")
-            .eq("student_id", submission.student_id)
-            .eq("status", "Available")
-            .order("created_at", { ascending: true })
-            .limit(redeemCredits);
-
-        if (creditLoadError) {
-          throw creditLoadError;
-        }
-
-        if ((creditsToUse ?? []).length < redeemCredits) {
-          throw new Error(
-            "The available Make-up Credits have changed. Please review the Re-enrolment before marking payment as received."
-          );
-        }
-
-        const creditIds = (creditsToUse ?? []).map((item: any) => item.id);
-
-        const { data: usedCredits, error: creditUpdateError } =
-          await supabase
-            .from("makeup_credits")
-            .update({
-              status: "Used",
-              used_at: new Date().toISOString(),
-              reason: "Re-enrolment redemption",
-            })
-            .in("id", creditIds)
-            .eq("status", "Available")
-            .select("id");
-
-        if (creditUpdateError) {
-          throw creditUpdateError;
-        }
-
-        if ((usedCredits ?? []).length !== creditIds.length) {
-          throw new Error(
-            "One or more Make-up Credits could not be consumed safely."
-          );
-        }
-
-        usedCreditIds = creditIds;
-      }
-
-      /*
- * Transfer Tuition Credit
- *
- * Tuition Credit is separate from Make-up Credit.
- * Consume Pending Tuition Credit when payment is received.
- */
-const submittedStandardTuition = Number(
-  submission.standard_tuition ?? 0
-);
-
-const submittedRedeemAmount = Number(
-  submission.redeem_amount ?? 0
-);
-
-const tuitionCreditAppliedAmount = Math.max(
-  0,
-  submittedStandardTuition -
-    submittedRedeemAmount -
-    amountPayable
-);
-
-if (tuitionCreditAppliedAmount > 0) {
-  const { data: tuitionCredits, error: tuitionCreditLoadError } =
-    await supabase
-      .from("tuition_adjustments")
-      .select("id, adjustment_amount")
-      .eq("student_id", submission.student_id)
-      .eq("adjustment_type", "Tuition Credit")
-      .eq("status", "Pending")
-      .lt("adjustment_amount", 0)
-      .order("created_at", { ascending: true });
-
-  if (tuitionCreditLoadError) {
-    throw tuitionCreditLoadError;
-  }
-
-  let remainingCreditToApply =
-    tuitionCreditAppliedAmount;
-
-  const creditIdsToApply: string[] = [];
-
-  for (const credit of tuitionCredits ?? []) {
-    const creditAmount = Math.abs(
-      Number(credit.adjustment_amount ?? 0)
-    );
-
-    if (creditAmount <= 0) {
-      continue;
-    }
-
-    if (creditAmount > remainingCreditToApply) {
-      break;
-    }
-
-    creditIdsToApply.push(credit.id);
-    remainingCreditToApply -= creditAmount;
-
-    if (remainingCreditToApply <= 0.001) {
-      break;
-    }
-  }
-
-  if (remainingCreditToApply > 0.001) {
-    throw new Error(
-      "The available Tuition Credit has changed. Please review the Re-enrolment before marking payment as received."
-    );
-  }
-
-  if (creditIdsToApply.length > 0) {
-    const { data: appliedCredits, error: tuitionCreditUpdateError } =
-      await supabase
-        .from("tuition_adjustments")
-        .update({
-          status: "Applied",
-          updated_at: new Date().toISOString(),
-        })
-        .in("id", creditIdsToApply)
-        .eq("status", "Pending")
-        .select("id");
-
-    if (tuitionCreditUpdateError) {
-      throw tuitionCreditUpdateError;
-    }
-
-    if (
-      (appliedCredits ?? []).length !==
-      creditIdsToApply.length
-    ) {
-      throw new Error(
-        "One or more Tuition Credits could not be applied safely."
-      );
-    }
-
-    appliedTuitionCreditIds =
-      creditIdsToApply;
-  }
-}
-
-      /*
-       * Update the Enrollment created by Parent Submit.
-       * Do NOT insert a new Enrollment.
-       */
-      const { error: enrollmentUpdateError } = await supabase
-        .from("student_enrolments")
-        .update({
-          payment_status: "Paid",
-          payment_amount: Number(amountPayable.toFixed(2)),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", existingEnrollment.id)
-        .eq("payment_status", "Pending");
-
-      if (enrollmentUpdateError) {
-        throw enrollmentUpdateError;
-      }
-
-      enrollmentUpdated = true;
-
-      /*
-       * Once payment is received, the Re-enrolment submission
-       * becomes Completed.
-       */
-      const { error: submissionUpdateError } = await supabase
-        .from("re_enrolment_submissions")
-        .update({
-          status: "Completed",
-          payment_status: "Paid",
-          completed_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", submission.id)
-        .eq("status", "Submitted")
-        .eq("payment_status", "Pending");
-
-      if (submissionUpdateError) {
-        throw submissionUpdateError;
-      }
-
-      submissionUpdated = true;
-
-      await synchroniseStudentStage(
-        submission.student_id,
-        submission.academic_year,
-        submission.term
-      );
-
-      let confirmationEmailWarning = "";
+      let result: {
+        success?: boolean;
+        error?: string;
+        emailWarning?: string | null;
+      };
 
       try {
-        const emailResponse = await fetch(
-          "/api/email/payment-received-place-confirmed",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              enrollmentId: existingEnrollment.id,
-            }),
-          }
+        result = await response.json();
+      } catch {
+        throw new Error(
+          "The server returned an unreadable response. Check the payment and submission records before retrying."
         );
+      }
 
-        const emailResult = await emailResponse.json();
-
-        if (!emailResponse.ok) {
-          confirmationEmailWarning =
-            emailResult?.error ??
-            "The payment was received, but the confirmation email could not be sent.";
-        }
-      } catch (emailError: any) {
-        confirmationEmailWarning =
-          emailError?.message ??
-          "The payment was received, but the confirmation email could not be sent.";
+      if (!response.ok || result.success !== true) {
+        throw new Error(
+          result.error ??
+            "Unable to complete the Re-enrolment payment."
+        );
       }
 
       setSubmissions((previous) =>
@@ -1413,118 +1178,63 @@ if (tuitionCreditAppliedAmount > 0) {
         )
       );
 
+      const emailWarning =
+        typeof result.emailWarning === "string"
+          ? result.emailWarning
+          : "";
+
       showPopup(
-        "Payment Received",
-        "Payment has been marked as received. The existing Enrollment is now Paid and the Re-enrolment is Completed.",
+        emailWarning
+          ? "Payment Completed â€” Email Warning"
+          : "Payment Received",
+        emailWarning
+          ? `The payment transaction completed successfully, and the Re-enrolment is now Completed. However, the confirmation email could not be sent: ${emailWarning}`
+          : "Payment has been marked as received. The existing Enrollment is now Paid and the Re-enrolment is Completed. The confirmation email was sent.",
         "success"
       );
-      await loadPage();
-    } catch (error: any) {
-      /*
-       * Roll back Submission if it was changed.
-       */
-      if (submissionUpdated) {
-        const { error: submissionRollbackError } = await supabase
-          .from("re_enrolment_submissions")
-          .update({
-            status: "Submitted",
-            payment_status: "Pending",
-            completed_at: null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", submission.id);
-        
-        if (submissionRollbackError) {
-          console.error(
-            "RE-ENROLMENT SUBMISSION ROLLBACK ERROR:",
-            submissionRollbackError
-          );
-        }
+
+
+      try {
+        await loadPage();
+      } catch (refreshError) {
+        console.error(
+          "PAYMENT COMPLETED BUT PAGE REFRESH FAILED:",
+          refreshError
+        );
+        showPopup(
+          "Payment Completed",
+          "The payment transaction succeeded, but the page could not refresh. Please refresh the page manually before taking further action.",
+          "info"
+        );
       }
+    } catch (error: unknown) {
 
-      /*
-       * Roll back Enrollment payment status if it was changed.
-       */
-      if (enrollmentUpdated) {
-        const { error: enrollmentRollbackError } = await supabase
-          .from("student_enrolments")
-          .update({
-            payment_status: "Pending",
-            payment_amount: originalPaymentAmount,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", targetEnrollmentId!);
-        
-        if (enrollmentRollbackError) {
-          console.error(
-            "RE-ENROLMENT ENROLLMENT ROLLBACK ERROR:",
-            enrollmentRollbackError
-          );
-        }
-      }
+      console.error(
+        "RE-ENROLMENT PAYMENT TRANSACTION ERROR:",
+        error
+      );
 
-      /*
-       * Roll back consumed Make-up Credits.
-       */
-      if (usedCreditIds.length > 0) {
-        const { error: creditRollbackError } = await supabase
-          .from("makeup_credits")
-          .update({
-            status: "Available",
-            used_at: null,
-          })
-          .in("id", usedCreditIds);
-
-        if (creditRollbackError) {
-          console.error(
-            "RE-ENROLMENT CREDIT ROLLBACK ERROR:",
-            creditRollbackError
-          );
-        }
-      }
-
-      /*
- * Roll back Tuition Credit consumption if
- * any later payment-completion step fails.
- */
-if (appliedTuitionCreditIds.length > 0) {
-  const { error: tuitionCreditRollbackError } =
-    await supabase
-      .from("tuition_adjustments")
-      .update({
-        status: "Pending",
-        updated_at: new Date().toISOString(),
-      })
-      .in("id", appliedTuitionCreditIds)
-      .eq("status", "Applied");
-
-  if (tuitionCreditRollbackError) {
-    console.error(
-      "Failed to roll back Tuition Credit:",
-      tuitionCreditRollbackError
-    );
-  }
-}
-
-      console.error("RE-ENROLMENT PAYMENT RECEIVED ERROR:", error);
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to process the Re-enrolment payment.";
 
       showPopup(
-        "Payment Received Failed",
-        error?.message ?? "Unable to process Payment Received.",
+        "Payment Action Failed",
+        message,
         "error"
       );
     } finally {
       setSubmissionActionLoading(null);
     }
   }
-
-function handleAcademicYearChange(value: string) {
-  setForm((previous) => ({
-    ...previous,
-    academic_year: value,
-    term: "",
-  }));
-}
+  function handleAcademicYearChange(value: string) {
+    setForm((previous) => ({
+      ...previous,
+      academic_year: value,
+      term: "",
+    }));
+  }
 
   function handleStudentChange(studentId: string) {
     const student = activeFormalStudents.find(
@@ -1767,126 +1477,126 @@ function handleAcademicYearChange(value: string) {
   }
 
   function openSpecialRequestEditor(item: EnrollmentRow) {
-  const request = item.special_request_snapshot ?? {};
+    const request = item.special_request_snapshot ?? {};
 
-  setEditingSpecialRequest(item);
+    setEditingSpecialRequest(item);
 
-  setSpecialRequestForm({
-    classroom_pickup: Boolean(request.classroom_pickup),
-    ymca_dropoff: Boolean(request.ymca_dropoff),
-    walk_home: Boolean(request.walk_home),
-    school_year: request.school_year ?? "",
-    school_class: request.school_class ?? "",
-  });
-
-  setSpecialRequestReason("");
-}
-
-async function handleSaveSpecialRequest() {
-  if (specialRequestSaving) return;
-
-  if (!editingSpecialRequest) {
-    return;
-  }
-
-  const reason = specialRequestReason.trim();
-
-  if (!reason) {
-    showPopup(
-      "Reason Required",
-      "Please enter a reason for this Admin change.",
-      "error"
-    );
-    return;
-  }
-
-  if (
-    specialRequestForm.walk_home &&
-    (specialRequestForm.classroom_pickup ||
-      specialRequestForm.ymca_dropoff)
-  ) {
-    showPopup(
-      "Invalid Special Request",
-      "Walk Home cannot be combined with Classroom Pick-up or YMCA Drop-off.",
-      "error"
-    );
-    return;
-  }
-
-  setSpecialRequestSaving(true);
-
-  try {
-    const currentUser = await getCurrentUser();
-
-    if (!currentUser || currentUser.role !== "admin") {
-      throw new Error("Admin access is required.");
-    }
-
-    const oldValue =
-      editingSpecialRequest.special_request_snapshot ?? null;
-
-    const newValue = {
-      classroom_pickup: specialRequestForm.classroom_pickup,
-      ymca_dropoff: specialRequestForm.ymca_dropoff,
-      walk_home: specialRequestForm.walk_home,
-      school_year: specialRequestForm.school_year.trim() || null,
-      school_class: specialRequestForm.school_class.trim() || null,
-    };
-
-    const { error } = await supabase
-      .from("student_enrolments")
-      .update({
-        special_request_snapshot: newValue,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", editingSpecialRequest.id);
-
-    if (error) {
-      throw error;
-    }
-
-    await logEnrolmentAudit({
-      studentEnrolmentId: editingSpecialRequest.id,
-      studentId: editingSpecialRequest.student_id,
-      action: "ADMIN_OVERRIDE",
-      field: "special_request_snapshot",
-      oldValue,
-      newValue,
-      reason,
+    setSpecialRequestForm({
+      classroom_pickup: Boolean(request.classroom_pickup),
+      ymca_dropoff: Boolean(request.ymca_dropoff),
+      walk_home: Boolean(request.walk_home),
+      school_year: request.school_year ?? "",
+      school_class: request.school_class ?? "",
     });
 
-    setEnrollmentRows((previous) =>
-      previous.map((item) =>
-        item.id === editingSpecialRequest.id
-          ? {
+    setSpecialRequestReason("");
+  }
+
+  async function handleSaveSpecialRequest() {
+    if (specialRequestSaving) return;
+
+    if (!editingSpecialRequest) {
+      return;
+    }
+
+    const reason = specialRequestReason.trim();
+
+    if (!reason) {
+      showPopup(
+        "Reason Required",
+        "Please enter a reason for this Admin change.",
+        "error"
+      );
+      return;
+    }
+
+    if (
+      specialRequestForm.walk_home &&
+      (specialRequestForm.classroom_pickup ||
+        specialRequestForm.ymca_dropoff)
+    ) {
+      showPopup(
+        "Invalid Special Request",
+        "Walk Home cannot be combined with Classroom Pick-up or YMCA Drop-off.",
+        "error"
+      );
+      return;
+    }
+
+    setSpecialRequestSaving(true);
+
+    try {
+      const currentUser = await getCurrentUser();
+
+      if (!currentUser || currentUser.role !== "admin") {
+        throw new Error("Admin access is required.");
+      }
+
+      const oldValue =
+        editingSpecialRequest.special_request_snapshot ?? null;
+
+      const newValue = {
+        classroom_pickup: specialRequestForm.classroom_pickup,
+        ymca_dropoff: specialRequestForm.ymca_dropoff,
+        walk_home: specialRequestForm.walk_home,
+        school_year: specialRequestForm.school_year.trim() || null,
+        school_class: specialRequestForm.school_class.trim() || null,
+      };
+
+      const { error } = await supabase
+        .from("student_enrolments")
+        .update({
+          special_request_snapshot: newValue,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", editingSpecialRequest.id);
+
+      if (error) {
+        throw error;
+      }
+
+      await logEnrolmentAudit({
+        studentEnrolmentId: editingSpecialRequest.id,
+        studentId: editingSpecialRequest.student_id,
+        action: "ADMIN_OVERRIDE",
+        field: "special_request_snapshot",
+        oldValue,
+        newValue,
+        reason,
+      });
+
+      setEnrollmentRows((previous) =>
+        previous.map((item) =>
+          item.id === editingSpecialRequest.id
+            ? {
               ...item,
               special_request_snapshot: newValue,
             }
-          : item
-      )
-    );
+            : item
+        )
+      );
 
-    setEditingSpecialRequest(null);
-    setSpecialRequestReason("");
+      setEditingSpecialRequest(null);
+      setSpecialRequestReason("");
 
-    showPopup(
-      "Special Request Updated",
-      "The current Enrolment Special Request has been updated successfully.",
-      "success"
-    );
-  } catch (error: any) {
-    console.error("SPECIAL REQUEST ADMIN OVERRIDE ERROR:", error);
+      showPopup(
+        "Special Request Updated",
+        "The current Enrolment Special Request has been updated successfully.",
+        "success"
+      );
+    } catch (error: any) {
+      console.error("SPECIAL REQUEST ADMIN OVERRIDE ERROR:", error);
 
-    showPopup(
-      "Update Failed",
-      error?.message ??
+      showPopup(
+        "Update Failed",
+        error?.message ??
         "Unable to update the Special Request.",
-      "error"
-    );
-  } finally {
-    setSpecialRequestSaving(false);
+        "error"
+      );
+    } finally {
+      setSpecialRequestSaving(false);
+    }
   }
-}
 
   if (loading) {
     return <main className="min-h-screen px-4 py-8 sm:px-6 lg:px-8" />;
@@ -1923,580 +1633,577 @@ async function handleSaveSpecialRequest() {
           </header>
 
           <section className="mb-8 overflow-hidden rounded-2xl border border-[#D9E0E8] border-t-4 border-t-[#D4AF37] bg-white shadow-sm">
-  <div className="border-b border-[#D9E0E8] px-5 py-5 sm:px-6">
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        </div>
-
-      <div className="w-full sm:max-w-sm">
-        <label className="sr-only">
-          Search enrolments
-        </label>
-
-        <input
-          value={submissionSearchTerm}
-          onChange={(e) =>
-            setSubmissionSearchTerm(e.target.value)
-          }
-          placeholder="Search student, class, year or term..."
-          className="min-h-[44px] w-full rounded-xl border border-[#D9E0E8] bg-white px-4 text-sm text-[#10213A] outline-none focus:border-[#D4AF37]"
-        />
-      </div>
-    </div>
-  </div>
-
-  {/* Desktop */}
-  <div className="hidden max-h-[680px] overflow-x-hidden overflow-y-auto md:block">
-    <table className="w-full min-w-0 table-fixed text-left">
-      <thead className="sticky top-0 z-10 border-b border-[#E5EAF0] bg-[#F8FAFC]">
-        <tr className="text-[11px] uppercase tracking-[0.12em] text-[#64748B]">
-          <th className="w-[14%] px-3 py-4 font-semibold">
-            Student
-          </th>
-
-          <th className="w-[8%] px-3 py-4 font-semibold">
-            Term
-          </th>
-
-          <th className="w-[17%] px-3 py-4 font-semibold">
-            Last Term
-          </th>
-
-          <th className="w-[18%] px-3 py-4 font-semibold">
-            Current Term
-          </th>
-
-          <th className="w-[10%] px-3 py-4 font-semibold">
-            Amount
-          </th>
-
-          <th className="w-[10%] px-3 py-4 font-semibold">
-            Payment
-          </th>
-
-          <th className="w-[8%] px-3 py-4 font-semibold">
-            Status
-          </th>
-
-          <th className="w-[15%] px-3 py-4 text-right font-semibold">
-  Action
-</th>
-        </tr>
-      </thead>
-
-      <tbody>
-        {filteredEnrollmentRows.length === 0 ? (
-          <tr>
-            <td
-              colSpan={8}
-              className="px-5 py-10 text-center text-sm text-[#64748B]"
-            >
-              No enrolments found.
-            </td>
-          </tr>
-        ) : (
-          filteredEnrollmentRows.map((item) => (
-            <tr
-              key={item.id}
-              className="border-b border-[#EEF1F5] last:border-b-0"
-            >
-              <td className="px-3 py-4 align-top">
-                <div
-                  className="truncate text-[13px] font-semibold text-[#10213A]"
-                  title={item.student_name}
-                >
-                  {item.student_name}
+            <div className="border-b border-[#D9E0E8] px-5 py-5 sm:px-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div>
                 </div>
 
-                <div className="mt-1 text-[11px] text-[#94A3B8]">
-                  {item.is_reenrolment
-                    ? "Re-enrolment"
-                    : "New Enrolment"}
+                <div className="w-full sm:max-w-sm">
+                  <label className="sr-only">
+                    Search enrolments
+                  </label>
+
+                  <input
+                    value={submissionSearchTerm}
+                    onChange={(e) =>
+                      setSubmissionSearchTerm(e.target.value)
+                    }
+                    placeholder="Search student, class, year or term..."
+                    className="min-h-[44px] w-full rounded-xl border border-[#D9E0E8] bg-white px-4 text-sm text-[#10213A] outline-none focus:border-[#D4AF37]"
+                  />
                 </div>
-              </td>
+              </div>
+            </div>
 
-              <td className="px-3 py-4 align-top text-[13px] text-[#475569]">
-                {item.academic_year} · T{item.term}
-              </td>
+            {/* Desktop */}
+            <div className="hidden max-h-[680px] overflow-x-hidden overflow-y-auto md:block">
+              <table className="w-full min-w-0 table-fixed text-left">
+                <thead className="sticky top-0 z-10 border-b border-[#E5EAF0] bg-[#F8FAFC]">
+                  <tr className="text-[11px] uppercase tracking-[0.12em] text-[#64748B]">
+                    <th className="w-[14%] px-3 py-4 font-semibold">
+                      Student
+                    </th>
 
-              <td
-                className="px-3 py-4 align-top text-[13px] text-[#475569]"
-                title={item.last_term_class_name}
-              >
-                <div className="truncate">
-                  {item.last_term_class_name}
+                    <th className="w-[8%] px-3 py-4 font-semibold">
+                      Term
+                    </th>
+
+                    <th className="w-[17%] px-3 py-4 font-semibold">
+                      Last Term
+                    </th>
+
+                    <th className="w-[18%] px-3 py-4 font-semibold">
+                      Current Term
+                    </th>
+
+                    <th className="w-[10%] px-3 py-4 font-semibold">
+                      Amount
+                    </th>
+
+                    <th className="w-[10%] px-3 py-4 font-semibold">
+                      Payment
+                    </th>
+
+                    <th className="w-[8%] px-3 py-4 font-semibold">
+                      Status
+                    </th>
+
+                    <th className="w-[15%] px-3 py-4 text-right font-semibold">
+                      Action
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {filteredEnrollmentRows.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={8}
+                        className="px-5 py-10 text-center text-sm text-[#64748B]"
+                      >
+                        No enrolments found.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredEnrollmentRows.map((item) => (
+                      <tr
+                        key={item.id}
+                        className="border-b border-[#EEF1F5] last:border-b-0"
+                      >
+                        <td className="px-3 py-4 align-top">
+                          <div
+                            className="truncate text-[13px] font-semibold text-[#10213A]"
+                            title={item.student_name}
+                          >
+                            {item.student_name}
+                          </div>
+
+                          <div className="mt-1 text-[11px] text-[#94A3B8]">
+                            {item.is_reenrolment
+                              ? "Re-enrolment"
+                              : "New Enrolment"}
+                          </div>
+                        </td>
+
+                        <td className="px-3 py-4 align-top text-[13px] text-[#475569]">
+                          {item.academic_year} · T{item.term}
+                        </td>
+
+                        <td
+                          className="px-3 py-4 align-top text-[13px] text-[#475569]"
+                          title={item.last_term_class_name}
+                        >
+                          <div className="truncate">
+                            {item.last_term_class_name}
+                          </div>
+                        </td>
+
+                        <td
+                          className="px-3 py-4 align-top text-[13px] font-medium text-[#10213A]"
+                          title={item.current_term_class_name}
+                        >
+                          <div className="truncate">
+                            {item.current_term_class_name}
+                          </div>
+                        </td>
+
+                        <td className="px-3 py-4 align-top text-[13px] font-semibold text-[#10213A]">
+                          {item.amount_payable == null
+                            ? "—"
+                            : `$${Number(
+                              item.amount_payable
+                            ).toFixed(2)}`}
+                        </td>
+
+                        <td className="px-3 py-4 align-top">
+                          <span
+                            className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${item.payment_status === "Paid"
+                              ? "bg-green-50 text-green-700"
+                              : "bg-amber-50 text-amber-700"
+                              }`}
+                          >
+                            {item.payment_status}
+                          </span>
+                        </td>
+
+                        <td className="px-3 py-4 align-top">
+                          <span
+                            className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${item.status === "Completed" ||
+                              item.payment_status === "Paid"
+                              ? "bg-green-50 text-green-700"
+                              : "bg-slate-100 text-slate-700"
+                              }`}
+                          >
+                            {item.status === "Completed"
+                              ? "Completed"
+                              : item.is_reenrolment
+                                ? item.submission_status ?? item.status
+                                : item.status}
+                          </span>
+                        </td>
+
+                        <td className="px-3 py-4 text-right align-top">
+                          {item.is_reenrolment &&
+                            item.submission_id &&
+                            item.submission_status === "Submitted" &&
+                            item.payment_status !== "Paid" ? (
+                            <div className="flex flex-col items-end gap-1.5">
+                              <button
+                                type="button"
+                                disabled={
+                                  submissionActionLoading ===
+                                  item.submission_id
+                                }
+                                onClick={() => {
+                                  const submission =
+                                    submissions.find(
+                                      (submissionItem) =>
+                                        submissionItem.id ===
+                                        item.submission_id
+                                    );
+
+                                  if (submission) {
+                                    void handleCompleteSubmission(
+                                      submission
+                                    );
+                                  }
+                                }}
+                                className="rounded-lg bg-[#10213A] px-3 py-2 text-xs font-semibold text-white hover:bg-[#1A3152] disabled:opacity-50"
+                              >
+                                {submissionActionLoading ===
+                                  item.submission_id
+                                  ? "Processing..."
+                                  : "Payment Received"}
+                              </button>
+
+                              <button
+                                type="button"
+                                disabled={
+                                  submissionActionLoading ===
+                                  item.submission_id
+                                }
+                                onClick={() => {
+                                  const submission =
+                                    submissions.find(
+                                      (submissionItem) =>
+                                        submissionItem.id ===
+                                        item.submission_id
+                                    );
+
+                                  if (submission) {
+                                    void handlePaymentStatus(
+                                      submission,
+                                      "Pending"
+                                    );
+                                  }
+                                }}
+                                className="whitespace-nowrap text-xs font-semibold text-[#64748B] hover:text-[#10213A] disabled:opacity-50"
+                              >
+                                Mark Payment Pending
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openSpecialRequestEditor(item)}
+                                className="whitespace-nowrap text-xs font-semibold text-[#10213A] hover:text-[#D4AF37]"
+                              >
+                                Edit SR
+                              </button>
+                            </div>
+                          ) : !item.is_reenrolment &&
+                            item.payment_status !== "Paid" ? (
+                            <div className="flex flex-col items-end gap-1.5">
+                              <button
+                                type="button"
+                                disabled={
+                                  submissionActionLoading === item.id
+                                }
+                                onClick={() => {
+                                  void handleNewEnrollmentPayment(item);
+                                }}
+                                className="rounded-lg bg-[#10213A] px-3 py-2 text-xs font-semibold text-white hover:bg-[#1A3152] disabled:opacity-50"
+                              >
+                                {submissionActionLoading === item.id
+                                  ? "Processing..."
+                                  : "Payment Received"}
+                              </button>
+
+                              <button
+                                type="button"
+                                disabled={
+                                  submissionActionLoading === item.id
+                                }
+                                onClick={async () => {
+                                  setSubmissionActionLoading(item.id);
+
+                                  try {
+                                    const response = await fetch(
+                                      "/api/email/pending-payment",
+                                      {
+                                        method: "POST",
+                                        headers: {
+                                          "Content-Type": "application/json",
+                                        },
+                                        body: JSON.stringify({
+                                          enrollmentId: item.id,
+                                        }),
+                                      }
+                                    );
+
+                                    const result = await response.json();
+
+                                    if (!response.ok) {
+                                      throw new Error(
+                                        result?.error ??
+                                        "Unable to send the payment reminder email."
+                                      );
+                                    }
+
+                                    showPopup(
+                                      "Payment Reminder Sent",
+                                      "The payment reminder email has been sent. No payment or enrolment status has been changed.",
+                                      "success"
+                                    );
+                                  } catch (error: any) {
+                                    console.error(
+                                      "REGULAR ENROLMENT PAYMENT REMINDER ERROR:",
+                                      error
+                                    );
+
+                                    showPopup(
+                                      "Payment Reminder Failed",
+                                      error?.message ??
+                                      "Unable to send the payment reminder email.",
+                                      "error"
+                                    );
+                                  } finally {
+                                    setSubmissionActionLoading(null);
+                                  }
+                                }}
+                                className="whitespace-nowrap text-xs font-semibold text-[#64748B] hover:text-[#10213A] disabled:opacity-50"
+                              >
+                                Mark Payment Pending
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openSpecialRequestEditor(item)}
+                                className="whitespace-nowrap text-xs font-semibold text-[#10213A] hover:text-[#D4AF37]"
+                              >
+                                Edit SR
+                              </button>
+                            </div>
+                          ) : item.payment_status === "Paid" ? (
+                            <button
+                              type="button"
+                              onClick={() => openSpecialRequestEditor(item)}
+                              className="whitespace-nowrap text-xs font-semibold text-[#10213A] hover:text-[#D4AF37]"
+                            >
+                              Edit SR
+                            </button>
+                          ) : (
+                            <span className="text-xs text-[#94A3B8]">
+                              —
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile */}
+            <div className="max-h-[720px] space-y-3 overflow-y-auto p-4 md:hidden">
+              {filteredEnrollmentRows.length === 0 ? (
+                <div className="rounded-xl border border-[#E5EAF0] p-5 text-center text-sm text-[#64748B]">
+                  No enrolments found.
                 </div>
-              </td>
+              ) : (
+                filteredEnrollmentRows.map((item) => (
+                  <div
+                    key={item.id}
+                    className="rounded-xl border border-[#E5EAF0] bg-white p-4"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="text-base font-semibold text-[#10213A]">
+                          {item.student_name}
+                        </div>
 
-              <td
-                className="px-3 py-4 align-top text-[13px] font-medium text-[#10213A]"
-                title={item.current_term_class_name}
-              >
-                <div className="truncate">
-                  {item.current_term_class_name}
-                </div>
-              </td>
+                        <div className="mt-1 text-xs text-[#64748B]">
+                          {item.is_reenrolment
+                            ? "Re-enrolment"
+                            : "New Enrolment"}{" "}
+                          · {item.academic_year} · T{item.term}
+                        </div>
+                      </div>
 
-              <td className="px-3 py-4 align-top text-[13px] font-semibold text-[#10213A]">
-                {item.amount_payable == null
-                  ? "—"
-                  : `$${Number(
-                      item.amount_payable
-                    ).toFixed(2)}`}
-              </td>
+                      <span
+                        className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${item.payment_status === "Paid"
+                          ? "bg-green-50 text-green-700"
+                          : "bg-amber-50 text-amber-700"
+                          }`}
+                      >
+                        {item.payment_status}
+                      </span>
+                    </div>
 
-              <td className="px-3 py-4 align-top">
-                <span
-                  className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                    item.payment_status === "Paid"
-                      ? "bg-green-50 text-green-700"
-                      : "bg-amber-50 text-amber-700"
-                  }`}
-                >
-                  {item.payment_status}
-                </span>
-              </td>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#A78312]">
+                          Last Term
+                        </div>
 
-              <td className="px-3 py-4 align-top">
-                <span
-                  className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                    item.status === "Completed" ||
-                    item.payment_status === "Paid"
-                      ? "bg-green-50 text-green-700"
-                      : "bg-slate-100 text-slate-700"
-                  }`}
-                >
-                  {item.status === "Completed"
-                    ? "Completed"
-                    : item.is_reenrolment
-                      ? item.submission_status ?? item.status
-                      : item.status}
-                </span>
-              </td>
+                        <div className="mt-1 text-sm text-[#475569]">
+                          {item.last_term_class_name}
+                        </div>
+                      </div>
 
-              <td className="px-3 py-4 text-right align-top">
-                {item.is_reenrolment &&
-  item.submission_id &&
-  item.submission_status === "Submitted" &&
-  item.payment_status !== "Paid" ? (
-  <div className="flex flex-col items-end gap-1.5">
-    <button
-      type="button"
-      disabled={
-        submissionActionLoading ===
-        item.submission_id
-      }
-      onClick={() => {
-        const submission =
-          submissions.find(
-            (submissionItem) =>
-              submissionItem.id ===
-              item.submission_id
-          );
+                      <div>
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#A78312]">
+                          Current Term
+                        </div>
 
-        if (submission) {
-          void handleCompleteSubmission(
-            submission
-          );
-        }
-      }}
-      className="rounded-lg bg-[#10213A] px-3 py-2 text-xs font-semibold text-white hover:bg-[#1A3152] disabled:opacity-50"
-    >
-      {submissionActionLoading ===
-      item.submission_id
-        ? "Processing..."
-        : "Payment Received"}
-    </button>
+                        <div className="mt-1 text-sm font-semibold text-[#10213A]">
+                          {item.current_term_class_name}
+                        </div>
+                      </div>
 
-    <button
-      type="button"
-      disabled={
-        submissionActionLoading ===
-        item.submission_id
-      }
-      onClick={() => {
-        const submission =
-          submissions.find(
-            (submissionItem) =>
-              submissionItem.id ===
-              item.submission_id
-          );
+                      <div>
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#A78312]">
+                          Amount
+                        </div>
 
-        if (submission) {
-          void handlePaymentStatus(
-            submission,
-            "Pending"
-          );
-        }
-      }}
-      className="whitespace-nowrap text-xs font-semibold text-[#64748B] hover:text-[#10213A] disabled:opacity-50"
-    >
-      Mark Payment Pending
-    </button>
-        <button
-      type="button"
-      onClick={() => openSpecialRequestEditor(item)}
-      className="whitespace-nowrap text-xs font-semibold text-[#10213A] hover:text-[#D4AF37]"
-    >
-      Edit SR
-    </button>
-  </div>
-) : !item.is_reenrolment &&
-  item.payment_status !== "Paid" ? (
-  <div className="flex flex-col items-end gap-1.5">
-    <button
-      type="button"
-      disabled={
-        submissionActionLoading === item.id
-      }
-      onClick={() => {
-        void handleNewEnrollmentPayment(item);
-      }}
-      className="rounded-lg bg-[#10213A] px-3 py-2 text-xs font-semibold text-white hover:bg-[#1A3152] disabled:opacity-50"
-    >
-      {submissionActionLoading === item.id
-        ? "Processing..."
-        : "Payment Received"}
-    </button>
+                        <div className="mt-1 text-sm font-semibold text-[#10213A]">
+                          {item.amount_payable == null
+                            ? "—"
+                            : `$${Number(
+                              item.amount_payable
+                            ).toFixed(2)}`}
+                        </div>
+                      </div>
 
-    <button
-      type="button"
-      disabled={
-        submissionActionLoading === item.id
-      }
-      onClick={async () => {
-  setSubmissionActionLoading(item.id);
+                      <div>
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#A78312]">
+                          Status
+                        </div>
 
-  try {
-    const response = await fetch(
-      "/api/email/pending-payment",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          enrollmentId: item.id,
-        }),
-      }
-    );
+                        <div className="mt-1 text-sm font-semibold text-[#10213A]">
+                          {item.status === "Completed"
+                            ? "Completed"
+                            : item.is_reenrolment
+                              ? item.submission_status ?? item.status
+                              : item.status}
+                        </div>
+                      </div>
+                    </div>
 
-    const result = await response.json();
+                    {item.is_reenrolment &&
+                      item.submission_id &&
+                      item.submission_status === "Submitted" &&
+                      item.payment_status !== "Paid" ? (
+                      <div className="mt-4 flex flex-col gap-2">
+                        <button
+                          type="button"
+                          disabled={
+                            submissionActionLoading ===
+                            item.submission_id
+                          }
+                          onClick={() => {
+                            const submission =
+                              submissions.find(
+                                (submissionItem) =>
+                                  submissionItem.id ===
+                                  item.submission_id
+                              );
 
-    if (!response.ok) {
-      throw new Error(
-        result?.error ??
-          "Unable to send the payment reminder email."
-      );
-    }
+                            if (submission) {
+                              void handleCompleteSubmission(
+                                submission
+                              );
+                            }
+                          }}
+                          className="min-h-[44px] w-full rounded-xl bg-[#10213A] px-4 text-sm font-semibold text-white disabled:opacity-50"
+                        >
+                          {submissionActionLoading ===
+                            item.submission_id
+                            ? "Processing..."
+                            : "Payment Received"}
+                        </button>
 
-    showPopup(
-      "Payment Reminder Sent",
-      "The payment reminder email has been sent. No payment or enrolment status has been changed.",
-      "success"
-    );
-  } catch (error: any) {
-    console.error(
-      "REGULAR ENROLMENT PAYMENT REMINDER ERROR:",
-      error
-    );
+                        <button
+                          type="button"
+                          disabled={
+                            submissionActionLoading ===
+                            item.submission_id
+                          }
+                          onClick={() => {
+                            const submission =
+                              submissions.find(
+                                (submissionItem) =>
+                                  submissionItem.id ===
+                                  item.submission_id
+                              );
 
-    showPopup(
-      "Payment Reminder Failed",
-      error?.message ??
-        "Unable to send the payment reminder email.",
-      "error"
-    );
-  } finally {
-    setSubmissionActionLoading(null);
-  }
-}}
-      className="whitespace-nowrap text-xs font-semibold text-[#64748B] hover:text-[#10213A] disabled:opacity-50"
-    >
-      Mark Payment Pending
-    </button>
-        <button
-      type="button"
-      onClick={() => openSpecialRequestEditor(item)}
-      className="whitespace-nowrap text-xs font-semibold text-[#10213A] hover:text-[#D4AF37]"
-    >
-      Edit SR
-    </button>
-  </div>
-) : item.payment_status === "Paid" ? (
-  <button
-    type="button"
-    onClick={() => openSpecialRequestEditor(item)}
-    className="whitespace-nowrap text-xs font-semibold text-[#10213A] hover:text-[#D4AF37]"
-  >
-    Edit SR
-  </button>
-) : (
-                  <span className="text-xs text-[#94A3B8]">
-                    —
-                  </span>
-                )}
-              </td>
-            </tr>
-          ))
-        )}
-      </tbody>
-    </table>
-  </div>
+                            if (submission) {
+                              void handlePaymentStatus(
+                                submission,
+                                "Pending"
+                              );
+                            }
+                          }}
+                          className="min-h-[44px] w-full rounded-xl border border-[#D9E0E8] bg-white px-4 text-sm font-semibold text-[#10213A] disabled:opacity-50"
+                        >
+                          Mark Payment Pending
+                        </button>
 
-  {/* Mobile */}
-  <div className="max-h-[720px] space-y-3 overflow-y-auto p-4 md:hidden">
-    {filteredEnrollmentRows.length === 0 ? (
-      <div className="rounded-xl border border-[#E5EAF0] p-5 text-center text-sm text-[#64748B]">
-        No enrolments found.
-      </div>
-    ) : (
-      filteredEnrollmentRows.map((item) => (
-        <div
-          key={item.id}
-          className="rounded-xl border border-[#E5EAF0] bg-white p-4"
-        >
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <div className="text-base font-semibold text-[#10213A]">
-                {item.student_name}
-              </div>
+                        <button
+                          type="button"
+                          onClick={() => openSpecialRequestEditor(item)}
+                          className="min-h-[44px] w-full rounded-xl border border-[#D9E0E8] bg-white px-4 text-sm font-semibold text-[#10213A] hover:border-[#D4AF37] hover:text-[#A78312]"
+                        >
+                          Edit SR
+                        </button>
+                      </div>
+                    ) : !item.is_reenrolment &&
+                      item.payment_status !== "Paid" ? (
+                      <div className="mt-4 flex flex-col gap-2">
+                        <button
+                          type="button"
+                          disabled={
+                            submissionActionLoading === item.id
+                          }
+                          onClick={() => {
+                            void handleNewEnrollmentPayment(item);
+                          }}
+                          className="min-h-[44px] w-full rounded-xl bg-[#10213A] px-4 text-sm font-semibold text-white disabled:opacity-50"
+                        >
+                          {submissionActionLoading === item.id
+                            ? "Processing..."
+                            : "Payment Received"}
+                        </button>
 
-              <div className="mt-1 text-xs text-[#64748B]">
-                {item.is_reenrolment
-                  ? "Re-enrolment"
-                  : "New Enrolment"}{" "}
-                · {item.academic_year} · T{item.term}
-              </div>
+                        <button
+                          type="button"
+                          disabled={
+                            submissionActionLoading === item.id
+                          }
+                          onClick={async () => {
+                            setSubmissionActionLoading(item.id);
+
+                            try {
+                              const response = await fetch(
+                                "/api/email/pending-payment",
+                                {
+                                  method: "POST",
+                                  headers: {
+                                    "Content-Type": "application/json",
+                                  },
+                                  body: JSON.stringify({
+                                    enrollmentId: item.id,
+                                  }),
+                                }
+                              );
+
+                              const result = await response.json();
+
+                              if (!response.ok) {
+                                throw new Error(
+                                  result?.error ??
+                                  "Unable to send the payment reminder email."
+                                );
+                              }
+
+                              showPopup(
+                                "Payment Reminder Sent",
+                                "The payment reminder email has been sent. No payment or enrolment status has been changed.",
+                                "success"
+                              );
+                            } catch (error: any) {
+                              console.error(
+                                "REGULAR ENROLMENT PAYMENT REMINDER ERROR:",
+                                error
+                              );
+
+                              showPopup(
+                                "Payment Reminder Failed",
+                                error?.message ??
+                                "Unable to send the payment reminder email.",
+                                "error"
+                              );
+                            } finally {
+                              setSubmissionActionLoading(null);
+                            }
+                          }}
+                          className="min-h-[44px] w-full rounded-xl border border-[#D9E0E8] bg-white px-4 text-sm font-semibold text-[#10213A] disabled:opacity-50"
+                        >
+                          Mark Payment Pending
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => openSpecialRequestEditor(item)}
+                          className="min-h-[44px] w-full rounded-xl border border-[#D9E0E8] bg-white px-4 text-sm font-semibold text-[#10213A] hover:border-[#D4AF37] hover:text-[#A78312]"
+                        >
+                          Edit SR
+                        </button>
+                      </div>
+                    ) : item.payment_status === "Paid" ? (
+                      <div className="mt-4 flex flex-col gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openSpecialRequestEditor(item)}
+                          className="min-h-[44px] w-full rounded-xl border border-[#D9E0E8] bg-white px-4 text-sm font-semibold text-[#10213A] hover:border-[#D4AF37] hover:text-[#A78312]"
+                        >
+                          Edit SR
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                ))
+              )}
             </div>
-
-            <span
-              className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                item.payment_status === "Paid"
-                  ? "bg-green-50 text-green-700"
-                  : "bg-amber-50 text-amber-700"
-              }`}
-            >
-              {item.payment_status}
-            </span>
-          </div>
-
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#A78312]">
-                Last Term
-              </div>
-
-              <div className="mt-1 text-sm text-[#475569]">
-                {item.last_term_class_name}
-              </div>
-            </div>
-
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#A78312]">
-                Current Term
-              </div>
-
-              <div className="mt-1 text-sm font-semibold text-[#10213A]">
-                {item.current_term_class_name}
-              </div>
-            </div>
-
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#A78312]">
-                Amount
-              </div>
-
-              <div className="mt-1 text-sm font-semibold text-[#10213A]">
-                {item.amount_payable == null
-                  ? "—"
-                  : `$${Number(
-                      item.amount_payable
-                    ).toFixed(2)}`}
-              </div>
-            </div>
-
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#A78312]">
-                Status
-              </div>
-
-              <div className="mt-1 text-sm font-semibold text-[#10213A]">
-                {item.status === "Completed"
-                  ? "Completed"
-                  : item.is_reenrolment
-                    ? item.submission_status ?? item.status
-                    : item.status}
-              </div>
-            </div>
-          </div>
-
-        {item.is_reenrolment &&
-  item.submission_id &&
-  item.submission_status === "Submitted" &&
-  item.payment_status !== "Paid" ? (
-  <div className="mt-4 flex flex-col gap-2">
-    <button
-      type="button"
-      disabled={
-        submissionActionLoading ===
-        item.submission_id
-      }
-      onClick={() => {
-        const submission =
-          submissions.find(
-            (submissionItem) =>
-              submissionItem.id ===
-              item.submission_id
-          );
-
-        if (submission) {
-          void handleCompleteSubmission(
-            submission
-          );
-        }
-      }}
-      className="min-h-[44px] w-full rounded-xl bg-[#10213A] px-4 text-sm font-semibold text-white disabled:opacity-50"
-    >
-      {submissionActionLoading ===
-      item.submission_id
-        ? "Processing..."
-        : "Payment Received"}
-    </button>
-
-    <button
-      type="button"
-      disabled={
-        submissionActionLoading ===
-        item.submission_id
-      }
-      onClick={() => {
-        const submission =
-          submissions.find(
-            (submissionItem) =>
-              submissionItem.id ===
-              item.submission_id
-          );
-
-        if (submission) {
-          void handlePaymentStatus(
-            submission,
-            "Pending"
-          );
-        }
-      }}
-      className="min-h-[44px] w-full rounded-xl border border-[#D9E0E8] bg-white px-4 text-sm font-semibold text-[#10213A] disabled:opacity-50"
-    >
-      Mark Payment Pending
-        </button>
-
-    <button
-      type="button"
-      onClick={() => openSpecialRequestEditor(item)}
-      className="min-h-[44px] w-full rounded-xl border border-[#D9E0E8] bg-white px-4 text-sm font-semibold text-[#10213A] hover:border-[#D4AF37] hover:text-[#A78312]"
-    >
-      Edit SR
-    </button>
-  </div>
-) : !item.is_reenrolment &&
-  item.payment_status !== "Paid" ? (
-  <div className="mt-4 flex flex-col gap-2">
-    <button
-      type="button"
-      disabled={
-        submissionActionLoading === item.id
-      }
-      onClick={() => {
-        void handleNewEnrollmentPayment(item);
-      }}
-      className="min-h-[44px] w-full rounded-xl bg-[#10213A] px-4 text-sm font-semibold text-white disabled:opacity-50"
-    >
-      {submissionActionLoading === item.id
-        ? "Processing..."
-        : "Payment Received"}
-    </button>
-
-    <button
-      type="button"
-      disabled={
-        submissionActionLoading === item.id
-      }
-      onClick={async () => {
-  setSubmissionActionLoading(item.id);
-
-  try {
-    const response = await fetch(
-      "/api/email/pending-payment",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          enrollmentId: item.id,
-        }),
-      }
-    );
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      throw new Error(
-        result?.error ??
-          "Unable to send the payment reminder email."
-      );
-    }
-
-    showPopup(
-      "Payment Reminder Sent",
-      "The payment reminder email has been sent. No payment or enrolment status has been changed.",
-      "success"
-    );
-  } catch (error: any) {
-    console.error(
-      "REGULAR ENROLMENT PAYMENT REMINDER ERROR:",
-      error
-    );
-
-    showPopup(
-      "Payment Reminder Failed",
-      error?.message ??
-        "Unable to send the payment reminder email.",
-      "error"
-    );
-  } finally {
-    setSubmissionActionLoading(null);
-  }
-}}
-      className="min-h-[44px] w-full rounded-xl border border-[#D9E0E8] bg-white px-4 text-sm font-semibold text-[#10213A] disabled:opacity-50"
-    >
-            Mark Payment Pending
-    </button>
-
-    <button
-      type="button"
-      onClick={() => openSpecialRequestEditor(item)}
-      className="min-h-[44px] w-full rounded-xl border border-[#D9E0E8] bg-white px-4 text-sm font-semibold text-[#10213A] hover:border-[#D4AF37] hover:text-[#A78312]"
-    >
-      Edit SR
-    </button>
-  </div>
-) : item.payment_status === "Paid" ? (
-  <div className="mt-4 flex flex-col gap-2">
-    <button
-      type="button"
-      onClick={() => openSpecialRequestEditor(item)}
-      className="min-h-[44px] w-full rounded-xl border border-[#D9E0E8] bg-white px-4 text-sm font-semibold text-[#10213A] hover:border-[#D4AF37] hover:text-[#A78312]"
-    >
-      Edit SR
-    </button>
-  </div>
-) : null}
-        </div>
-      ))
-    )}
-  </div>
-</section>
+          </section>
 
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
             <section className="lg:col-span-1">
@@ -2597,11 +2304,10 @@ async function handleSaveSpecialRequest() {
                                 onClick={() =>
                                   handleStudentChange(item.student_id)
                                 }
-                                className={`block w-full border-b border-[#F0F2F5] px-4 py-3 text-left last:border-b-0 hover:bg-[#FFFDF5] ${
-                                  item.student_id === form.student_id
-                                    ? "bg-[#FFF8DD]"
-                                    : ""
-                                }`}
+                                className={`block w-full border-b border-[#F0F2F5] px-4 py-3 text-left last:border-b-0 hover:bg-[#FFFDF5] ${item.student_id === form.student_id
+                                  ? "bg-[#FFF8DD]"
+                                  : ""
+                                  }`}
                               >
                                 <div className="text-sm font-semibold text-[#10213A]">
                                   {item.student_name}
@@ -2646,11 +2352,11 @@ async function handleSaveSpecialRequest() {
                           campusMap
                         ) || "Select Recommended Class"}
                         {form.recommended_class_id &&
-                        classMap.get(form.recommended_class_id)?.start_time
+                          classMap.get(form.recommended_class_id)?.start_time
                           ? ` | ${formatTime(
-                              classMap.get(form.recommended_class_id)
-                                ?.start_time ?? null
-                            )}`
+                            classMap.get(form.recommended_class_id)
+                              ?.start_time ?? null
+                          )}`
                           : ""}
                       </span>
                       <span className="ml-3 shrink-0 text-[#64748B]">
@@ -2684,9 +2390,8 @@ async function handleSaveSpecialRequest() {
                                 setTargetSearchTerm("");
                                 setTargetPickerOpen(false);
                               }}
-                              className={`block w-full border-b border-[#F0F2F5] px-4 py-3 text-left hover:bg-[#FFFDF5] ${
-                                !form.recommended_class_id ? "bg-[#FFF8DD]" : ""
-                              }`}
+                              className={`block w-full border-b border-[#F0F2F5] px-4 py-3 text-left hover:bg-[#FFFDF5] ${!form.recommended_class_id ? "bg-[#FFF8DD]" : ""
+                                }`}
                             >
                               <div className="text-sm font-semibold text-[#10213A]">
                                 —
@@ -2714,11 +2419,10 @@ async function handleSaveSpecialRequest() {
                                   setTargetSearchTerm("");
                                   setTargetPickerOpen(false);
                                 }}
-                                className={`block w-full border-b border-[#F0F2F5] px-4 py-3 text-left last:border-b-0 hover:bg-[#FFFDF5] ${
-                                  item.id === form.recommended_class_id
-                                    ? "bg-[#FFF8DD]"
-                                    : ""
-                                }`}
+                                className={`block w-full border-b border-[#F0F2F5] px-4 py-3 text-left last:border-b-0 hover:bg-[#FFFDF5] ${item.id === form.recommended_class_id
+                                  ? "bg-[#FFF8DD]"
+                                  : ""
+                                  }`}
                               >
                                 <div className="text-sm font-semibold text-[#10213A]">
                                   {buildClassName(item, campusMap)}
@@ -2936,7 +2640,7 @@ async function handleSaveSpecialRequest() {
         </div>
       </main>
 
-            {editingSpecialRequest && (
+      {editingSpecialRequest && (
         <div
           className="fixed inset-0 z-[90] flex items-center justify-center bg-[#07172B]/60 px-4 py-6 backdrop-blur-[2px]"
           onClick={() => setEditingSpecialRequest(null)}
