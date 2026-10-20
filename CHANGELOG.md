@@ -1,3 +1,25 @@
+## 2026-10-21 — Re-enrolment Term Reset & Manual Make-up Credit Recognition
+
+### Implementation / Changes
+- Updated `public.admin_complete_reenrolment_payment(uuid)` in Supabase.
+- Added recognition of explicitly tagged manual Term 3 credits using the reason `adjusted by admin - 2026 Term 3`.
+- Updated Make-up Credit redemption eligibility so the tagged 2026 Term 3 manual credits can be redeemed during Term 4 re-enrolment.
+- Preserved the Brisbane-time term boundary based on the selected class's actual first lesson start.
+- Preserved the existing tuition-credit, enrolment-payment, submission-completion, and student-stage synchronisation logic.
+- Retained the rule that term-reset cleanup runs only as part of successful re-enrolment payment processing.
+- Preserved new-term credits and unclassified credits without reliable lesson links; Booked and Used credits remain unaffected.
+
+### Verification
+- Confirmed the updated database function contains the manual Term 3 recognition rule, term boundary, cleanup rule, and payment-completion logic.
+- Confirmed the two manually adjusted credits are each `1` credit, remain `Available`, and carry the expected Term 3 marker.
+- Confirmed the pending 2026 Term 4 re-enrolment submission records `2` credits and the function's expected redemption count is `2`.
+- Static verification: **PASS**.
+
+### Outstanding / UAT
+- Runtime payment UAT: **PENDING**.
+- Still required: safely verify successful payment, old-term credit cleanup, new-term credit preservation, and rollback behaviour if payment processing fails.
+- Do not mark the full payment workflow as UAT PASS until runtime tests are completed.
+
 
 ## 2026-10-20 — DATABASE FUNCTION UPDATE / RUNTIME UAT PENDING: Re-enrolment Make-up Credit Redemption and Term Reset
 
