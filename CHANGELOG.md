@@ -20,6 +20,27 @@
 - Still required: safely verify successful payment, old-term credit cleanup, new-term credit preservation, and rollback behaviour if payment processing fails.
 - Do not mark the full payment workflow as UAT PASS until runtime tests are completed.
 
+### Admin Reports — Make-up Credit Report
+
+**Implementation / Changes**
+- Added the Admin Reports overview page at `/admin/reports`.
+- Added a dedicated Make-up Credit Report page at `/admin/reports/makeup-credits`.
+- Added credit summary cards, data checks, record search, status filters and CSV export.
+- Added mobile-first credit record cards while retaining the full desktop table.
+- Removed student UUIDs from the visible student name area.
+- Standardised the Reports page container width and responsive page spacing to match the Make-up Credit Report.
+- Preserved existing Supabase read queries and credit-report business logic.
+
+**Validation**
+- `npm run build` passed after the Reports page split, layout adjustments and mobile card implementation.
+- Verified that both Reports pages open successfully.
+- Confirmed the mobile card and desktop table layouts display as intended.
+
+**Scope / Notes**
+- Reports are currently read-only.
+- Payment, Student and Enrolment Reports are placeholders for future implementation.
+- No database schema or credit business rules were changed as part of this UI work.
+
 
 ## 2026-10-20 — DATABASE FUNCTION UPDATE / RUNTIME UAT PENDING: Re-enrolment Make-up Credit Redemption and Term Reset
 
