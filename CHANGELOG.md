@@ -1,3 +1,27 @@
+## 2026-10-20 — IMPLEMENTATION COMPLETE / RUNTIME UAT PENDING: Admin Refresh Re-enrolment Payment Amount
+
+### Changes
+- Added the Admin Refresh Payment Amount action for re-enrolment submissions with `Submitted` status and `Pending` payment status.
+- Added `POST /api/admin/reenrolment/refresh-payment-amount` with Supabase session validation, administrator role verification, submission ID validation, and database RPC error handling.
+- Updated the existing `admin_refresh_reenrolment_payment_amount(uuid)` database function to calculate Make-up Credit redemption using `LEAST(available credits, 2) × current class single-lesson fee`, matching the existing Parent calculation rule.
+- Synchronized recalculated amounts to `re_enrolment_submissions` and the matching `student_enrolments` record.
+- Preserved the existing payment status. The refresh function does not send emails, consume or delete Make-up Credit records, or change Tuition Credit or Additional Payment statuses.
+- Left the existing Parent Re-enrolment calculation and Parent Tuition page code unchanged.
+
+### Validation
+- PASS — Database function replacement completed successfully in Supabase.
+- PASS — Database function definition verified: the corrected calculation exists and the old `LIMIT v_redeem_count` calculation is absent.
+- PASS — `npx tsc --noEmit`.
+- PASS — `npm run build`.
+- PENDING — Runtime UAT of the Admin refresh action, database amount synchronization, and Parent Tuition page display.
+- PENDING — End-to-end verification using a suitable test submission.
+
+### Scope and Safety
+- No changes made to `admin_complete_reenrolment_payment`.
+- No payment completion, email sending, or Make-up Credit consumption triggered by the function replacement itself.
+- Existing payment and adjustment statuses remain subject to their original business workflows.
+
+
 ### 19 October 2026 ### Fixed — Make-up Booking Credit Eligibility
 
 - **Parent Make-up Booking:** Updated available Make-up Credit queries to exclude records where `credits` is zero or less.

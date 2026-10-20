@@ -975,11 +975,13 @@ async function loadEligibleStudents() {
     error: creditError,
   } = await supabase
     .from("makeup_credits")
-    .select(`
-      id,
-      student_id
-    `)
-    .eq("status", "Available");
+.select(`
+  id,
+  student_id,
+  credits
+`)
+.eq("status", "Available")
+.gt("credits", 0);
 
   if (creditError) {
     throw creditError;

@@ -530,6 +530,7 @@ async function handleBookingComplete(
         )
       `)
       .eq("status", "Available")
+      .gt("credits", 0)
       .order("created_at");
 
     if (error) {

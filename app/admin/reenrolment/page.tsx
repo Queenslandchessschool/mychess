@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -159,7 +159,7 @@ export default function ReenrolmentPage() {
     useState<EnrollmentRow[]>([]);
   const [submissionSearchTerm, setSubmissionSearchTerm] = useState("");
   const [submissionActionLoading, setSubmissionActionLoading] = useState<string | null>(null);
-
+  const [refreshPaymentAmountLoading, setRefreshPaymentAmountLoading] = useState<string | null>(null);
   const [editingSpecialRequest, setEditingSpecialRequest] =
     useState<EnrollmentRow | null>(null);
 
@@ -1185,7 +1185,7 @@ students:student_id (
 
       showPopup(
         emailWarning
-          ? "Payment Completed â€” Email Warning"
+          ? "Payment Completed — Email Warning"
           : "Payment Received",
         emailWarning
           ? `The payment transaction completed successfully, and the Re-enrolment is now Completed. However, the confirmation email could not be sent: ${emailWarning}`
@@ -1228,7 +1228,160 @@ students:student_id (
       setSubmissionActionLoading(null);
     }
   }
-  function handleAcademicYearChange(value: string) {
+  async function handleRefreshPaymentAmount(
+    submission: ReEnrolmentSubmission
+  ) {
+    if (submissionActionLoading || refreshPaymentAmountLoading) return;
+
+    const currentUser = await getCurrentUser();
+
+    if (!currentUser || currentUser.role !== "admin") {
+      showPopup("Access Required", "Admin access is required.", "error");
+      return;
+    }
+
+    if (
+      submission.status !== "Submitted" ||
+      submission.payment_status !== "Pending"
+    ) {
+      showPopup(
+        "Refresh Not Available",
+        "Only Submitted re-enrolments with Pending payment can be refreshed.",
+        "info"
+      );
+      return;
+    }
+
+    setRefreshPaymentAmountLoading(submission.id);
+
+    try {
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError || !session?.access_token) {
+        throw new Error("Your session has expired. Please sign in again.");
+      }
+
+      const response = await fetch(
+        "/api/admin/reenrolment/refresh-payment-amount",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            submissionId: submission.id,
+          }),
+          cache: "no-store",
+        }
+      );
+
+      let result: {
+        success?: boolean;
+        error?: string;
+        availableMakeupCredits?: number;
+        redeemAmount?: number;
+        standardTuition?: number;
+        amountPayable?: number;
+      };
+
+      try {
+        result = await response.json();
+      } catch {
+        throw new Error("The server returned an unreadable response.");
+      }
+
+      if (!response.ok || result.success !== true) {
+        throw new Error(
+          result.error ?? "Unable to refresh the payment amount."
+        );
+      }
+
+      const availableMakeupCredits = Number(
+        result.availableMakeupCredits
+      );
+      const redeemAmount = Number(result.redeemAmount);
+      const standardTuition = Number(result.standardTuition);
+      const amountPayable = Number(result.amountPayable);
+
+      if (
+        !Number.isFinite(availableMakeupCredits) ||
+        !Number.isFinite(redeemAmount) ||
+        !Number.isFinite(standardTuition) ||
+        !Number.isFinite(amountPayable)
+      ) {
+        throw new Error(
+          "The server response did not contain valid refreshed amounts. Reload the page to verify the saved records."
+        );
+      }
+
+      setSubmissions((previous) =>
+        previous.map((item) =>
+          item.id === submission.id
+            ? {
+                ...item,
+                available_makeup_credits: availableMakeupCredits,
+                redeem_amount: redeemAmount,
+                standard_tuition: standardTuition,
+                amount_payable: amountPayable,
+              }
+            : item
+        )
+      );
+
+      setEnrollmentRows((previous) =>
+        previous.map((item) =>
+          item.submission_id === submission.id
+            ? {
+                ...item,
+                redeem_amount: redeemAmount,
+                standard_tuition: standardTuition,
+                amount_payable: amountPayable,
+              }
+            : item
+        )
+      );
+
+      setEnrolments((previous) =>
+        previous.map((item) =>
+          item.student_id === submission.student_id &&
+          item.academic_year === submission.academic_year &&
+          item.term === submission.term &&
+          item.class_id === submission.selected_class_id
+            ? {
+                ...item,
+                redeem_amount: redeemAmount,
+                standard_tuition: standardTuition,
+                amount_payable: amountPayable,
+              }
+            : item
+        )
+      );
+
+      showPopup(
+        "Payment Amount Refreshed",
+        `The payment amount has been refreshed successfully. Updated amount payable: $${amountPayable.toFixed(2)}. Payment remains Pending; no email was sent.`,
+        "success"
+      );
+    } catch (error: unknown) {
+      console.error("REFRESH RE-ENROLMENT PAYMENT AMOUNT ERROR:", error);
+
+      showPopup(
+        "Refresh Failed",
+        error instanceof Error
+          ? error.message
+          : "Unable to refresh the payment amount.",
+        "error"
+      );
+    } finally {
+      setRefreshPaymentAmountLoading(null);
+    }
+  }
+
+function handleAcademicYearChange(value: string) {
     setForm((previous) => ({
       ...previous,
       academic_year: value,
@@ -1815,8 +1968,31 @@ students:student_id (
                                   ? "Processing..."
                                   : "Payment Received"}
                               </button>
+{item.submission_status === "Submitted" &&
+  item.payment_status === "Pending" && (
+    <button
+      type="button"
+      disabled={
+        refreshPaymentAmountLoading === item.submission_id ||
+        submissionActionLoading === item.submission_id
+      }
+  onClick={() => {
+    const submission = submissions.find(
+      (submissionItem) =>
+        submissionItem.id === item.submission_id
+    );
 
-                              <button
+    if (submission) {
+      void handleRefreshPaymentAmount(submission);
+    }
+  }}
+  className="rounded-lg border border-[#D4AF37] bg-[#FFF9E8] px-3 py-2 text-xs font-semibold text-[#10213A] hover:bg-[#FBEFC8] disabled:opacity-50"
+>
+  {refreshPaymentAmountLoading === item.submission_id
+    ? "Refreshing..."
+    : "Refresh Amount"}
+</button>  )}
+<button
                                 type="button"
                                 disabled={
                                   submissionActionLoading ===
@@ -2070,6 +2246,38 @@ students:student_id (
                             ? "Processing..."
                             : "Payment Received"}
                         </button>
+
+                        {item.submission_status === "Submitted" &&
+                          item.payment_status === "Pending" && (
+                            <button
+                              type="button"
+                              disabled={
+                                refreshPaymentAmountLoading ===
+                                  item.submission_id ||
+                                submissionActionLoading ===
+                                  item.submission_id
+                              }
+                              onClick={() => {
+                                const submission = submissions.find(
+                                  (submissionItem) =>
+                                    submissionItem.id ===
+                                    item.submission_id
+                                );
+
+                                if (submission) {
+                                  void handleRefreshPaymentAmount(
+                                    submission
+                                  );
+                                }
+                              }}
+                              className="min-h-[44px] w-full rounded-xl border border-[#D4AF37] bg-[#FFF9E8] px-4 text-sm font-semibold text-[#10213A] hover:bg-[#FBEFC8] disabled:opacity-50"
+                            >
+                              {refreshPaymentAmountLoading ===
+                              item.submission_id
+                                ? "Refreshing..."
+                                : "Refresh Amount"}
+                            </button>
+                          )}
 
                         <button
                           type="button"
@@ -2892,3 +3100,4 @@ students:student_id (
     </>
   );
 }
+

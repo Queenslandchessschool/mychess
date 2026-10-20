@@ -355,12 +355,15 @@ export default function ParentMakeupCreditPage() {
         studentId
     );
   }
-
-  const studentsWithCredits = useMemo(
+const studentsWithCredits = useMemo(
   () =>
-    familyStudents.filter(
-      (student) =>
-        getCreditsForStudent(student.student.id).length > 0
+    familyStudents.filter((student) =>
+      credits.some(
+        (credit) =>
+          credit.student_id === student.student.id &&
+          credit.status === "Available" &&
+          Number(credit.credits ?? 0) > 0
+      )
     ),
   [familyStudents, credits]
 );
@@ -375,8 +378,8 @@ export default function ParentMakeupCreditPage() {
         credits
           .filter(
             (credit) =>
-              credit.status ===
-              "Available"
+              credit.status === "Available" &&
+              Number(credit.credits ?? 0) > 0
           )
           .reduce(
             (total, credit) =>
@@ -815,18 +818,20 @@ if (loading) {
 
             </div>
 
-            <p
-              className="
-                text-xs
-                text-[#8FA4BE]
-                sm:text-sm
-              "
-            >
-              {studentsWithCredits.length}{" "}
-{studentsWithCredits.length === 1
-  ? "child"
-  : "children"}
-            </p>
+            {studentsWithCredits.length > 0 && (
+              <p
+                className="
+                  text-xs
+                  text-[#8FA4BE]
+                  sm:text-sm
+                "
+              >
+                {studentsWithCredits.length}{" "}
+                {studentsWithCredits.length === 1
+                  ? "Child"
+                  : "Children"}
+              </p>
+            )}
 
           </div>
 
@@ -845,13 +850,11 @@ if (loading) {
                   getCreditsForStudent(
                     student.id
                   );
-
-                const availableCredits =
-                  studentCredits.filter(
-                    (credit) =>
-                      credit.status ===
-                      "Available"
-                  );
+const availableCredits = studentCredits.filter(
+  (credit) =>
+    credit.status === "Available" &&
+    Number(credit.credits ?? 0) > 0
+);
 
                 const usedCredits =
                   studentCredits.filter(
