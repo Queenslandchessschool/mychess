@@ -1,3 +1,62 @@
+
+## 2026-10-20 — DATABASE FUNCTION UPDATE / RUNTIME UAT PENDING: Re-enrolment Make-up Credit Redemption and Term Reset
+
+### Implementation
+- Updated `public.admin_complete_reenrolment_payment(uuid)` in Supabase.
+- Redemption selects individual Make-up Credit records with `status = 'Available'` and `credits = 1`, up to the submitted redemption count, capped at two.
+- If the required number of eligible records is unavailable, the transaction raises an exception rather than silently consuming an inconsistent number of credits.
+- After successful re-enrolment processing, Term Reset deletes all remaining `Available` Make-up Credit records belonging to that student.
+- `Booked` and historical `Used` records are preserved by the Term Reset deletion condition.
+- Students who have not completed re-enrolment are not affected by this transaction function.
+- Existing payment status checks, Tuition Credit handling, formal Enrollment update, submission completion, student stage synchronisation, and transactional rollback behaviour are retained.
+
+### Verification
+- Confirmed the installed function definition through `pg_get_functiondef`.
+- Static SQL checks passed:
+  - Redemption filter `credits = 1`: PASS.
+  - Available status filter: PASS.
+  - `clearedAvailableCredits` result field: PASS.
+- Read-only data inspection found 10 `Available` records with `credits = 0` and 19 `Available` records with `credits = 1`.
+- No `Available` records with `credits > 1` were found during inspection.
+
+### Outstanding
+- Runtime UAT: PENDING.
+- End-to-end payment transaction, credit redemption, Term Reset, rollback, and email follow-up behaviour have not been validated by this static inspection.
+- Do not use confirmed real student payments as test transactions.
+
+## 2026-10-20 — DATABASE FUNCTION UPDATE / RUNTIME UAT PENDING: Admin Refresh Re-enrolment Payment Amount
+
+**Status:** Database function updated in Supabase; Runtime UAT remains PENDING.
+
+### Database Function Update
+- Updated `admin_refresh_reenrolment_payment_amount(uuid)` directly in the Supabase SQL Editor.
+- Extended the refresh calculation to include eligible pending **Tuition Credit** and **Additional Payment** adjustments.
+- `standard_tuition` continues to use the saved value in `re_enrolment_submissions`; it is not recalculated by the refresh function.
+- Make-up Credit redemption remains capped at 2 credits and uses the current class's single-lesson fee.
+- The payable amount is calculated as:
+
+  `GREATEST(0, standard_tuition - redeem_amount - tuition_credit_applied + pending_additional_payment)`
+
+### Data Integrity and Business Rules
+- Eligible Make-up Credits must have `status = 'Available'` and `credits > 0`.
+- Tuition Credit adjustments must be Pending with a negative adjustment amount.
+- Additional Payment adjustments must be Pending with a positive adjustment amount.
+- The refresh updates the relevant payment amount fields in `re_enrolment_submissions` and the matching `student_enrolments` record.
+- Payment status is preserved.
+- Adjustment statuses and Make-up Credit balances are not consumed, deleted, or reset by this refresh.
+- No email is sent by the refresh operation.
+- The existing `admin_complete_reenrolment_payment` workflow remains unchanged.
+- Runtime UAT has not been performed on a suitable test submission.
+
+### Verification
+- Supabase reported successful execution of the updated function definition.
+- The installed function definition was queried and checked after the update.
+- **PENDING:** Runtime UAT of the Admin refresh action and synchronized payment amounts.
+- **PENDING:** End-to-end verification using a suitable test submission in a safe test environment.
+
+### UAT Constraint
+No separate staging/test environment or suitable test submission is currently available. Real production payment records must not be manipulated solely to complete this test. Keep Runtime UAT marked as PENDING until safe verification is possible.
+
 ## 2026-10-20 — IMPLEMENTATION COMPLETE / RUNTIME UAT PENDING: Admin Refresh Re-enrolment Payment Amount
 
 ### Changes
