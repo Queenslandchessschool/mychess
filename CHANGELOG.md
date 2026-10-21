@@ -1,11 +1,19 @@
-## ### 2026-10-21 — Authentication UI Improvements
+## 2026-10-21 — Parent User Manual in Latest News
+
+- **Added:** Added MyCHESS Parent User Manual V1.0 PDF to the Parent Dashboard Latest News section.
+- **Changed:** Highlighted the manual title in MyCHESS Gold.
+- **Added:** Published the manual at `/documents/parent-user-manual-v1.0.pdf`.
+- **Validation:** `git diff --check`, `npx tsc --noEmit`, and `npm run build` passed.
+- **Status:** Pending final commit, push, and Production deployment verification.
+
+## 2026-10-21 — Authentication UI Improvements
 
 - **Login:** Added a show/hide password control and improved mobile input sizing to reduce iOS Safari auto-zoom.
 - **Forgot Password:** Improved mobile email input sizing to reduce iOS Safari auto-zoom.
 - **Reset Password:** Added independent show/hide controls for both password fields and improved mobile input sizing.
 - Preserved the existing MyCHESS Navy/Gold styling and password authentication flows.
-
-**Status:** Pending final build verification and Production deployment.
+- **Validation:** TypeScript and production build checks passed.
+- **Status:** Production deployment reported Ready; mobile testing passed on all three pages.
 
 ## 2026-10-21 — Automatic Parent Account Provisioning for New Enrolments
 

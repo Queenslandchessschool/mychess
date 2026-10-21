@@ -1375,10 +1375,31 @@ export default function ParentDashboard() {
             </p>
           </div>
 
-          <div className="px-5 py-8 sm:px-7">
-            <p className="text-sm text-[#C8D2DF]">
-              No news available.
-            </p>
+          <div className="px-5 py-5 sm:px-7">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-base font-semibold text-[#D4AF37]">
+                  MyCHESS Parent User Manual V1.0
+                </p>
+                <p className="mt-1 text-sm leading-6 text-[#C8D2DF]">
+                  A practical guide to using MyCHESS, including attendance,
+                  Leave, make-up credits, make-up bookings and re-enrolment.
+                </p>
+                <p className="mt-2 text-xs text-[#AAB8CA]">
+                  Queensland Chess School · 21 October 2026 · PDF guide
+                </p>
+              </div>
+
+              <a
+                href="/documents/parent-user-manual-v1.0.pdf"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-[#D4AF37]/60 bg-[#D4AF37] px-4 py-3 text-sm font-semibold text-[#011029] transition-colors hover:bg-[#E5C65A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37] focus-visible:ring-offset-2 focus-visible:ring-offset-[#152F50]"
+              >
+                <span>View Parent User Manual</span>
+                <span aria-hidden="true">↗</span>
+              </a>
+            </div>
           </div>
         </section>
 
