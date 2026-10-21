@@ -9,6 +9,20 @@ const reports = [
     href: "/admin/reports/makeup-credits",
     status: "Available",
   },
+    {
+    title: "Attendance History",
+    description:
+      "Review historical attendance records and attendance-related information.",
+    href: "/admin/attendance-history",
+    status: "Available",
+  },
+  {
+    title: "Parent Account Management",
+    description:
+      "Review existing parent accounts and manage controlled batch account creation.",
+    href: "/admin/parent-accounts-check",
+    status: "Available",
+  },
   {
     title: "Payment Report",
     description:

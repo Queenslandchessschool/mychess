@@ -144,17 +144,6 @@ const navigationGroups = [
         icon: "ⓘ",
       },
       {
-  label: 
-"Attendance-History"
-,
-  href: 
-"/admin/attendance-history"
-,
-  icon: 
-"◷"
-,
-},
-      {
         label: "Settings",
         href: "/admin/settings",
         icon: "⚙",

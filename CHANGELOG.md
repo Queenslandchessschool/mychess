@@ -1,3 +1,21 @@
+## 2026-10-21 — Automatic Parent Account Provisioning for New Enrolments
+
+### Implementation / Changes
+- Added automatic parent Auth account provisioning after successful formal enrolment.
+- Set the initial password to `Mychess` plus the last four digits of the registered parent mobile number.
+- Assigned the `parent` role to newly created Auth accounts.
+- Skipped account creation for trial enrolments.
+- Preserved existing parent accounts without resetting their passwords.
+- Kept the existing enrolment confirmation email flow; no separate account notification email was added.
+- Added Admin-facing warning in the existing registration modal when automatic account provisioning fails.
+- Ensured account provisioning failures do not prevent the saved registration or confirmation email flow from continuing.
+
+### Validation / Status
+- `npx tsc --noEmit`: Passed.
+- `npm run build`: Passed.
+- `git diff --check`: Passed.
+- **Pending:** End-to-end verification with an actual formal enrolment, including parent login with the generated initial password and confirmation email delivery.
+
 ## 2026-10-21 — Re-enrolment Term Reset & Manual Make-up Credit Recognition
 
 ### Implementation / Changes

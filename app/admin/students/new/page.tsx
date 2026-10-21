@@ -1,6 +1,6 @@
 
 "use client";
-
+import { supabase } from "@/lib/supabase";
 import RegistrationForm from "@/components/registration/RegistrationForm";
 import { activateEnrollment } from "@/lib/registrationService";
 import { useState } from "react";
@@ -37,10 +37,65 @@ export default function NewStudentPage() {
 
       throw err;
     }
+    // Step 2: Automatically provision a parent account for formal enrolments.
+    // Account provisioning must never undo a saved registration or block its confirmation email.
+    const isTrial = Boolean(result.enrollment.is_trial);
+    let parentAccountFailed = false;
+
+    if (!isTrial) {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session) {
+          parentAccountFailed = true;
+        } else {
+          const provisionResponse = await fetch(
+            "/api/admin/parent-accounts/provision",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({
+                enrollmentId: result.enrollment.id,
+              }),
+            }
+          );
+
+          const provisionPayload = await provisionResponse
+            .json()
+            .catch(() => ({}));
+
+          if (
+            !provisionResponse.ok ||
+            !["CREATED", "EXISTING_PARENT_ACCOUNT"].includes(
+              provisionPayload.status
+            )
+          ) {
+            parentAccountFailed = true;
+            console.error(
+              "Parent account provisioning needs administrator review.",
+              {
+                enrollmentId: result.enrollment.id,
+                status: provisionPayload.status ?? "UNKNOWN",
+              }
+            );
+          }
+        }
+      } catch (accountError) {
+        parentAccountFailed = true;
+        console.error(
+          "Registration saved, but parent account provisioning failed:",
+          accountError
+        );
+      }
+    }
 
     // Step 2: Send the appropriate confirmation email.
     // The registration already exists at this point.
-    const isTrial = Boolean(result.enrollment.is_trial);
 
     const emailEndpoint = isTrial
       ? "/api/email/trial-confirmation"
@@ -70,9 +125,11 @@ export default function NewStudentPage() {
         title: isTrial
           ? "Trial Registration Successful"
           : "Registration Successful",
-        message: isTrial
-          ? "Your trial lesson registration has been submitted successfully.\n\nA trial lesson confirmation email has been sent to you.\n\nWe look forward to welcoming your family to Queensland Chess School."
-          : "Your registration has been submitted successfully.\n\nA confirmation email including your class details, tuition fees and payment instructions has been sent to you.\n\nYour place will be secured once payment has been received.\n\nWe look forward to welcoming your family to Queensland Chess School.",
+message: isTrial
+  ? "Your trial lesson registration has been submitted successfully.\n\nA trial lesson confirmation email has been sent to you.\n\nWe look forward to welcoming your family to Queensland Chess School."
+  : parentAccountFailed
+    ? "Your registration has been submitted successfully.\n\nA confirmation email has been sent to you.\n\nHowever, automatic parent account setup needs administrator review. Please do not submit the registration again."
+    : "Your registration has been submitted successfully.\n\nA confirmation email including your class details, tuition fees and payment instructions has been sent to you.\n\nYour place will be secured once payment has been received.\n\nWe look forward to welcoming your family to Queensland Chess School.",
       });
     } catch (err) {
       // The registration was created, but the email failed.
