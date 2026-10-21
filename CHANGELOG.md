@@ -1,3 +1,12 @@
+## ### 2026-10-21 — Authentication UI Improvements
+
+- **Login:** Added a show/hide password control and improved mobile input sizing to reduce iOS Safari auto-zoom.
+- **Forgot Password:** Improved mobile email input sizing to reduce iOS Safari auto-zoom.
+- **Reset Password:** Added independent show/hide controls for both password fields and improved mobile input sizing.
+- Preserved the existing MyCHESS Navy/Gold styling and password authentication flows.
+
+**Status:** Pending final build verification and Production deployment.
+
 ## 2026-10-21 — Automatic Parent Account Provisioning for New Enrolments
 
 ### Implementation / Changes

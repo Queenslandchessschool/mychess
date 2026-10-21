@@ -10,6 +10,7 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -264,17 +265,27 @@ export default function LoginPage() {
                   Password
                 </label>
 
-                <input
-                  id="login-password"
-                  type="password"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) =>
-                    setPassword(e.target.value)
-                  }
-                  autoComplete="current-password"
-                  className="w-full rounded-xl border border-[#C8D2DF]/30 bg-[#011029]/65 px-4 py-3 text-base sm:text-sm text-white outline-none transition duration-200 placeholder:text-[#C8D2DF]/45 focus:border-[#D4AF37] focus:bg-[#011029]/85 focus:shadow-[0_0_14px_rgba(212,175,55,0.12)]"
-                />
+                <div className="relative">
+                  <input
+                    id="login-password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) =>
+                      setPassword(e.target.value)
+                    }
+                    autoComplete="current-password"
+                    className="w-full rounded-xl border border-[#C8D2DF]/30 bg-[#011029]/65 py-3 pl-4 pr-12 text-base sm:text-sm text-white outline-none transition duration-200 placeholder:text-[#C8D2DF]/45 focus:border-[#D4AF37] focus:bg-[#011029]/85 focus:shadow-[0_0_14px_rgba(212,175,55,0.12)]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    className="absolute inset-y-0 right-3 flex items-center text-[#C8D2DF] hover:text-[#D4AF37]"
+                  >
+                    {showPassword ? "🙈" : "👁"}
+                  </button>
+                </div>
               </div>
 
               {/* ==================================================

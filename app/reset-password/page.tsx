@@ -9,6 +9,8 @@ export default function ResetPasswordPage() {
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
@@ -287,17 +289,28 @@ export default function ResetPasswordPage() {
                     New Password
                   </label>
 
-                  <input
-                    id="new-password"
-                    type="password"
-                    placeholder="Enter your new password"
-                    value={password}
-                    onChange={(e) =>
-                      setPassword(e.target.value)
-                    }
-                    autoComplete="new-password"
-                    className="w-full rounded-xl border border-[#C8D2DF]/30 bg-[#011029]/65 px-4 py-3 text-sm text-white outline-none transition duration-200 placeholder:text-[#C8D2DF]/45 focus:border-[#D4AF37] focus:bg-[#011029]/85 focus:shadow-[0_0_14px_rgba(212,175,55,0.12)]"
-                  />
+                  <div className="relative">
+                    <input
+                      id="new-password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Enter your new password"
+                      value={password}
+                      onChange={(e) =>
+                        setPassword(e.target.value)
+                      }
+                      autoComplete="new-password"
+                      className="w-full rounded-xl border border-[#C8D2DF]/30 bg-[#011029]/65 py-3 pl-4 pr-12 text-base sm:text-sm text-white outline-none transition duration-200 placeholder:text-[#C8D2DF]/45 focus:border-[#D4AF37] focus:bg-[#011029]/85 focus:shadow-[0_0_14px_rgba(212,175,55,0.12)]"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      className="absolute inset-y-0 right-3 flex items-center text-[#C8D2DF] hover:text-[#D4AF37]"
+                    >
+                      {showPassword ? "🙈" : "👁"}
+                    </button>
+                  </div>
                 </div>
 
                 {/* Confirm Password */}
@@ -309,17 +322,28 @@ export default function ResetPasswordPage() {
                     Confirm New Password
                   </label>
 
-                  <input
-                    id="confirm-password"
-                    type="password"
-                    placeholder="Confirm your new password"
-                    value={confirmPassword}
-                    onChange={(e) =>
-                      setConfirmPassword(e.target.value)
-                    }
-                    autoComplete="new-password"
-                    className="w-full rounded-xl border border-[#C8D2DF]/30 bg-[#011029]/65 px-4 py-3 text-sm text-white outline-none transition duration-200 placeholder:text-[#C8D2DF]/45 focus:border-[#D4AF37] focus:bg-[#011029]/85 focus:shadow-[0_0_14px_rgba(212,175,55,0.12)]"
-                  />
+                  <div className="relative">
+                    <input
+                      id="confirm-password"
+                      type={showConfirmPassword ? "text" : "password"}
+                      placeholder="Confirm your new password"
+                      value={confirmPassword}
+                      onChange={(e) =>
+                        setConfirmPassword(e.target.value)
+                      }
+                      autoComplete="new-password"
+                      className="w-full rounded-xl border border-[#C8D2DF]/30 bg-[#011029]/65 py-3 pl-4 pr-12 text-base sm:text-sm text-white outline-none transition duration-200 placeholder:text-[#C8D2DF]/45 focus:border-[#D4AF37] focus:bg-[#011029]/85 focus:shadow-[0_0_14px_rgba(212,175,55,0.12)]"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword((prev) => !prev)}
+                      aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                      className="absolute inset-y-0 right-3 flex items-center text-[#C8D2DF] hover:text-[#D4AF37]"
+                    >
+                      {showConfirmPassword ? "🙈" : "👁"}
+                    </button>
+                  </div>
                 </div>
 
                 {/* Reset Button */}
