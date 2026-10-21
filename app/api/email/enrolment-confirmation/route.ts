@@ -340,6 +340,7 @@ const medicalInformationSection = medicalInformation
   : "";
 
 const variables = {
+  "MyCHESS Login URL": "https://mychess.queenslandchessschool.com.au/",
   "Parent Name": String(parent.parent1_name ?? ""),
   "Student Name": studentName,
   "Enrolment Introduction": getEnrolmentIntroduction(enrolmentSource),
