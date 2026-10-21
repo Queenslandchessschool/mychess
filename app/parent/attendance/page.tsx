@@ -552,29 +552,35 @@ export default function ParentAttendancePage() {
                       visibleCount;
 
                     return (
-                      <section
-                        key={child.student_id}
-                        className="
-                          overflow-hidden
-                          rounded-xl
-                          border
-                          border-[#D9E0E8]
-                          bg-[#FFFDF8]
-                        "
-                      >
+  <section
+    key={child.student_id}
+    className="
+      max-h-[70vh]
+      overflow-y-auto
+      overscroll-contain
+      rounded-xl
+      border
+      border-[#D9E0E8]
+      bg-[#FFFDF8]
+    "
+  >
                         {/* ==========================================
                             Child Header
                             ========================================== */}
 
                         <div
-                          className="
-                            border-b
-                            border-[#D9E0E8]
-                            px-4
-                            py-4
-                            sm:px-5
-                          "
-                        >
+  className="
+    sticky
+    top-0
+    z-10
+    border-b
+    border-[#D9E0E8]
+    bg-[#FFFDF8]
+    px-4
+    py-4
+    sm:px-5
+  "
+>
                           <div
                             className="
                               flex
@@ -848,7 +854,8 @@ export default function ParentAttendancePage() {
                                           Attendance Status
                                           -------------------------------- */}
 
-                                      {record.attendance_status && (
+                                      {record.attendance_status &&
+                                        attendanceType !== "excused" && (
                                         <span
                                           className={`
                                             inline-flex
@@ -890,9 +897,9 @@ export default function ParentAttendancePage() {
                                             ${typeClass}
                                           `}
                                         >
-                                          {
-                                            record.attendance_type
-                                          }
+                                          {attendanceType === "excused"
+  ? "Leave"
+  : record.attendance_type}
                                         </span>
                                       )}
                                     </div>
