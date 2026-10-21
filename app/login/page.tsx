@@ -158,7 +158,7 @@ export default function LoginPage() {
                     {/* Pawn opacity animation */}
                     <animate
                       attributeName="opacity"
-                      dur="6s"
+                      dur="4s"
                       repeatCount="indefinite"
                       values="1;1;0;0;1"
                       keyTimes="0;0.42;0.55;0.92;1"
@@ -192,7 +192,7 @@ export default function LoginPage() {
                     {/* Queen opacity animation */}
                     <animate
                       attributeName="opacity"
-                      dur="6s"
+                      dur="4s"
                       repeatCount="indefinite"
                       values="0;0;1;1;0"
                       keyTimes="0;0.42;0.55;0.92;1"
@@ -249,7 +249,7 @@ export default function LoginPage() {
                     setEmail(e.target.value)
                   }
                   autoComplete="email"
-                  className="w-full rounded-xl border border-[#C8D2DF]/30 bg-[#011029]/65 px-4 py-3 text-sm text-white outline-none transition duration-200 placeholder:text-[#C8D2DF]/45 focus:border-[#D4AF37] focus:bg-[#011029]/85 focus:shadow-[0_0_14px_rgba(212,175,55,0.12)]"
+                  className="w-full rounded-xl border border-[#C8D2DF]/30 bg-[#011029]/65 px-4 py-3 text-base sm:text-sm text-white outline-none transition duration-200 placeholder:text-[#C8D2DF]/45 focus:border-[#D4AF37] focus:bg-[#011029]/85 focus:shadow-[0_0_14px_rgba(212,175,55,0.12)]"
                 />
               </div>
 
@@ -273,7 +273,7 @@ export default function LoginPage() {
                     setPassword(e.target.value)
                   }
                   autoComplete="current-password"
-                  className="w-full rounded-xl border border-[#C8D2DF]/30 bg-[#011029]/65 px-4 py-3 text-sm text-white outline-none transition duration-200 placeholder:text-[#C8D2DF]/45 focus:border-[#D4AF37] focus:bg-[#011029]/85 focus:shadow-[0_0_14px_rgba(212,175,55,0.12)]"
+                  className="w-full rounded-xl border border-[#C8D2DF]/30 bg-[#011029]/65 px-4 py-3 text-base sm:text-sm text-white outline-none transition duration-200 placeholder:text-[#C8D2DF]/45 focus:border-[#D4AF37] focus:bg-[#011029]/85 focus:shadow-[0_0_14px_rgba(212,175,55,0.12)]"
                 />
               </div>
 
@@ -301,7 +301,7 @@ export default function LoginPage() {
                   }
                   className="text-xs text-[#D4AF37] transition duration-200 hover:text-white hover:underline"
                 >
-                  Forgot password?
+                  Forgot or Reset Password?
                 </button>
               </div>
 
