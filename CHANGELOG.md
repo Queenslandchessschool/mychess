@@ -1,3 +1,17 @@
+## 2026-10-22 — Class Reminder: New Enrolment & ONLINE Pickup
+
+### Class Reminder
+- Prevent current-term New Enrolment students from receiving re-enrolment reminders when no matching current-term class submission exists.
+- Preserve the existing Submitted / Completed exclusion rules.
+- Preserve previous-term reminder filtering, including existing upgrade and class-transfer handling.
+- Hide the pickup instruction paragraph for ONLINE campus students while retaining the **Pickup Information** heading.
+- Remove the duplicate Parent Portal URL from the re-enrolment reminder text and use the existing gold MyCHESS login button.
+
+### Validation
+- TypeScript validation (`npx tsc --noEmit`): PASS
+- Production build (`npm run build`): PASS
+- No real reminder emails sent during validation.
+
 ## 2026-10-21 — Parent User Manual in Latest News
 
 - **Added:** Added MyCHESS Parent User Manual V1.0 PDF to the Parent Dashboard Latest News section.

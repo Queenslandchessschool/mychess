@@ -40,6 +40,7 @@ type Schedule = {
 
 type Submission = {
   student_id: string;
+  selected_class_id: string | null;
   status: string | null;
 };
 
@@ -140,8 +141,6 @@ function getReenrolmentReminder(
 
   return [
     `If you have not yet completed ${studentName}'s re-enrolment, please visit the MyCHESS Parent Portal:`,
-    "",
-    PORTAL_LINK,
     "",
     "We encourage you to complete the re-enrolment process as soon as possible.",
   ].join("\n");
@@ -310,6 +309,46 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
+    const { data: classCampusData, error: classCampusError } =
+  await supabaseServer
+    .from("classes")
+    .select(`
+      id,
+      campus:campuses (
+        campus_name,
+        campus_code,
+        short_name
+      )
+    `)
+    .in("id", classIds);
+
+if (classCampusError) {
+  return NextResponse.json(
+    {
+      error: `Failed to load class campuses: ${classCampusError.message}`,
+    },
+    { status: 500 }
+  );
+}
+
+const onlineClassIds = new Set<string>(
+  (classCampusData ?? [])
+    .filter((item: any) => {
+      const campus = Array.isArray(item.campus)
+        ? item.campus[0]
+        : item.campus;
+
+      return (
+        String(campus?.campus_code ?? "").trim().toUpperCase() ===
+          "ONLINE" ||
+        String(campus?.campus_name ?? "").trim().toUpperCase() ===
+          "ONLINE" ||
+        String(campus?.short_name ?? "").trim().toUpperCase() ===
+          "ONLINE"
+      );
+    })
+    .map((item: any) => item.id)
+);
 
     const schedules = (scheduleResult.data ?? []) as Schedule[];
     const parents = (parentResult.data ?? []) as Parent[];
@@ -389,6 +428,7 @@ export async function POST(request: Request) {
         .from("re_enrolment_submissions")
         .select(`
           student_id,
+          selected_class_id,
           status
         `)
         .in("student_id", reenrolmentStudentIds)
@@ -596,23 +636,41 @@ export async function POST(request: Request) {
         getSpecialRequestConfirmation(specialRequests);
 
       const hasCompletedReenrolment =
-        completedStudentIds.has(studentId) ||
-        previousStudentsWithValidReenrolment.has(studentId);
+  completedStudentIds.has(studentId) ||
+  previousStudentsWithValidReenrolment.has(studentId);
 
-      const reenrolmentReminder = getReenrolmentReminder(
-        studentName,
-        hasCompletedReenrolment
-      );
+const isCurrentTermEnrolment = activeEnrolments.some(
+  (item) => item.id === enrolment.id
+);
+
+const hasMatchingSubmission = submissions.some(
+  (submission) =>
+    submission.student_id === studentId &&
+    submission.selected_class_id === enrolment.class_id
+);
+
+const isNewEnrolment =
+  isCurrentTermEnrolment && !hasMatchingSubmission;
+
+const reenrolmentReminder = getReenrolmentReminder(
+  studentName,
+  hasCompletedReenrolment || isNewEnrolment
+);
+
+const pickupInformation = onlineClassIds.has(enrolment.class_id)
+  ? ""
+  : "The chess lesson finishes at the scheduled end time. Please arrive 5–10 minutes early to collect your child.";
 
       const variables = {
-        "Parent Name": getParentName(parent),
-        "Academic Term": `Term ${term}, ${academicYear}`,
-        "Student Name": studentName,
-        "First Lesson Date of Next Term": firstLessonDate,
-        "Special Request Confirmation":
-          specialRequestConfirmation,
-        "Re-enrolment Reminder": reenrolmentReminder,
-      };
+  "Parent Name": getParentName(parent),
+  "Academic Term": `Term ${term}, ${academicYear}`,
+  "Student Name": studentName,
+  "First Lesson Date of Next Term": firstLessonDate,
+  "Special Request Confirmation": specialRequestConfirmation,
+  "Pickup Information": pickupInformation,
+  "Re-enrolment Reminder": reenrolmentReminder,
+  "MyCHESS Login URL": reenrolmentReminder ? PORTAL_LINK : "",
+};
 
       let email;
 
