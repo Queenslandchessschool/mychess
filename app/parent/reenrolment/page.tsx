@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { synchroniseStudentStage } from "@/lib/studentSynchronisation";
 
 import {
   getBusinessTime,
@@ -1781,45 +1780,23 @@ export default function ParentReenrolmentPage() {
      * ----------------------------------------------------------
      */
 
-      await synchroniseStudentStage(
-        selectedStudent.student.id,
-        targetAcademicYear,
-        targetTerm
+      // Securely synchronise student stage and class snapshot.
+      if (!selectedClassInfo) {
+        throw new Error("Selected class information is unavailable.");
+      }
+
+      const { error: syncError } = await supabase.rpc(
+        "parent_sync_student_after_reenrolment",
+        {
+          p_student_id: selectedStudent.student.id,
+          p_academic_year: targetAcademicYear,
+          p_term: targetTerm,
+          p_class_id: selectedClassInfo.id,
+        }
       );
 
-      // Synchronise Student Master class snapshot
-      if (selectedClassInfo) {
-        const campus = Array.isArray(selectedClassInfo.campuses)
-          ? selectedClassInfo.campuses[0]
-          : selectedClassInfo.campuses;
-
-        const campusLabel =
-          campus?.campus_code ||
-          campus?.short_name ||
-          campus?.campus_name ||
-          "";
-
-        const classLabel = [
-          campusLabel,
-          selectedClassInfo.day,
-          selectedClassInfo.level,
-        ]
-          .map((value) => value?.trim())
-          .filter(Boolean)
-          .join(" | ");
-
-        const { error: snapshotError } = await supabase
-          .from("students")
-          .update({
-            current_level: selectedClassInfo.level,
-            current_class: classLabel || null,
-            current_class_id: selectedClassInfo.id,
-          })
-          .eq("id", selectedStudent.student.id);
-
-        if (snapshotError) {
-          throw snapshotError;
-        }
+      if (syncError) {
+        throw syncError;
       }
 
       /*

@@ -1,3 +1,228 @@
+## 2026-10-23 Student Data Security, Parent Portal Integrity & Re-enrolment
+
+**Project:** MyCHESS — Queensland Chess School Management System
+**Date:** 23 October 2026
+**Environment:** Supabase, Next.js, React, Vercel
+**Release status:** Database changes deployed; initial verification completed
+**Priority:** Data integrity, access control and business continuity
+
+### 1. Overview
+
+This release strengthens student data protection and parent re-enrolment synchronisation at the database level.
+
+The work also included reviewing related student-data write paths across the Parent Portal, Admin Portal and shared registration and synchronisation services to identify potential conflicts with the new protection rules.
+
+The primary objectives were to:
+
+- Prevent parents from directly modifying protected student fields.
+- Preserve existing Family ID relationships and parent-to-student access checks.
+- Keep administrator student-management workflows operational.
+- Move parent re-enrolment student-class synchronisation into a dedicated, validated RPC.
+- Preserve existing student code generation and enrolment business rules.
+- Prepare the system for broader parent User Acceptance Testing (UAT).
+
+### 2. Database Security Changes
+
+#### 2.1 Student Update Protection
+
+Created and enabled:
+
+- Trigger: `trg_protect_student_parent_updates`
+- Function: `public.protect_student_parent_updates()`
+- Event: `BEFORE UPDATE ON public.students`
+
+The trigger validates updates against the existing administrator and parent authorisation helpers and rejects parent changes to protected fields.
+
+Protected fields include:
+
+- Student ID, creation timestamp and student code
+- Student status and stage
+- Current level and class snapshot
+- Family ID
+- School year, school class and school-program flag
+- Medical information and emergency contact
+- Internal notes and special requests
+
+The intended parent-editable profile fields remain first name, last name, preferred name, gender, date of birth and school.
+
+#### 2.2 Parent Re-enrolment Synchronisation RPC
+
+Created:
+
+`public.parent_sync_student_after_reenrolment(uuid, integer, integer, uuid)`
+
+The function:
+
+- Uses `SECURITY DEFINER` and is owned by `postgres`.
+- Requires an authenticated user.
+- Verifies the parent-to-student relationship using the existing helper.
+- Validates the academic year and term.
+- Checks that the selected class and target-term schedule are active.
+- Requires a matching active formal enrolment with pending payment.
+- Requires a matching submitted parent re-enrolment record associated with the authenticated user.
+
+The function synchronises only the following student fields:
+
+- `current_level`
+- `current_class`
+- `current_class_id`
+- `student_stage`
+
+The existing Trial/Regular stage determination rule is retained.
+
+#### 2.3 RPC Permissions
+
+Applied explicit execution permissions:
+
+- Function owner: `postgres`
+- Revoked execution from `PUBLIC` and `anon`
+- Granted execution to `authenticated`
+
+The existing `mychess_is_admin()` and `mychess_is_parent_of_student(uuid)` functions were inspected and retained without modification.
+
+### 3. Parent Portal Review
+
+#### 3.1 My Family / Student Profile
+
+Reviewed the student profile update path in:
+
+`app/parent/family/page.tsx`
+
+The parent profile workflow updates permitted personal information. The new database trigger provides an additional safeguard against changing protected fields through direct student-table updates.
+
+Family ID ownership and student association remain governed by the existing relationship helper and RLS policies.
+
+#### 3.2 Parent Re-enrolment
+
+Updated:
+
+`app/parent/reenrolment/page.tsx`
+
+Replaced the previous direct student class/level snapshot update path with a call to `parent_sync_student_after_reenrolment`.
+
+The page checks that selected class information is available and handles RPC errors.
+
+The application build completed successfully after the code change.
+
+#### 3.3 Parent Account and Family Access Considerations
+
+Existing parent-to-student relationships and authentication-role checks were reviewed as part of the security work.
+
+The existing Family ID association logic was not recreated or rewritten by this database deployment.
+
+Parent account provisioning and credential distribution remain separate operational tasks and must be completed using the established secure account-provisioning workflow.
+
+### 4. Student Registration and Synchronisation Review
+
+The following existing code paths were included in the student-data security review:
+
+- `lib/registrationService.ts`
+- `lib/studentSynchronisation.ts`
+
+The review considered student creation, Family ID assignment and student class/stage synchronisation, because these operations interact with fields protected by the new trigger.
+
+No Family ID data migration or relationship rebuild was performed as part of this release.
+
+The existing student code generation function and trigger were preserved.
+
+### 5. Admin Portal and Related Workflow Review
+
+The following student-management paths were included in the review:
+
+- `app/admin/students/page.tsx`
+- `app/admin/reenrolment/assisted/page.tsx`
+- `app/admin/transfer/page.tsx`
+
+These paths were considered when assessing the impact of student-field protection on administrator editing, assisted re-enrolment and class transfer workflows.
+
+The intended outcome is to preserve existing administrator capabilities while restricting unauthorised parent updates.
+
+The deployment does not itself establish that every workflow has passed end-to-end testing; affected paths should continue to be validated during UAT.
+
+### 6. Tuition, Attendance, Leave and Make-up Credit
+
+Tuition, attendance, leave and make-up-credit workflows were considered in the broader student-data dependency review.
+
+The student security SQL did not intentionally modify tuition rules, payment processing, attendance generation, leave submission, make-up-credit balances or booking rules.
+
+Existing business rules should remain unchanged. Any future changes to these modules should be recorded separately and tested against their respective requirements.
+
+### 7. Reports and Other Existing Work
+
+The Admin Reports and mobile make-up-credit reporting work exists as a separate development stream.
+
+The existing report work includes read-only make-up-credit reporting, status summaries, search/filtering and CSV export. It should not be treated as a new feature introduced by this student-security deployment unless additional report changes are separately committed.
+
+### 8. Database Objects Preserved
+
+The following existing components were inspected or retained:
+
+- Family ID relationships and parent-to-student association logic
+- Existing RLS policies on `public.students`
+- `public.mychess_is_admin()`
+- `public.mychess_is_parent_of_student(uuid)`
+- `trg_generate_student_code`
+- `public.generate_student_code()`
+
+The student code generation trigger remained present and enabled after deployment.
+
+No Family ID association rebuild was performed.
+
+### 9. Deployment and Verification
+
+The Supabase SQL deployment completed successfully.
+
+Post-deployment checks confirmed:
+
+- `trg_protect_student_parent_updates` exists and is enabled.
+- `trg_generate_student_code` remains present and enabled.
+- The new re-enrolment RPC exists.
+- The RPC owner is `postgres`.
+- The RPC is configured as `SECURITY DEFINER`.
+- `authenticated` can execute the RPC.
+- `anon` cannot execute the RPC.
+- Existing RLS policies and relevant identity helper functions were inspected.
+- The required database columns were confirmed to exist.
+- The Next.js production build passed after the parent re-enrolment code change.
+
+Initial functional checks were reported as successful, with no obvious issues observed.
+
+### 10. Testing Status and Limitations
+
+The database deployment and initial verification are complete. Full security assurance and comprehensive UAT are not yet claimed.
+
+Further testing should cover:
+
+1. Parent access to students belonging to their own family.
+2. Parent updates to permitted profile fields.
+3. Rejection of parent attempts to modify `family_id` and other protected fields.
+4. Administrator student editing.
+5. Parent re-enrolment from class selection through submission and synchronisation.
+6. Assisted re-enrolment and class transfer.
+7. Registration and student creation.
+8. Tuition calculations and relevant non-chargeable lesson handling.
+9. Attendance, leave and make-up-credit workflows where affected by subsequent changes.
+10. Unauthorised attempts to invoke the RPC or synchronise another student's record.
+
+Negative security tests should use controlled test accounts and avoid altering production student records.
+
+### 11. Git and Release Management
+
+The application change and database deployment script should be committed together with this changelog, using explicit file paths and reviewing the staged diff before committing.
+
+The database script has already been executed in Supabase. A Git commit records the source and deployment history; it does not execute the SQL again.
+
+### 12. Next Steps
+
+- Complete the Git commit for the relevant application code, SQL script and changelog.
+- Prepare parent UAT accounts and distribute credentials securely.
+- Collect parent feedback on login, My Family, profile editing and re-enrolment.
+- Fix confirmed defects affecting normal use.
+- Continue incremental security hardening of other modules after the current workflows are stable.
+
+**Release summary:** Student update protection and parent re-enrolment synchronisation have been deployed and initially verified. Related student-data workflows have been reviewed for compatibility. Broader security testing and parent UAT will continue as the system moves into active use.
+
+
 ## 2026-10-22 — Class Reminder: New Enrolment & ONLINE Pickup
 
 ### Class Reminder
