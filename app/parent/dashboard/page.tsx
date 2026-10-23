@@ -1254,7 +1254,7 @@ export default function ParentDashboard() {
             className="absolute left-0 right-0 top-0 h-[3px] bg-gradient-to-r from-[#D4AF37] via-[#D4AF37]/55 to-transparent"
           />
 
-          <div className="max-h-[60vh] min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain sm:max-h-[65vh] lg:max-h-[540px]">
+          <div className="h-[320px] min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain">
 
             {/* Sticky section header */}
 
