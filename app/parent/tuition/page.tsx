@@ -798,7 +798,9 @@ export default function ParentTuitionPage() {
       <header className="page-header">
         <h1>Tuition Fee</h1>
         <p className="page-subtitle">
-          View my children&apos;s tuition and payment records.
+          {studentOptions.length === 1
+            ? "View my child's tuition and payment records."
+            : "View my children's tuition and payment records."}
         </p>
       </header>
 

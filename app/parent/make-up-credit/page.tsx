@@ -1403,7 +1403,7 @@ const availableCredits = studentCredits.filter(
                   a long planned holiday, should be
                   discussed with Admin in advance so
                   we can maintain it in the system
-                  before the next Term starts.
+                  before the first lesson of the new term starts.
                 </p>
 
                 <p className="mt-2">

@@ -2874,15 +2874,28 @@ export default function ParentReenrolmentPage() {
                             <label className="mb-1.5 block text-sm font-medium text-[#31445B]">
                               School Year
                             </label>
-                            <input
-                              type="text"
+                            <select
                               value={schoolYear}
                               onChange={(event) =>
                                 setSchoolYear(event.target.value)
                               }
-                              placeholder="e.g. Year 3"
                               className="h-11 w-full rounded-xl border border-[#D3E0EC] bg-white px-3.5 text-sm text-[#10213A] outline-none transition focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/15"
-                            />
+                            >
+                              <option value="">Select School Year</option>
+                              <option value="Prep">Prep</option>
+                              <option value="Year 1">Year 1</option>
+                              <option value="Year 2">Year 2</option>
+                              <option value="Year 3">Year 3</option>
+                              <option value="Year 4">Year 4</option>
+                              <option value="Year 5">Year 5</option>
+                              <option value="Year 6">Year 6</option>
+                              <option value="Year 7">Year 7</option>
+                              <option value="Year 8">Year 8</option>
+                              <option value="Year 9">Year 9</option>
+                              <option value="Year 10">Year 10</option>
+                              <option value="Year 11">Year 11</option>
+                              <option value="Year 12">Year 12</option>
+                            </select>
                           </div>
 
                           <div>

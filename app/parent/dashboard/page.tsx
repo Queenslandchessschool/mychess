@@ -1166,6 +1166,9 @@ export default function ParentDashboard() {
   const hasActiveEnrolment =
     upcomingByChild.length > 0;
 
+  const showLinglongCupNews =
+    getBrisbaneToday() <= "2026-11-08";
+
   /**
    * ==========================================================
    * DASHBOARD
@@ -1359,49 +1362,142 @@ export default function ParentDashboard() {
           </div>
         </section>
 
-        {/* ====================================================
-            LATEST NEWS
-        ==================================================== */}
+{/* ====================================================
+    LATEST NEWS
+==================================================== */}
 
-        <section className="relative mt-6 min-w-0 overflow-hidden rounded-2xl border border-[#D4AF37]/35 bg-[#152F50] sm:mt-7">
-          <div
-            aria-hidden="true"
-            className="absolute left-0 right-0 top-0 h-[3px] bg-gradient-to-r from-[#D4AF37] via-[#D4AF37]/55 to-transparent"
-          />
+<section className="relative mt-6 min-w-0 overflow-hidden rounded-2xl border border-[#D4AF37]/35 bg-[#152F50] sm:mt-7">
+  <div
+    aria-hidden="true"
+    className="absolute left-0 right-0 top-0 h-[3px] bg-gradient-to-r from-[#D4AF37] via-[#D4AF37]/55 to-transparent"
+  />
 
-          <div className="border-b border-[#D9E3ED]/15 px-5 py-5 sm:px-7">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#D4AF37]">
-              LATEST NEWS
-            </p>
-          </div>
+  <div className="border-b border-[#D9E3ED]/15 px-5 py-5 sm:px-7">
+    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#D4AF37]">
+      LATEST NEWS
+    </p>
+  </div>
 
-          <div className="px-5 py-5 sm:px-7">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <p className="text-base font-semibold text-[#D4AF37]">
-                  MyCHESS Parent User Manual V1.0
-                </p>
-                <p className="mt-1 text-sm leading-6 text-[#C8D2DF]">
-                  A practical guide to using MyCHESS, including attendance,
-                  Leave, make-up credits, make-up bookings and re-enrolment.
-                </p>
-                <p className="mt-2 text-xs text-[#AAB8CA]">
-                  Queensland Chess School · 21 October 2026 · PDF guide
-                </p>
-              </div>
+  <div className="space-y-0 divide-y divide-[#D9E3ED]/15">
 
-              <a
-                href="/documents/parent-user-manual-v1.0.pdf"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-[#D4AF37]/60 bg-[#D4AF37] px-4 py-3 text-sm font-semibold text-[#011029] transition-colors hover:bg-[#E5C65A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37] focus-visible:ring-offset-2 focus-visible:ring-offset-[#152F50]"
+    {/* Parent User Manual */}
+    <div className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+      <div className="min-w-0">
+        <p className="text-base font-semibold text-[#D4AF37]">
+          MyCHESS Parent User Manual V1.0
+        </p>
+        <p className="mt-1 text-sm leading-6 text-[#C8D2DF]">
+          A practical guide to using MyCHESS, including attendance,
+          Leave, make-up credits, make-up bookings and re-enrolment.
+        </p>
+        <p className="mt-2 text-xs text-[#AAB8CA]">
+          Queensland Chess School · Updated Parent Guide · PDF
+        </p>
+      </div>
+
+      <a
+        href="/documents/parent-user-manual-v1.0.pdf"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg border border-[#D4AF37]/60 bg-[#D4AF37] px-4 py-3 text-sm font-semibold text-[#011029] transition-colors hover:bg-[#E5C65A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]"
+      >
+        <span>View Parent User Manual</span>
+        <span aria-hidden="true">↗</span>
+      </a>
+    </div>
+
+    {/* LINGLONG CUP — automatically hidden after 8 Nov 2026 */}
+    {showLinglongCupNews && (
+      <div className="flex flex-col gap-5 px-5 py-5 sm:flex-row sm:items-start sm:justify-between sm:gap-8 sm:px-7 sm:py-6">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#D4AF37]">
+            2026 TERM 4 · LINGLONG CUP
+          </p>
+
+          <h3 className="mt-2 text-xl font-semibold leading-snug text-[#F4F7FB]">
+            Junior Chess Championship Registration
+          </h3>
+
+          <div className="mt-4 grid grid-cols-1 gap-3 text-sm text-[#C8D2DF] sm:grid-cols-2">
+            <div className="flex items-start gap-2">
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                className="mt-0.5 h-5 w-5 shrink-0 text-[#D4AF37]"
               >
-                <span>View Parent User Manual</span>
-                <span aria-hidden="true">↗</span>
-              </a>
+                <rect x="3" y="5" width="18" height="16" rx="2" />
+                <path d="M16 3v4M8 3v4M3 10h18" />
+              </svg>
+              <span>Sunday 8 Nov 2026</span>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                className="mt-0.5 h-5 w-5 shrink-0 text-[#D4AF37]"
+              >
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5l3 2" />
+              </svg>
+              <span>9:30 am – 3:30 pm</span>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                className="mt-0.5 h-5 w-5 shrink-0 text-[#D4AF37]"
+              >
+                <path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z" />
+                <circle cx="12" cy="10" r="2.5" />
+              </svg>
+              <span>MacGregor, QLD</span>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                className="mt-0.5 h-5 w-5 shrink-0 text-[#D4AF37]"
+              >
+                <path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="10" cy="7" r="4" />
+                <path d="M20 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+              <span>All Juniors Welcome</span>
             </div>
           </div>
-        </section>
+        </div>
+
+        <div className="sm:self-start">
+          <a
+            href="https://docs.google.com/forms/d/e/1FAIpQLScrbtLLRqDbXKAeOkrugXQzOuijTRV3nkJws9OoScemM8F9FA/viewform"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-[#D4AF37] bg-[#D4AF37] px-5 py-3 text-sm font-bold text-[#011029] transition-colors hover:bg-[#E5C65A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37] sm:w-auto"
+          >
+            Register Now
+            <span aria-hidden="true">↗</span>
+          </a>
+        </div>
+      </div>
+    )}
+
+  </div>
+</section>
 
       </div>
     </main>
