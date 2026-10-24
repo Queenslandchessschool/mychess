@@ -694,21 +694,15 @@ export default function ParentAttendancePage() {
                                 // ------------------------------------
 
                                 let typeClass =
-                                  "bg-[#EEF2F7] text-[#52657A]";
+  "bg-[#EEF2F7] text-[#52657A]";
 
-                                if (
-                                  attendanceType ===
-                                  "trial"
-                                ) {
-                                  typeClass =
-                                    "bg-[#E4EEF9] text-[#315F8F]";
-                                } else if (
-                                  attendanceType ===
-                                  "excused"
-                                ) {
-                                  typeClass =
-                                    "bg-[#F1E8C8] text-[#8A6800]";
-                                }
+if (attendanceType === "holiday") {
+  typeClass = "bg-[#FBE7E7] text-[#A43D3D]";
+} else if (attendanceType === "trial") {
+  typeClass = "bg-[#E4EEF9] text-[#315F8F]";
+} else if (attendanceType === "excused") {
+  typeClass = "bg-[#F1E8C8] text-[#8A6800]";
+}
 
                                 return (
                                   <div
@@ -855,27 +849,26 @@ export default function ParentAttendancePage() {
                                           -------------------------------- */}
 
                                       {record.attendance_status &&
-                                        attendanceType !== "excused" && (
-                                        <span
-                                          className={`
-                                            inline-flex
-                                            items-center
-                                            rounded-full
-                                            px-3
-                                            py-1
-                                            text-xs
-                                            font-semibold
-                                            transition-transform
-                                            duration-150
-                                            group-active:scale-[0.98]
-                                            ${statusClass}
-                                          `}
-                                        >
-                                          {
-                                            record.attendance_status
-                                          }
-                                        </span>
-                                      )}
+  attendanceType !== "excused" &&
+  attendanceType !== "holiday" && (
+    <span
+      className={`
+        inline-flex
+        items-center
+        rounded-full
+        px-3
+        py-1
+        text-xs
+        font-semibold
+        transition-transform
+        duration-150
+        group-active:scale-[0.98]
+        ${statusClass}
+      `}
+    >
+      {record.attendance_status}
+    </span>
+)}
 
                                       {/* --------------------------------
                                           Special Attendance Type
@@ -899,7 +892,9 @@ export default function ParentAttendancePage() {
                                         >
                                           {attendanceType === "excused"
   ? "Leave"
-  : record.attendance_type}
+  : attendanceType === "holiday"
+    ? "Special Arrangement"
+    : record.attendance_type}
                                         </span>
                                       )}
                                     </div>
