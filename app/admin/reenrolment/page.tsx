@@ -1023,11 +1023,23 @@ students:student_id (
       let confirmationEmailWarning = "";
 
       try {
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
+
+        if (sessionError || !session?.access_token) {
+          throw new Error(
+            "Your session has expired. Please sign in again."
+          );
+        }
+
         const emailResponse = await fetch(
           "/api/email/payment-received-place-confirmed",
           {
             method: "POST",
             headers: {
+              Authorization: `Bearer ${session.access_token}`,
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
