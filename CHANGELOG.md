@@ -1,3 +1,24 @@
+## 2026-10-26 — FIX: Coach Trial Feedback Excludes Enrolled Students
+
+**Status:** Local implementation completed; build passed; production deployment pending.
+
+**Issue**
+Students whose Trial enrolment had already been confirmed as Enrolled and converted to Regular could continue appearing in the Coach Trial Feedback list because the query did not check `student_enrolments.trial_status`.
+
+**Changes**
+- Added `trial_status` to the Coach Trial Feedback enrolment query in `app/coach/trial/page.tsx`.
+- Excluded enrolments with `trial_status = "Enrolled"` from the Coach Trial Feedback list.
+- Preserved the existing attendance matching, feedback loading, and `Complete Feedback` / `View / Edit Feedback` UI logic.
+- Preserved historical Trial enrolments, Attendance records, and Trial Feedback records. No database changes were made.
+
+**Verification**
+- `git diff --check`: passed.
+- `npm run build`: passed.
+- Confirmed the two converted students no longer appear in the current Coach Trial Feedback list. No other active Trial students were available for additional end-to-end testing.
+
+**Deployment**
+Not yet committed or deployed. Production verification remains pending.
+
 ## 2026-10-23 Student Data Security, Parent Portal Integrity & Re-enrolment
 
 **Project:** MyCHESS — Queensland Chess School Management System

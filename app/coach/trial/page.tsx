@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -333,6 +333,7 @@ export default function CoachTrialPage() {
           join_date,
           class_id,
           is_trial,
+          trial_status,
           status,
 
           students:student_id (
@@ -593,6 +594,10 @@ export default function CoachTrialPage() {
 
       const result: TrialRow[] =
         enrolments
+          .filter(
+            (enrollment: any) =>
+              enrollment.trial_status !== "Enrolled"
+          )
           .map(
             (enrollment: any) => {
               const student =
