@@ -227,7 +227,6 @@ export async function POST(request: Request) {
         const errorMessage = getErrorMessage(error);
 
         await logEmailAudit({
-          triggeredBy: "8PM Attendance Reminder",
           businessEvent: BUSINESS_EVENT,
           recipientEmail: coachEmail,
           dataUsed: variables,
@@ -251,7 +250,6 @@ export async function POST(request: Request) {
       });
 
       await logEmailAudit({
-        triggeredBy: "8PM Attendance Reminder",
         businessEvent: BUSINESS_EVENT,
         templateName: email.templateName,
         recipientEmail: coachEmail,

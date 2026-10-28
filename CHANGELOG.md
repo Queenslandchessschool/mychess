@@ -1,3 +1,22 @@
+## [Unreleased] - 2026-10-28
+
+### Fixed
+- **8PM Attendance Reminder — Email audit logging:** Removed the invalid human-readable `triggeredBy` value (`"8PM Attendance Reminder"`) from both email audit logging calls in `app/api/attendance/reminder-8pm/route.ts`.
+- The `triggered_by` database column is UUID-typed. Passing a task name as text caused PostgreSQL error `22P02`, preventing the corresponding email audit record from being inserted even when the reminder email was sent successfully.
+- Aligned the 8PM reminder with the existing Class Reminder logging pattern, which omits `triggeredBy` when no actor UUID is available. The audit logger therefore defaults `triggered_by` to `NULL`.
+- No database schema changes or changes to reminder scheduling and email delivery logic were made.
+
+### Validation
+- Local production build passed using `npm.cmd run build`.
+- `git diff --check` passed.
+- Verified the code diff contains only the two intended `triggeredBy` line removals in the 8PM reminder route.
+
+### Pending
+- Commit and deploy the fix to Vercel.
+- Verify the next scheduled Brisbane 8PM reminder execution in Vercel logs and confirm that successful email sends have corresponding records in `public.email_audit_logs`.
+- No manual reminder endpoint was triggered after the code change.
+
+
 ## 2026-10-26 — FIX: Coach Trial Feedback Excludes Enrolled Students
 
 **Status:** Local implementation completed; build passed; production deployment pending.
