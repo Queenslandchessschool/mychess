@@ -1,5 +1,13 @@
 ## [Unreleased] - 2026-10-28
 
+### Scheduler Clarification — Vercel Cron
+
+- Confirmed that MyCHESS production scheduling is configured through Vercel Cron in `vercel.json`.
+- Vercel Cron wrappers invoke the existing attendance and email API routes. The existing business logic remains unchanged.
+- Cron-job.org contains legacy external jobs from the previous deployment setup. These jobs are not the authoritative scheduler for the current Vercel production environment and should not be used to judge the health of the current scheduler.
+- The legacy Cron-job.org requests returned `404 Not Found` because they target old URLs. These results are separate from the successful Vercel wrapper executions.
+- No attendance business logic or Cron configuration changes were made as part of this clarification.
+
 ### Fixed
 - **8PM Attendance Reminder — Email audit logging:** Removed the invalid human-readable `triggeredBy` value (`"8PM Attendance Reminder"`) from both email audit logging calls in `app/api/attendance/reminder-8pm/route.ts`.
 - The `triggered_by` database column is UUID-typed. Passing a task name as text caused PostgreSQL error `22P02`, preventing the corresponding email audit record from being inserted even when the reminder email was sent successfully.
@@ -2096,7 +2104,7 @@ The existing Class Reminder business logic remains the baseline. Future changes 
 - Added the Vercel Cron trigger for Attendance Reconciliation.
 - Preserved the existing 04:00 Brisbane Attendance Generation scheduler.
 - Attendance Generation remains scheduled at 04:00 Brisbane time.
-- Attendance Reconciliation is scheduled to run every 15 minutes as the external trigger.
+- Attendance Reconciliation is scheduled to run every 15 minutes through Vercel Cron.
 - Reconciliation continues to use the existing Attendance Runner / Time Engine for lesson-level timing decisions.
 
 ### Architecture
