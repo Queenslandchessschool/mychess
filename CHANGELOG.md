@@ -1,3 +1,27 @@
+## 2026-10-29 — Trial Absent Reminder (Manual Send)
+
+### Added
+- Added a manual Trial Absent Reminder action to the Admin Trial Action modal.
+- Added the `TRIAL_ABSENT` email workflow using the central Email Template Library.
+- Added an administrator-authenticated API endpoint at `/api/email/trial-absent`.
+- Added attendance-specific validation using the selected `attendanceId`, student, class, academic year and term.
+- Used the linked lesson date as the `Trial Date` email variable.
+- Added email audit logging for manual send attempts, including handling for uncertain delivery outcomes.
+
+### Business Rules
+- Only an active Trial enrolment and its matching attendance record marked `Absent` with attendance type `Trial` are eligible.
+- Only authenticated administrators may invoke the manual send endpoint.
+- The email uses the active `TRIAL_ABSENT` template and its `Student Name`, `Parent Name` and `Trial Date` variables.
+- Previously successful or potentially uncertain send attempts are blocked from automatic retry; the Email Audit Log must be checked before retrying.
+- Trial Confirmation, Trial Declined and Trial Feedback Reminder workflows remain unchanged.
+- Automatic Trial Absent scheduling is not part of the final manual-send workflow.
+
+### Validation
+- `npm.cmd run build` passed after the manual-send UI and API changes.
+- `git diff --check` passed at the previous validation checkpoint.
+- Production deployment and live email delivery remain pending.
+- Duplicate protection does not guarantee exactly-once delivery under concurrent requests; further verification is required before production release.
+
 ## [Unreleased] - 2026-10-29
 
 ### Added

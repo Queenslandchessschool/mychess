@@ -159,6 +159,15 @@ const [rescheduleDate, setRescheduleDate] =
 const [showAbsentActionModal, setShowAbsentActionModal] =
   useState(false);
 
+const [absentReminderLoading, setAbsentReminderLoading] =
+  useState(false);
+
+const [absentReminderMessage, setAbsentReminderMessage] =
+  useState("");
+
+const [absentReminderError, setAbsentReminderError] =
+  useState("");
+
 const { enrollmentId } = use(params);
 
 const router = useRouter();
@@ -1240,6 +1249,76 @@ async function handleMarkTrialLost() {
     setActionLoading(false);
   }
 }
+
+async function handleSendAbsentReminder() {
+  if (!details || absentReminderLoading || actionLoading) {
+    return;
+  }
+
+  if (!details.attendanceId) {
+    setAbsentReminderError(
+      "No attendance record is linked to this Trial."
+    );
+    setAbsentReminderMessage("");
+    return;
+  }
+
+  setAbsentReminderLoading(true);
+  setAbsentReminderError("");
+  setAbsentReminderMessage("");
+
+  try {
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError) {
+      throw sessionError;
+    }
+
+    if (!session?.access_token) {
+      throw new Error("Your session has expired. Please sign in again.");
+    }
+
+    const response = await fetch("/api/email/trial-absent", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        enrollmentId: details.enrollmentId,
+        attendanceId: details.attendanceId,
+      }),
+    });
+
+    const result = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      throw new Error(
+        typeof result?.error === "string"
+          ? result.error
+          : "Unable to send the Trial Absent Reminder."
+      );
+    }
+
+    setAbsentReminderMessage(
+      result?.message ?? "Trial Absent Reminder sent successfully."
+    );
+  } catch (err: unknown) {
+    console.error("TRIAL ABSENT REMINDER ERROR:", err);
+
+    setAbsentReminderError(
+      err instanceof Error
+        ? err.message
+        : "Unable to send the Trial Absent Reminder."
+    );
+  } finally {
+    setAbsentReminderLoading(false);
+  }
+}
+
   /**
    * ==========================================================
    * Loading
@@ -2619,6 +2698,57 @@ async function handleMarkTrialLost() {
           "
         >
           {actionLoading ? "Saving..." : "Mark as Lost"}
+        </button>
+      </div>
+
+      <div className="mt-4 space-y-3">
+        {absentReminderMessage && (
+          <p
+            role="status"
+            className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800"
+          >
+            {absentReminderMessage}
+          </p>
+        )}
+
+        {absentReminderError && (
+          <p
+            role="alert"
+            className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+          >
+            {absentReminderError}
+          </p>
+        )}
+
+        <button
+          type="button"
+          disabled={
+            actionLoading ||
+            absentReminderLoading ||
+            !details.attendanceId ||
+            Boolean(absentReminderMessage)
+          }
+          onClick={handleSendAbsentReminder}
+          className="
+            w-full
+            rounded-xl
+            bg-[#D4AF37]
+            px-5
+            py-3
+            text-sm
+            font-semibold
+            text-[#10213A]
+            shadow-sm
+            hover:bg-[#F4D35E]
+            disabled:cursor-not-allowed
+            disabled:opacity-60
+          "
+        >
+          {absentReminderLoading
+            ? "Sending..."
+            : absentReminderMessage
+              ? "Reminder Sent"
+              : "Absent Reminder"}
         </button>
       </div>
 
