@@ -97,6 +97,7 @@ export default function TrialManagementPage() {
   const [loading, setLoading] = useState(true);
 
   const [error, setError] = useState("");
+  const [rescheduleNotice, setRescheduleNotice] = useState("");
 
   /**
    * ==========================================================
@@ -446,6 +447,14 @@ attendance_id:
   useEffect(() => {
     loadTrialStudents();
   }, [academicYear, term]);
+  useEffect(() => {
+  const notice = sessionStorage.getItem("mychess_trial_reschedule_notice");
+
+  if (notice) {
+    sessionStorage.removeItem("mychess_trial_reschedule_notice");
+    setRescheduleNotice(notice);
+  }
+}, []);
 
   /**
    * ==========================================================
@@ -513,6 +522,21 @@ attendance_id:
   return (
     <main className="min-h-screen p-4 sm:p-6 lg:p-8">
       <div className="mx-auto w-full max-w-[1500px]">
+        {rescheduleNotice && (
+  <div
+    role="alert"
+    className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"
+  >
+    {rescheduleNotice}
+    <button
+      type="button"
+      onClick={() => setRescheduleNotice("")}
+      className="ml-3 font-semibold underline"
+    >
+      Dismiss
+    </button>
+  </div>
+)}
         {/* ================================================== */}
         {/* PAGE HEADER                                        */}
         {/* ================================================== */}

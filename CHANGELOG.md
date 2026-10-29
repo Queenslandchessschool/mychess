@@ -1,3 +1,38 @@
+### 2026-10-30 — Trial Reschedule Confirmation Email
+
+**Module:** Admin Portal → Trial Management
+**Status:** Implementation Completed / UAT Partially Verified
+
+**Changes**
+- Integrated Trial Reschedule with the existing central Trial Confirmation email workflow (`TRIAL_CONFIRMED`).
+- Reused the existing Trial Confirmation email template with the updated Trial date and class time.
+- Added Bearer Token authentication and Admin role verification to `/api/email/trial-confirmation`.
+- Added confirmation email triggering after successful Trial rescheduling.
+- Kept database rescheduling independent of email delivery failures.
+- Added a one-time email failure warning on the Trial Management page using `sessionStorage`.
+- Added a dismissible warning without affecting existing Trial Management loading and error states.
+- Recorded the email provider's message ID in the Email Audit Log when available.
+
+**SRS Compliance**
+- Preserved the original Absent Attendance history.
+- Reused the central Email Template Library without creating a duplicate template.
+- Retained the existing Trial Reschedule database workflow.
+- Kept email delivery failure handling separate from the successful database reschedule.
+
+**Verification Completed**
+- `git diff --check` — Passed.
+- `npm.cmd run build` — Passed.
+- Next.js compilation and TypeScript validation — Passed.
+- Trial Confirmation email API — Successfully returned HTTP 200 in a test.
+- Test recipient confirmed receipt of the Trial Confirmation email.
+
+**Pending UAT**
+- Complete an end-to-end Trial Reschedule test and verify the email contains the updated Trial date and class time.
+- Verify the Email Audit Log records the provider message ID when available.
+- Verify the warning appears when email delivery fails.
+- Verify no duplicate confirmation email or attendance record is generated.
+- Complete the remaining regression checks before marking UAT as passed.
+
 ## 2026-10-29 — Trial Absent Reminder (Manual Send)
 
 ### Added

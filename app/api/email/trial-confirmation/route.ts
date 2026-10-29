@@ -1,3 +1,5 @@
+
+import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { getRenderedEmailTemplate } from "@/lib/email/templateService";
@@ -5,6 +7,17 @@ import { sendEmail } from "@/lib/email/emailService";
 import { logEmailAudit } from "@/lib/email/emailAudit";
 
 const BUSINESS_EVENT = "TRIAL_CONFIRMED";
+
+const authClient = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  }
+);
 
 function formatDate(value: string | null | undefined): string {
   if (!value) return "";
@@ -30,6 +43,60 @@ function formatTime(value: string | null | undefined): string {
 
 export async function POST(request: Request) {
   try {
+    // 1. Authenticate the request.
+    const authorization = request.headers.get("authorization");
+
+    const token = authorization?.startsWith("Bearer ")
+      ? authorization.slice(7).trim()
+      : "";
+
+    if (!token) {
+      return NextResponse.json(
+        { error: "Authentication required." },
+        { status: 401 }
+      );
+    }
+
+    const {
+      data: { user },
+      error: authError,
+    } = await authClient.auth.getUser(token);
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: "Invalid or expired session." },
+        { status: 401 }
+      );
+    }
+
+    // 2. Verify the Admin role.
+    const { data: roleRecord, error: roleError } =
+      await supabaseServer
+        .from("user_roles")
+        .select("role")
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
+
+    if (roleError) {
+      console.error(
+        "Trial confirmation role lookup failed:",
+        roleError
+      );
+
+      return NextResponse.json(
+        { error: "Unable to verify administrator access." },
+        { status: 500 }
+      );
+    }
+
+    if (roleRecord?.role !== "admin") {
+      return NextResponse.json(
+        { error: "Administrator access required." },
+        { status: 403 }
+      );
+    }
+
+    // 3. Validate the request.
     const body = await request.json();
     const enrollmentId = String(body.enrollmentId ?? "").trim();
 
@@ -40,6 +107,7 @@ export async function POST(request: Request) {
       );
     }
 
+    // 4. Load the Trial enrolment.
     const { data: enrollment, error: enrollmentError } =
       await supabaseServer
         .from("student_enrolments")
@@ -126,16 +194,18 @@ export async function POST(request: Request) {
       ? classData.coach[0]
       : classData.coach;
 
-    const { data: parent, error: parentError } = await supabaseServer
-      .from("parents")
-      .select(
+    // 5. Load the parent email.
+    const { data: parent, error: parentError } =
+      await supabaseServer
+        .from("parents")
+        .select(
+          `
+          parent1_name,
+          email
         `
-        parent1_name,
-        email
-      `
-      )
-      .eq("student_id", enrollment.student_id)
-      .maybeSingle();
+        )
+        .eq("student_id", enrollment.student_id)
+        .maybeSingle();
 
     if (parentError) {
       throw new Error(
@@ -150,6 +220,7 @@ export async function POST(request: Request) {
       );
     }
 
+    // 6. Prepare the email template variables.
     const studentName =
       student.preferred_name ||
       `${student.first_name ?? ""} ${student.last_name ?? ""}`.trim();
@@ -167,7 +238,6 @@ export async function POST(request: Request) {
       `${coach?.first_name ?? ""} ${coach?.last_name ?? ""}`.trim();
 
     const className = String(classData.level ?? "");
-
     const trialDate = formatDate(enrollment.join_date);
 
     const trialTime = `${formatTime(classData.start_time)}${
@@ -188,6 +258,7 @@ export async function POST(request: Request) {
       "Parent Email": String(parent.email),
     };
 
+    // 7. Render the existing central email template.
     let email;
 
     try {
@@ -214,8 +285,9 @@ export async function POST(request: Request) {
       );
     }
 
+    // 8. Send the email and record the result.
     try {
-      await sendEmail({
+      const sendResult = await sendEmail({
         to: String(parent.email),
         subject: email.subject,
         html: email.body,
@@ -228,14 +300,17 @@ export async function POST(request: Request) {
         enrollmentId: enrollment.id,
         dataUsed: variables,
         status: "Success",
+        messageId: sendResult.messageId ?? null,
       });
 
       return NextResponse.json({
         success: true,
         message: "Trial confirmation email sent successfully.",
+        messageId: sendResult.messageId ?? null,
       });
     } catch (error) {
-      const errorMessage = String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
 
       await logEmailAudit({
         businessEvent: BUSINESS_EVENT,
@@ -247,12 +322,22 @@ export async function POST(request: Request) {
         errorMessage,
       });
 
+      console.error(
+        "TRIAL CONFIRMATION EMAIL ERROR:",
+        error
+      );
+
       return NextResponse.json(
-        { error: errorMessage },
+        {
+          success: false,
+          error: errorMessage,
+        },
         { status: 500 }
       );
     }
   } catch (error) {
+    console.error("TRIAL CONFIRMATION API ERROR:", error);
+
     return NextResponse.json(
       {
         error:

@@ -1159,10 +1159,9 @@ if (trialUpdateError) {
  * for the newly scheduled Trial lesson.
  * ==========================================================
  */
+
 async function handleRescheduleTrial() {
-  if (!details || actionLoading) {
-    return;
-  }
+  if (!details || actionLoading) return;
 
   if (!rescheduleDate) {
     setError("Please select a new Trial date.");
@@ -1173,9 +1172,7 @@ async function handleRescheduleTrial() {
   setError("");
 
   try {
-    const {
-      error: updateError,
-    } = await supabase
+    const { error: updateError } = await supabase
       .from("student_enrolments")
       .update({
         join_date: rescheduleDate,
@@ -1185,25 +1182,60 @@ async function handleRescheduleTrial() {
       .eq("is_trial", true)
       .eq("status", "Active");
 
-    if (updateError) {
-      throw updateError;
+    if (updateError) throw updateError;
+
+    // The reschedule is saved. Email failure must not undo it.
+    let emailWarning = "";
+
+    try {
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError) throw sessionError;
+
+      if (!session?.access_token) {
+        throw new Error("Admin session is unavailable.");
+      }
+
+      const response = await fetch("/api/email/trial-confirmation", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          enrollmentId: details.enrollmentId,
+        }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || !result.success) {
+        throw new Error(
+          result.error || "Trial confirmation email could not be sent."
+        );
+      }
+    } catch (emailError: any) {
+      console.error("TRIAL RESCHEDULE EMAIL ERROR:", emailError);
+      emailWarning =
+        " The new date was saved, but the confirmation email could not be confirmed as sent. Please check the Email Audit Log before retrying.";
     }
 
     setShowRescheduleModal(false);
     setRescheduleDate("");
-
+    if (emailWarning) {
+  sessionStorage.setItem(
+    "mychess_trial_reschedule_notice",
+    `Trial rescheduled successfully.${emailWarning}`
+  );
+}
     router.push("/admin/trials");
     router.refresh();
   } catch (err: any) {
-    console.error(
-      "TRIAL RESCHEDULE ERROR:",
-      err
-    );
-
-    setError(
-      err?.message ??
-        "Unable to reschedule Trial."
-    );
+    console.error("TRIAL RESCHEDULE ERROR:", err);
+    setError(err?.message ?? "Unable to reschedule Trial.");
   } finally {
     setActionLoading(false);
   }
