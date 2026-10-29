@@ -25,6 +25,10 @@
       "schedule": "0 2 * * *"
     },
     {
+      "path": "/api/cron/email/blue-card-renewal",
+      "schedule": "0 2 1 * *"
+    },
+    {
       "path": "/api/cron/email/reenrolment-opening-get",
       "schedule": "0 22 * * *"
     }

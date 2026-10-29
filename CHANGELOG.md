@@ -1,3 +1,13 @@
+### 2026-10-30 Blue Card Renewal Reminder
+
+- **Status:** Implementation in progress — pending build and UAT.
+- Added the central email template `BLUE_CARD_RENEWAL_REMINDER` for coach Blue Card renewal reminders.
+- Implemented a monthly reminder workflow targeting coaches whose Blue Cards expire within approximately six months.
+- Reuses the central email template renderer, email sending service, and email audit logging.
+- Reminder deduplication uses the successful email audit record, recipient email, and expiry date to identify a renewal cycle.
+- Administrator receives a BCC copy through the existing central email service.
+- **Pending:** Verify the route and cron configuration, run the production build, deploy, and validate email delivery, variable substitution, audit logging, and duplicate prevention.
+
 ### 2026-10-30 — Trial Reschedule Confirmation Email
 
 **Module:** Admin Portal → Trial Management
