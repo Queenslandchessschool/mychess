@@ -655,35 +655,15 @@ async function handleConfirmBooking() {
 
   setConfirmBooking(null);
 
+  let booking: { id: string };
+
+  // Step 1: Complete the existing booking operation first.
   try {
-    /*
-     * Shared Booking Engine
-     *
-     * Final validation is still owned by
-     * the shared business layer.
-     */
-    await createMakeupBooking({
+    booking = await createMakeupBooking({
       creditId: credit.id,
       lessonId: lesson.id,
     });
 
-    setForm({
-      credit_id: "",
-      lesson_id: "",
-    });
-
-    setLessons([]);
-
-    await Promise.all([
-      loadFamilyCredits(),
-      loadFamilyBookingRecords(),
-    ]);
-
-    setNotice({
-      title: "Booking Confirmed",
-      message:
-        "Make-up lesson booked successfully.",
-    });
   } catch (error: any) {
     console.error(
       "MAKEUP BOOKING SAVE ERROR:",
@@ -696,7 +676,71 @@ async function handleConfirmBooking() {
         error?.message ||
         "Unable to book the make-up lesson.",
     });
+
+    return;
   }
+
+  // Step 2: Send the email separately.
+  // Email failure must not undo a successful booking.
+  try {
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError || !session?.access_token) {
+      throw new Error(
+        "Unable to obtain the current login session."
+      );
+    }
+
+    const response = await fetch(
+      "/api/email/makeup-booking-confirmation",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          bookingId: booking.id,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const result = await response.json().catch(() => null);
+
+      console.warn(
+        "MAKE-UP BOOKING CONFIRMATION EMAIL WARNING:",
+        result?.error || `HTTP ${response.status}`
+      );
+    }
+  } catch (emailError) {
+    console.warn(
+      "MAKE-UP BOOKING CONFIRMATION EMAIL WARNING:",
+      emailError
+    );
+  }
+
+  // Step 3: Refresh the UI and preserve booking success.
+  setForm({
+    credit_id: "",
+    lesson_id: "",
+  });
+
+  setLessons([]);
+
+  await Promise.all([
+    loadFamilyCredits(),
+    loadFamilyBookingRecords(),
+  ]);
+
+  setNotice({
+    title: "Booking Confirmed",
+    message:
+      "Make-up lesson booked successfully.",
+  });
 }
   /*
    * ============================================================

@@ -1,3 +1,33 @@
+## [Unreleased] - 2026-10-29
+
+### Added
+- Added a new `MAKEUP_BOOKING_CONFIRMED` email template to the central email template library.
+- Added the `/api/email/makeup-booking-confirmation` API route to send make-up booking confirmation emails.
+- Integrated confirmation email triggering into the parent make-up booking workflow after a booking is successfully created.
+
+### Security
+- Validated parent authentication using the Supabase access token.
+- Verified that the requested booking belongs to a student associated with the authenticated parent's family.
+- Restricted confirmation emails to bookings with `Booked` status.
+- Added a check against successful email audit records to prevent ordinary repeat sends.
+
+### Reliability
+- Ensured email sending failures do not undo a successfully created make-up booking.
+- Added email audit logging for successful and failed confirmation email attempts.
+- Preserved the existing make-up booking engine and shared email service.
+
+### Testing
+- `npm.cmd run build` passed.
+- Unauthenticated API requests correctly returned HTTP 401.
+- Invalid access tokens correctly returned HTTP 401.
+- Successfully completed a local end-to-end make-up booking confirmation email test.
+
+### Notes
+- The new email template was created and activated in Supabase.
+- Concurrent duplicate-send protection is not yet guaranteed.
+- Production deployment and production email verification are pending.
+
+
 ## [Unreleased] - 2026-10-28
 
 ### Scheduler Clarification — Vercel Cron
