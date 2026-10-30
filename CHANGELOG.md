@@ -1,12 +1,23 @@
-### 2026-10-30 Blue Card Renewal Reminder
+### 2026-10-30 — Blue Card Renewal Reminder
 
-- **Status:** Implementation in progress — pending build and UAT.
+- **Status:** Completed — Production deployed and UAT passed.
 - Added the central email template `BLUE_CARD_RENEWAL_REMINDER` for coach Blue Card renewal reminders.
 - Implemented a monthly reminder workflow targeting coaches whose Blue Cards expire within approximately six months.
 - Reuses the central email template renderer, email sending service, and email audit logging.
-- Reminder deduplication uses the successful email audit record, recipient email, and expiry date to identify a renewal cycle.
+- Reminder deduplication uses successful email audit records, recipient email, and expiry date to identify a renewal cycle.
 - Administrator receives a BCC copy through the existing central email service.
-- **Pending:** Verify the route and cron configuration, run the production build, deploy, and validate email delivery, variable substitution, audit logging, and duplicate prevention.
+- Production build completed successfully.
+- Successfully deployed to Vercel Production.
+- **Production UAT — 30 October 2026:**
+  - CRON_SECRET authentication: Passed.
+  - Six-month expiry filtering: Passed.
+  - Email template rendering and variable substitution: Passed.
+  - Actual email delivery to test coach CM Ryan X: Passed.
+  - Administrator BCC receipt: Passed.
+  - Duplicate-send prevention: Passed. Second execution returned `Skipped` because a reminder had already been sent for the same expiry date.
+  - First execution: 1 processed, 1 sent, 0 skipped, 0 failed.
+  - Second execution: 1 processed, 0 sent, 1 skipped, 0 failed.
+- Monthly Vercel Cron schedule: 1st day of each month at 02:00 UTC (12:00 noon Brisbane time).
 
 ### 2026-10-30 — Trial Reschedule Confirmation Email
 
