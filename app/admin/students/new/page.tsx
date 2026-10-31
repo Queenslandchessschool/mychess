@@ -102,15 +102,27 @@ export default function NewStudentPage() {
       : "/api/email/enrolment-confirmation";
 
     try {
-      const response = await fetch(emailEndpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          enrollmentId: result.enrollment.id,
-        }),
-      });
+  const {
+    data: { session },
+    error: sessionError,
+  } = await supabase.auth.getSession();
+
+  if (sessionError) throw sessionError;
+
+  if (!session?.access_token) {
+    throw new Error("Admin session is unavailable. Please sign in again.");
+  }
+
+  const response = await fetch(emailEndpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({
+      enrollmentId: result.enrollment.id,
+    }),
+  });
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
