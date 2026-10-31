@@ -1,3 +1,12 @@
+### 31 October 2026 — Trial Confirmation Email Authentication Fix & Production Recovery
+1. Fixed missing Supabase Bearer Token in the New Trial email request.
+2. Preserved the existing Trial Reschedule email workflow.
+3. Successfully deployed commit 22c41e7.
+4. Manually resent Trial Confirmation for Hesanya Kannangoda Arachchi (STU0205).
+5. Production API returned HTTP 200 and Resend returned a message ID.
+6. Parent confirmed actual email receipt.
+7. No changes to Trial records, Attendance, payment status, Regular Enrolment API or central email service.
+
 ### 2026-10-30 — Blue Card Renewal Reminder
 
 - **Status:** Completed — Production deployed and UAT passed.
